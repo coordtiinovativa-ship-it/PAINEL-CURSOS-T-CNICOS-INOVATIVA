@@ -365,3 +365,9 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   A tela antiga de lançamento por disciplina (Turmas) redireciona para cá.
 - Pendente: importar faltas pela planilha (hoje a importação aceita frequência em %).
 
+
+### Excluir turma (16/11/2026)
+- Tela da turma → "Excluir turma (cadastrada por engano)", permissão `turmas.excluir` (admin master e administrador).
+- Confirmação digitando o código da turma. Apaga, em lote atômico, matrículas, resultados, períodos dos módulos,
+  professores/horários das disciplinas e importações da turma; cadastros de alunos ficam. Auditoria guarda tudo no "antes".
+- **Bloqueada** se houver qualquer certificado ou documento emitido para alunos da turma (esses nunca são apagados).

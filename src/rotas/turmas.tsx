@@ -180,6 +180,13 @@ details.dados-turma{margin-top:1.6rem}
 details.dados-turma > summary{cursor:pointer;font-weight:650;color:var(--titulo);font-size:1.05rem;list-style:none;display:flex;align-items:center;gap:.4rem}
 details.dados-turma > summary::-webkit-details-marker{display:none}
 details.dados-turma[open] > summary{margin-bottom:.7rem}
+details.excluir-turma{margin-top:1.2rem;border:1px solid var(--erro);border-radius:14px;padding:.8rem 1rem;background:var(--superficie)}
+details.excluir-turma > summary{cursor:pointer;font-weight:650;color:var(--erro);list-style:none;display:flex;align-items:center;gap:.4rem}
+details.excluir-turma > summary::-webkit-details-marker{display:none}
+details.excluir-turma p{margin:.6rem 0;font-size:.9rem}
+details.excluir-turma form{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+details.excluir-turma input{max-width:240px}
+details.excluir-turma button{background:var(--erro);border-color:var(--erro);color:#fff}
 `;
 
 const iniciais = (nome: string) => nome.split(/\s+/).filter((p) => p.length > 2 || p === nome).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
@@ -208,6 +215,7 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
   const concluidos = modulos.filter((m) => m.situacao === 'concluido').length;
   const ativos = matriculas.filter((m) => m.situacao === 'cursando').length;
   const turnos: Record<string, string> = Object.fromEntries(TURNOS);
+  const { emitidos, qtdResultados } = await contarVinculos(db, t.id);
 
   return c.html(
     <Pagina titulo={`Turma ${t.codigo}`} usuario={u} caminho={c.req.path} ok={c.req.query('ok')} erro={c.req.query('erro')} voltar="/admin/turmas">
@@ -326,6 +334,24 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
         <summary><Icone nome="alterar" />Dados da turma (código, polo, datas, turno, ano letivo)</summary>
         <div class="cartao">{await FormTurma({ c, t })}</div>
       </details>
+
+      {pode(u.perfil, 'turmas.excluir') && (
+        <details class="excluir-turma">
+          <summary><Icone nome="excluir" />Excluir turma (cadastrada por engano)</summary>
+          {emitidos
+            ? <p>Esta turma não pode ser excluída: já tem <b>{emitidos}</b> certificado(s)/documento(s) emitido(s), que nunca são apagados.</p>
+            : <>
+                <p>Apaga a turma e, junto com ela, <b>{matriculas.length}</b> matrícula(s), <b>{qtdResultados}</b> resultado(s) lançado(s), o período dos módulos,
+                  professores/horários das disciplinas e o histórico de importações da turma. Os cadastros dos alunos continuam.
+                  Tudo fica registrado na auditoria. <b>Não há como desfazer.</b></p>
+                <form method="post" action={`/admin/turmas/${t.id}/excluir`} onsubmit="return confirm('Excluir definitivamente esta turma?')">
+                  <label>Para confirmar, digite o código da turma ({t.codigo})
+                    <input name="confirmacao" required autocomplete="off" placeholder={t.codigo} /></label>
+                  <button><Icone nome="excluir" />Excluir turma</button>
+                </form>
+              </>}
+        </details>
+      )}
     </Pagina>,
   );
 });
@@ -415,6 +441,48 @@ rotasTurmas.post('/:id{[0-9]+}/matriculas/:mid{[0-9]+}/remover', async (c) => {
   await db.prepare('DELETE FROM matriculas WHERE id = ?').bind(mid).run();
   await auditar(c, 'excluir', 'matricula', mid, m, null);
   return c.redirect(`/admin/turmas/${tid}?ok=` + encodeURIComponent('Matrícula removida.'));
+});
+
+/** Certificados/documentos emitidos (impedem excluir) e resultados lançados na turma. */
+async function contarVinculos(db: D1Database, turmaId: number) {
+  const r = await db.prepare(
+    `SELECT (SELECT count(*) FROM certificados WHERE matricula_id IN (SELECT id FROM matriculas WHERE turma_id = ?1))
+          + (SELECT count(*) FROM documentos WHERE matricula_id IN (SELECT id FROM matriculas WHERE turma_id = ?1)) AS emitidos,
+            (SELECT count(*) FROM resultados WHERE matricula_id IN (SELECT id FROM matriculas WHERE turma_id = ?1)) AS qtd_resultados`,
+  ).bind(turmaId).first<{ emitidos: number; qtd_resultados: number }>();
+  return { emitidos: r?.emitidos ?? 0, qtdResultados: r?.qtd_resultados ?? 0 };
+}
+
+rotasTurmas.post('/:id{[0-9]+}/excluir', exigir('turmas.excluir'), async (c) => {
+  const t = await carregarTurma(c);
+  if (!t) return c.notFound();
+  const db = c.env.DB as D1Database;
+  const voltar = (erro: string) => c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(erro));
+  const confirmacao = (texto(await lerCorpo(c), 'confirmacao') ?? '').trim();
+  if (confirmacao.toUpperCase() !== String(t.codigo).trim().toUpperCase()) {
+    return voltar(`Turma não excluída: digite exatamente o código da turma (${t.codigo}) para confirmar.`);
+  }
+  const { emitidos } = await contarVinculos(db, t.id);
+  if (emitidos) return voltar(`Turma não excluída: já tem ${emitidos} certificado(s)/documento(s) emitido(s), que nunca são apagados.`);
+
+  // Guarda na auditoria tudo o que será apagado
+  const matriculas = (await db.prepare('SELECT * FROM matriculas WHERE turma_id = ?').bind(t.id).all()).results;
+  const resultados = (await db.prepare('SELECT r.* FROM resultados r JOIN matriculas m ON m.id = r.matricula_id WHERE m.turma_id = ?').bind(t.id).all()).results;
+  const modulos = (await db.prepare('SELECT * FROM turma_modulos WHERE turma_id = ?').bind(t.id).all()).results;
+  const disciplinas = (await db.prepare('SELECT * FROM turma_disciplinas WHERE turma_id = ?').bind(t.id).all()).results;
+  const importacoes = (await db.prepare('SELECT id, tipo, nome_arquivo, arquivo_r2_key, criado_em FROM importacoes WHERE turma_id = ?').bind(t.id).all()).results;
+
+  const sub = 'SELECT id FROM matriculas WHERE turma_id = ?';
+  await db.batch([
+    db.prepare(`DELETE FROM resultados WHERE matricula_id IN (${sub})`).bind(t.id),
+    db.prepare('DELETE FROM matriculas WHERE turma_id = ?').bind(t.id),
+    db.prepare('DELETE FROM turma_modulos WHERE turma_id = ?').bind(t.id),
+    db.prepare('DELETE FROM turma_disciplinas WHERE turma_id = ?').bind(t.id),
+    db.prepare('DELETE FROM importacoes WHERE turma_id = ?').bind(t.id),
+    db.prepare('DELETE FROM turmas WHERE id = ?').bind(t.id),
+  ]);
+  await auditar(c, 'excluir', 'turma', t.id, { turma: t, matriculas, resultados, modulos, disciplinas, importacoes }, null);
+  return c.redirect('/admin/turmas?ok=' + encodeURIComponent(`Turma ${t.codigo} excluída (${matriculas.length} matrícula(s), ${resultados.length} resultado(s)).`));
 });
 
 // ---------------------------------------------------------------------
