@@ -37,7 +37,7 @@ Para recriar o banco local do zero: apagar `.wrangler/state` e repetir os dois c
 5. O domínio `certificadostecnicos.institutoinovativa.org` é criado automaticamente pelo deploy
    (`routes` com `custom_domain = true` no `wrangler.toml`; a zona institutoinovativa.org já está na Cloudflare).
 
-### Regra de WAF (NECESSÁRIA — criar no painel)
+### Regra de WAF (NECESSÁRIA — criada e testada em 16/11/2026)
 
 Teste em produção (16/11/2026): o Rate Limiting nativo do Workers **não bloqueou** nesta conta (120 consultas do
 mesmo IP em 74 s passaram). A proteção efetiva por IP é esta regra de WAF na zona. O token do wrangler não tem

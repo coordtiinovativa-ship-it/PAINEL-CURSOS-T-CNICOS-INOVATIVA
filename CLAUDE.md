@@ -272,7 +272,8 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - **Limite por IP** (Rate Limiting nativo do Workers, `[[ratelimits]]` no `wrangler.toml`, middleware
   `src/lib/limite.ts`): `/v` 20 consultas/min; `POST /login` 10 tentativas/min. Excedeu → página 429.
   Valores confirmados pela direção em 16/11/2026. **Em produção o limitador do Workers não bloqueou** (teste de
-  16/11/2026); a proteção efetiva é a regra de WAF da zona (ver README). Consultas a códigos inexistentes não gravam
+  16/11/2026); a proteção efetiva é a regra de WAF da zona (ver README), **criada e testada em 16/11/2026**: rajadas em `/v` e
+  `POST /login` recebem 429 da Cloudflare; o acesso normal volta em segundos. Consultas a códigos inexistentes não gravam
   na auditoria (só log), para uma varredura não esgotar a cota diária de gravações do D1.
 - Menu lateral no estilo SysGEP (seções recolhíveis: Secretaria, Cadastros, Sistema) em `src/views/layout.tsx`.
 - "Emissão de Certificados" (`/admin/certificados/pendentes`): aprovados aguardando certificado, por turma.
