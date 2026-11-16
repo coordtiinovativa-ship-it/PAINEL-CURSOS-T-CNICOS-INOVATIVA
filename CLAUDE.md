@@ -303,6 +303,13 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   aprovado/reprovado (PPC 11.1.1). Aluno precisa estar matriculado na turma.
 - Aguardando a planilha real da secretaria para ajustar apelidos de cabeçalho, se necessário.
 
+### Produção (fase 7 — 16/11/2026)
+- No ar em https://certificadostecnicos.institutoinovativa.org, conta Cloudflare **Admin@institutoinovativa.org's
+  Account** (`account_id` 43c07b1a… no `wrangler.toml`), onde está a zona institutoinovativa.org.
+- Primeiro admin master: coord.tiinovativa@institutoinovativa.org (senha temporária, troca obrigatória).
+- **Recursos antigos mantidos por decisão do usuário**: na conta Coord.tiinovativa@institutoinovativa.org's Account
+  (ebc3ab0a…) ficaram o Worker, o D1 e o R2 `certificados-iect`, vazios e sem endereço público. NÃO são produção.
+
 ### Emissão (fase 3)
 - Código SISTEC e data do SISTEC são **obrigatórios no momento da emissão** (bloqueado também por trigger no banco).
 - Registro (nº/folha/livro) sugerido automaticamente a partir de "registros por folha" e "folhas por livro"
