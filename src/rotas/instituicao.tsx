@@ -66,7 +66,7 @@ rotasInstituicao.get('/', async (c) => {
 
       <h2>Atos regulatórios</h2>
       <table>
-        <tr><th>Referente a</th><th>Finalidade</th><th>Ato</th><th>Data</th><th>Órgão</th><th>Publicação DOE</th><th></th></tr>
+        <tr><th>Referente a</th><th>Finalidade</th><th>Ato</th><th>Data</th><th>Órgão</th><th>Publicação</th><th></th></tr>
         {atos.map((a) => (
           <tr>
             <td>{a.curso ?? 'Instituição'}</td>
@@ -74,7 +74,7 @@ rotasInstituicao.get('/', async (c) => {
             <td>{a.tipo} nº {a.numero}{a.processo ? <div class="muted">{a.processo}</div> : null}</td>
             <td>{dataBR(a.data)}</td>
             <td>{a.orgao_emissor}</td>
-            <td>{a.publicacao_doe_numero ? `nº ${a.publicacao_doe_numero}${a.publicacao_doe_data ? `, ${dataBR(a.publicacao_doe_data)}` : ''}` : <span class="tag aviso">pendente</span>}</td>
+            <td><span class="tag ok">publicado</span>{a.publicacao_doe_numero && <div class="muted">DOE/MS nº {a.publicacao_doe_numero}{a.publicacao_doe_data ? `, ${dataBR(a.publicacao_doe_data)}` : ''}</div>}</td>
             <td><a href={`/admin/instituicao/atos/${a.id}`}>editar</a></td>
           </tr>
         ))}
@@ -127,8 +127,8 @@ const FormAto = async ({ c, ato, erro }: { c: any; ato?: Record<string, any>; er
           <Campo nome="orgao_emissor" rotulo="Órgão emissor" valor={ato?.orgao_emissor} obrigatorio classe="largo" />
           <Campo nome="descricao" rotulo="Descrição" valor={ato?.descricao} classe="largo" />
           <Campo nome="processo" rotulo="Processo" valor={ato?.processo} />
-          <Campo nome="publicacao_doe_numero" rotulo="DOE/MS nº" valor={ato?.publicacao_doe_numero} />
-          <Campo nome="publicacao_doe_data" rotulo="Data da publicação" tipo="date" valor={ato?.publicacao_doe_data} />
+          <Campo nome="publicacao_doe_numero" rotulo="DOE/MS nº (opcional)" valor={ato?.publicacao_doe_numero} dica="Todo ato cadastrado é considerado publicado; informe o DOE só se quiser registrar." />
+          <Campo nome="publicacao_doe_data" rotulo="Data da publicação (opcional)" tipo="date" valor={ato?.publicacao_doe_data} />
           <Campo nome="veiculo_publicacao" rotulo="Veículo" valor={ato?.veiculo_publicacao ?? 'DOE/MS'} />
           <div class="largo acoes"><button>Salvar</button><a class="botao sec" href={ato?.curso_id || cursoQuery ? `/admin/cursos/${ato?.curso_id ?? cursoQuery}#atos` : '/admin/instituicao'}>Cancelar</a></div>
         </form>

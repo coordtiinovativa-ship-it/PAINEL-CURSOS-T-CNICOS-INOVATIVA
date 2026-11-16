@@ -166,6 +166,17 @@ describe('vários cursos', () => {
     expect(await (await c.req('/v/INV-2026-00001')).text()).toContain('Qualificação Profissional — <b>Auxiliar de Armazenagem</b>');
   }, 30_000);
 
+  it('atos cadastrados são considerados publicados: sem pendência de DOE em nenhuma tela', async () => {
+    const { c } = await admin();
+    const curso = await (await c.req('/admin/cursos/1')).text();
+    expect(curso).toContain('<span class="tag ok">publicado</span>');
+    expect(curso).not.toContain('>pendente<');
+    const inst = await (await c.req('/admin/instituicao')).text();
+    expect(inst).not.toContain('>pendente<');
+    expect(await (await c.req('/admin')).text()).not.toContain('DOE');
+    expect(await (await c.req('/admin/previa/1/1')).text()).not.toContain('DOE');
+  });
+
   it('secretaria não acessa o cadastro de cursos', async () => {
     const amb = await criarAmbiente();
     await amb.criarUsuario('s@iect.test', 'secretaria');

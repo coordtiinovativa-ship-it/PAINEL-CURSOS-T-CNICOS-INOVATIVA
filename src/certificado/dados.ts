@@ -291,7 +291,6 @@ async function comporDados(
       if (!av.aprovado) faltantes.push(`Os módulos são feitos em ordem: aluno ainda não aprovado no Módulo ${comps[0].ordem} — ${comps[0].nome}`);
     }
   }
-  if (!atoPpc?.publicacao_doe_numero) avisos.push('Publicação do ato do curso no DOE/MS ainda não informada.');
 
   // Texto aprovado da frente
   const modeloRow = await db

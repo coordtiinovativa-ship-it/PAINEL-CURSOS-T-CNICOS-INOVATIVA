@@ -324,6 +324,11 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - Documentos e validação usam o **período do módulo** (snapshot `modulo.periodo`), não o da turma inteira.
 - Pendente para depois: rematrícula em módulo com aproveitamento de disciplinas aprovadas (PPC).
 
+### Atos regulatórios publicados (decisão da direção, 16/11/2026)
+- **Todo ato/deliberação cadastrado já foi devidamente publicado.** Não existe status "pendente" de publicação:
+  telas mostram "publicado"; nº/data do DOE/MS são opcionais (só para registro). Sem avisos de DOE no Início,
+  na prévia ou na emissão. (Substitui a linha "Publicação no DOE/MS: pendente" dos dados iniciais.)
+
 ### Navegação, visual e relatórios (16/11/2026)
 - Botão **Voltar** padrão no layout (`Pagina` prop `voltar`; sem ela, sobe para a tela existente acima — `caminhoPai`).
 - Tela da turma redesenhada: cabeçalho com dados, resumo, módulos como etapas, alunos com estado vazio.

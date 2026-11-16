@@ -11,7 +11,7 @@ rotasInicio.get('/', async (c) => {
   const db = c.env.DB;
   const u = c.get('usuario');
   const condFaltante = OBRIGATORIOS_ALUNO.map(([k]) => `coalesce(trim(${k}), '') = ''`).join(' OR ');
-  const [contagens, alunosIncompletos, signatarios, inst, doe] = await Promise.all([
+  const [contagens, alunosIncompletos, signatarios, inst] = await Promise.all([
     db.prepare(
       `SELECT (SELECT count(*) FROM alunos) AS alunos, (SELECT count(*) FROM turmas) AS turmas,
               (SELECT count(*) FROM matriculas WHERE situacao = 'cursando') AS cursando,
@@ -20,7 +20,6 @@ rotasInicio.get('/', async (c) => {
     db.prepare(`SELECT count(*) AS n FROM alunos WHERE ${condFaltante}`).first<{ n: number }>(),
     db.prepare(`SELECT nome, cargo, assinatura_r2_key FROM signatarios WHERE ativo = 1 AND funcao IN ('diretor_pedagogico','secretario')`).all<Record<string, any>>(),
     db.prepare('SELECT validade_credenciamento FROM instituicoes WHERE id = 1').first<{ validade_credenciamento: string | null }>(),
-    db.prepare(`SELECT count(*) AS n FROM atos_regulatorios WHERE finalidade = 'autorizacao_curso' AND publicacao_doe_numero IS NULL`).first<{ n: number }>(),
   ]);
 
   const alertas: { tipo: 'erro' | 'aviso'; texto: string; link?: string }[] = [];
@@ -30,7 +29,6 @@ rotasInicio.get('/', async (c) => {
     if (s.nome.includes('A DEFINIR')) alertas.push({ tipo: 'erro', texto: `Signatário "${s.cargo}" sem nome cadastrado.`, link: podeSig ? '/admin/signatarios' : undefined });
     else if (!s.assinatura_r2_key) alertas.push({ tipo: 'aviso', texto: `Assinatura digitalizada de ${s.nome} não enviada.`, link: podeSig ? '/admin/modelo' : undefined });
   }
-  if (doe?.n) alertas.push({ tipo: 'aviso', texto: 'Publicação no DOE/MS do ato de autorização do curso ainda não informada.', link: pode(u.perfil, 'instituicao.editar') ? '/admin/instituicao' : undefined });
   if (alunosIncompletos?.n) alertas.push({ tipo: 'aviso', texto: `${alunosIncompletos.n} aluno(s) com dados obrigatórios do certificado faltando.`, link: '/admin/alunos' });
   const validade = inst?.validade_credenciamento;
   if (validade) {

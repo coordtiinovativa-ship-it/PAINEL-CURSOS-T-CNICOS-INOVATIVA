@@ -86,7 +86,7 @@ rotasCursosGestao.get('/', async (c) => {
             <td>{cu.eixo ?? '—'}</td>
             <td class="n">{cu.carga_horaria_total} h</td>
             <td>{cu.versao ? <>v{cu.versao} · {cu.ch_matriz ?? 0} h {cu.ch_matriz === cu.carga_horaria_total ? <span class="tag ok">confere</span> : <span class="tag aviso">≠ CH do curso</span>}</> : <span class="tag aviso">sem matriz</span>}</td>
-            <td>{cu.autorizacao ?? <span class="tag erro">pendente</span>}</td>
+            <td>{cu.autorizacao ?? <span class="tag erro">não cadastrado</span>}</td>
             <td class="n">{cu.turmas}</td>
             <td><a href={ir(cu.id)}>abrir</a></td>
           </tr>
@@ -217,7 +217,7 @@ rotasCursosGestao.get('/:id{[0-9]+}', async (c) => {
             <td>{FINALIDADES_CURSO[a.finalidade] ?? a.finalidade}{!a.ativo && <> <span class="tag">inativo</span></>}</td>
             <td>{descreverAto(a)}</td>
             <td>{a.processo ?? '—'}</td>
-            <td>{a.publicacao_doe_numero ? `DOE/MS nº ${a.publicacao_doe_numero}${a.publicacao_doe_data ? `, ${dataBR(a.publicacao_doe_data)}` : ''}` : <span class="tag aviso">pendente</span>}</td>
+            <td><span class="tag ok">publicado</span>{a.publicacao_doe_numero && <div class="muted">DOE/MS nº {a.publicacao_doe_numero}{a.publicacao_doe_data ? `, ${dataBR(a.publicacao_doe_data)}` : ''}</div>}</td>
             <td><a href={`/admin/instituicao/atos/${a.id}`}>editar</a></td>
           </tr>
         ))}
