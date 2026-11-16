@@ -544,12 +544,16 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
         Aprovação: freq. ≥ {numBR(criterios.frequenciaMinima)}% e média ≥ {numBR(criterios.notaMinima)}
         (ou ≥ {numBR(criterios.notaMinimaExame)} após exame — {ROTULO_METODO[criterios.metodoExame].toLowerCase()})
       </p>
+      <style dangerouslySetInnerHTML={{ __html: `table.resultados-modulo th{font-size:.78rem;line-height:1.25;vertical-align:bottom}
+table.resultados-modulo th a{text-decoration:none} table.resultados-modulo th a:hover{text-decoration:underline}
+table.resultados-modulo th,table.resultados-modulo td{padding:.5rem .45rem} table.resultados-modulo td{vertical-align:middle} table.resultados-modulo td.aluno{min-width:160px;font-weight:550}
+table.resultados-modulo .docs{display:flex;flex-direction:column;gap:.15rem;font-size:.86rem;white-space:nowrap}` }} />
       <div style="overflow-x:auto">
-        <table>
+        <table class="resultados-modulo">
           <tr>
             <th>Aluno</th>
             {componentes.map((cc) => (
-              <th class="c" style="min-width:90px">
+              <th class="c" style="min-width:78px">
                 <a href={`/admin/diario/${t.id}/${modulo.id}/${cc.id}`} title="Lançar notas e faltas">{cc.nome}</a>
                 <div class="muted">{cc.carga_horaria_total} h</div>
               </th>
@@ -569,7 +573,7 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
             const status = av.some((a) => a.resultado === 'RP') ? 'RP' : av.some((a) => a.resultado === 'PENDENTE') ? 'PENDENTE' : 'AP';
             return (
               <tr>
-                <td>{m.nome}{m.situacao !== 'cursando' && <div class="muted">{m.situacao}</div>}</td>
+                <td class="aluno">{m.nome}{m.situacao !== 'cursando' && <div class="muted">{m.situacao}</div>}</td>
                 {av.map((a) => (
                   <td class="c" title={a.motivos.join('\n')}>
                     <span class={`tag ${a.resultado}`}>{a.resultado === 'PENDENTE' ? '—' : a.resultado}</span>
@@ -578,23 +582,23 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
                 ))}
                 <td class="c"><span class={`tag ${status}`}>{status === 'PENDENTE' ? 'pendente' : status === 'AP' ? 'Aprovado' : 'Reprovado'}</span></td>
                 {podePrevia && (
-                  <td style="white-space:nowrap">
+                  <td><div class="docs">
                     {emitidos.get(m.id) ? (
                       <a href={`/admin/certificados/${emitidos.get(m.id)!.id}`}><span class="tag ok">{emitidos.get(m.id)!.codigo_validacao}</span></a>
                     ) : (
                       <>
-                        <a href={`/admin/previa/${m.id}/${modulo.id}`} target="_blank">prévia</a>
-                        {podeEmitir && status === 'AP' && mt.situacao === 'concluido' && <> · <a href={`/admin/certificados/emitir/${m.id}/${modulo.id}`}><b>emitir</b></a></>}
+                        <a href={`/admin/previa/${m.id}/${modulo.id}`} target="_blank">ver prévia</a>
+                        {podeEmitir && status === 'AP' && mt.situacao === 'concluido' && <a href={`/admin/certificados/emitir/${m.id}/${modulo.id}`}><b>emitir</b></a>}
                       </>
                     )}
-                  </td>
+                  </div></td>
                 )}
                 {podePrevia && (
-                  <td style="white-space:nowrap">
+                  <td><div class="docs">
                     {mt.situacao !== 'concluido' ? <span class="muted">após concluir o módulo</span> : <>
-                      {status === 'AP' && <><a href={`/admin/documentos/declaracao_conclusao_modulo/${m.id}/${modulo.id}`}>declaração</a> · </>}
+                      {status === 'AP' && <a href={`/admin/documentos/declaracao_conclusao_modulo/${m.id}/${modulo.id}`}>declaração</a>}
                       <a href={`/admin/documentos/historico_escolar/${m.id}/${modulo.id}`}>histórico</a></>}
-                  </td>
+                  </div></td>
                 )}
               </tr>
             );

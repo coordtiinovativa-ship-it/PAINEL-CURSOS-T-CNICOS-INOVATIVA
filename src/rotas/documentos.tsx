@@ -83,7 +83,7 @@ async function tela(c: any, tipo: TipoDocumento, mat: number, mod: number, erros
         {bloqueios.length > 0
           ? <div class="msg erro" style="margin-bottom:0"><b>A emissão está bloqueada:</b><ul>{bloqueios.map((m) => <li>{m}</li>)}</ul></div>
           : <div class="msg ok" style="margin-bottom:0">Dados completos — pronto para emitir.</div>}
-        {p.avisos.length > 0 && <div class="msg aviso" style="margin:.8rem 0 0"><ul style="margin:0">{p.avisos.map((m) => <li>{m}</li>)}</ul></div>}
+        {p.avisos.length > 0 && <div class="msg aviso" style="margin:.8rem 0 0"><ul style="margin:0 0 0 1.1rem">{p.avisos.map((m) => <li>{m}</li>)}</ul></div>}
         <form method="post" class="acoes" style="margin-top:1rem" onsubmit="return confirm('Emitir o documento? Ele recebe código de validação e não pode ser alterado.')">
           <Campo nome="data_emissao" rotulo="Data de emissão" tipo="date" valor={dataEmissao} obrigatorio />
           <button disabled={p.faltantes.length > 0} style="align-self:flex-end">Emitir documento</button>

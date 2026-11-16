@@ -15,17 +15,17 @@ export const rotasRelatorios = new Hono<Env>();
 rotasRelatorios.use('*', exigir('relatorios.emitir'));
 
 const CSS = `
-.relatorios{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:1rem}
+.relatorios{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr));gap:1rem}
 .relatorio{background:var(--superficie);border:1px solid var(--borda);border-radius:14px;box-shadow:var(--sombra);overflow:hidden}
 .relatorio .cab{display:flex;gap:.8rem;align-items:flex-start;padding:1rem 1.2rem;border-bottom:1px solid var(--borda);background:var(--superficie-2)}
 .relatorio .cab .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;color:#fff;background:linear-gradient(135deg,var(--marinho),var(--ciano))}
 .relatorio .cab .ic svg{width:22px;height:22px}
 .relatorio .cab h2{margin:0;font-size:1.05rem}
 .relatorio .cab p{margin:.2rem 0 0;font-size:.85rem;color:var(--texto-2)}
-.relatorio form{padding:1rem 1.2rem 1.2rem;display:grid;grid-template-columns:1fr 1fr;gap:.7rem 1rem}
+.relatorio form{padding:1rem 1.2rem 1.2rem;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.7rem 1rem}
 .relatorio form .largo{grid-column:1/-1}
 .relatorio .botoes{grid-column:1/-1;display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.3rem}
-@media (max-width:600px){.relatorios{grid-template-columns:1fr} .relatorio form{grid-template-columns:1fr}}
+@media (max-width:600px){.relatorios{grid-template-columns:1fr} .relatorio form{grid-template-columns:minmax(0,1fr)}}
 `;
 
 rotasRelatorios.get('/', async (c) => {

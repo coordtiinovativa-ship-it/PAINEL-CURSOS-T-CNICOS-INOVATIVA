@@ -78,14 +78,15 @@ rotasImportacao.get('/', async (c) => {
             <h2 style="margin-top:0">2. Notas e frequência</h2>
             <p class="muted">Escolha a turma e o módulo, baixe a planilha <b>já preenchida</b> com os alunos e disciplinas, complete no Excel e envie.
               Células vazias não alteram nada. A conferência mostra quem ficará aprovado ou reprovado.</p>
+            <label>Turma e módulo
+              <select name="alvo" form="form-notas" required onchange="document.getElementById('alvo-modelo').value=this.value">
+                {pares.map((p) => <option value={`${p.turma_id}:${p.modulo_id}`}>{p.rotulo}</option>)}</select>
+            </label>
             <form method="get" action="/admin/importacao/modelo-notas.csv" class="acoes">
-              <select name="alvo" id="alvo-modelo" required>{pares.map((p) => <option value={`${p.turma_id}:${p.modulo_id}`}>{p.rotulo}</option>)}</select>
-              <button class="sec"><Icone nome="baixar" />Baixar planilha da turma</button>
+              <input type="hidden" name="alvo" id="alvo-modelo" value={pares[0] ? `${pares[0].turma_id}:${pares[0].modulo_id}` : ''} />
+              <button class="sec" disabled={!pares.length}><Icone nome="baixar" />Baixar planilha da turma (já preenchida)</button>
             </form>
-            <form method="post" action="/admin/importacao/notas" enctype="multipart/form-data" class="grade">
-              <label class="largo">Turma e módulo
-                <select name="alvo" required>{pares.map((p) => <option value={`${p.turma_id}:${p.modulo_id}`}>{p.rotulo}</option>)}</select>
-              </label>
+            <form method="post" action="/admin/importacao/notas" enctype="multipart/form-data" class="grade" id="form-notas">
               <label class="largo">Planilha (.xlsx ou .csv)<input type="file" name="arquivo" accept=".xlsx,.csv,text/csv" required /></label>
               <div class="largo"><button>Enviar para conferência</button></div>
             </form>
@@ -94,7 +95,7 @@ rotasImportacao.get('/', async (c) => {
       </div>
 
       <h2>Importações recentes</h2>
-      <table>
+      {historico.results.length > 0 && <table>
         <tr><th>Quando</th><th>Tipo</th><th>Arquivo</th><th>Turma</th><th>Situação</th><th>Por</th><th></th></tr>
         {historico.results.map((i) => (
           <tr>
@@ -107,8 +108,8 @@ rotasImportacao.get('/', async (c) => {
             <td><a href={`/admin/importacao/${i.id}`}>abrir</a></td>
           </tr>
         ))}
-      </table>
-      {!historico.results.length && <p class="muted">Nenhuma importação ainda.</p>}
+      </table>}
+      {!historico.results.length && <div class="cartao muted" style="text-align:center">Nenhuma importação ainda.</div>}
     </Pagina>,
   );
 });

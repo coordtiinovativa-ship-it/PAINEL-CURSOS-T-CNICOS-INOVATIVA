@@ -94,7 +94,16 @@ main{max-width:1200px;margin:0 auto;padding:26px 28px 60px}
 h1{color:var(--titulo);margin:.1rem 0 1.1rem;font-size:1.6rem;font-weight:650;letter-spacing:-.01em}
 h2{color:var(--titulo);font-size:1.12rem;margin:1.7rem 0 .7rem;font-weight:620}
 .cartao{background:var(--superficie);border:1px solid var(--borda);border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:1rem;box-shadow:var(--sombra)}
+/* rede de segurança: ícone sem regra específica fica do tamanho do texto (nunca gigante) */
+:where(svg.ic){width:1.15em;height:1.15em;flex:none;vertical-align:-.2em}
+main{min-width:0}
+input,select,textarea{max-width:100%;min-width:0}
+label.check{flex-wrap:wrap}
+img{max-width:100%}
 table{border-collapse:separate;border-spacing:0;width:100%;background:var(--superficie);border:1px solid var(--borda);border-radius:10px;overflow:hidden;box-shadow:var(--sombra)}
+/* tabela só com cabeçalho (lista vazia): some, e a mensagem logo abaixo vira um aviso de "vazio" */
+table:has(> tbody > tr:only-child > th){display:none}
+table:has(> tbody > tr:only-child > th) + p.muted{background:var(--superficie);border:1px dashed var(--borda-forte);border-radius:12px;padding:1.4rem 1rem;text-align:center;font-size:.9rem}
 th,td{border-bottom:1px solid var(--borda);padding:.5rem .7rem;text-align:left;vertical-align:top}
 tr:last-child>td{border-bottom:0}
 th{background:var(--th);font-weight:600;font-size:.85rem;color:var(--texto-2)}
@@ -104,7 +113,7 @@ form.grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr)
 form.grade .largo,.largo{grid-column:1/-1}
 label{display:flex;flex-direction:column;gap:.25rem;font-size:.84rem;color:var(--texto-2);font-weight:550}
 label.check{flex-direction:row;align-items:center;gap:.45rem}
-input,select,textarea{font:inherit;padding:.48rem .6rem;border:1px solid var(--borda-forte);border-radius:8px;background:var(--superficie);color:var(--texto)}
+input,select,textarea{font:inherit;font-size:.92rem;font-weight:400;padding:.48rem .6rem;border:1px solid var(--borda-forte);border-radius:8px;background:var(--superficie);color:var(--texto)}
 input[type=file]{padding:.35rem;background:var(--superficie-2)}
 input[type=color]{padding:.15rem;height:2.3rem}
 input:focus,select:focus,textarea:focus{outline:3px solid var(--foco);border-color:var(--ciano)}
@@ -155,7 +164,7 @@ code{font-size:.92em}
   .marca .chip{padding:6px 10px} .marca .chip img{max-width:140px} .marca small{display:none}
   .menu details:not([open]) .sub{display:none}
   main{padding:18px 14px 40px}
-  table{font-size:.85rem} th,td{padding:.35rem .4rem}
+  table{font-size:.85rem;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch} th,td{padding:.35rem .4rem}
 }
 `;
 
@@ -199,7 +208,7 @@ const ICONES: Record<string, string> = {
 
 export const Icone: FC<{ nome: string }> = ({ nome }) =>
   raw(
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       (ICONES[nome] ?? '') +
       '</svg>',
   );
