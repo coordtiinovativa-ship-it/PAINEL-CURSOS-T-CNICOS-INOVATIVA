@@ -41,7 +41,7 @@ simple = { limit = 10, period = 60 }
 [env.production]
 name = "certificados-iect"
 # Domínio próprio na zona institutoinovativa.org (já na Cloudflare): o deploy cria DNS e certificado HTTPS.
-routes = [{ pattern = "certificadostecnicos.institutoinovativa.org", custom_domain = true }]
+routes = [{ pattern = "certificadostecnicos.institutoinovativa.org", zone_name = "institutoinovativa.org", custom_domain = true }]
 # Só o domínio oficial: sem endereço *.workers.dev nem URLs de prévia (evita QR/cookies em outro endereço)
 workers_dev = false
 preview_urls = false
