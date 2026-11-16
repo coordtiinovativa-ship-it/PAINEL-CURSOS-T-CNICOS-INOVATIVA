@@ -136,7 +136,7 @@ export const Verso: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Reg
       <img class="fundo" src={img.fundoVerso} alt="" />
       <div class="conteudo">
         <Cabecalho d={d} img={img} />
-        <p class="verso-titulo" style="margin-top:8pt">(Verso do Certificado da QUALIFICAÇÃO PROFISSIONAL TÉCNICA {qualif})</p>
+        <p class="verso-titulo" style="margin-top:8pt">(Verso do Certificado da {d.rotuloQualificacao.toUpperCase()} {qualif})</p>
         <div class="em">
           <p>Conclusão do Ensino Médio:</p>
           <p>
@@ -149,7 +149,7 @@ export const Verso: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Reg
         <div class="registros">
           <div>
             <h3>REGISTRO DO INSTITUTO INOVATIVA DE EDUCAÇÃO, CIÊNCIA E TECNOLOGIA - IECT</h3>
-            <p>CERTIFICADO DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA {qualif}</p>
+            <p>CERTIFICADO DA {d.rotuloQualificacao.toUpperCase()} {qualif}</p>
             <p>REGISTRO Nº &nbsp;<Valor v={reg?.registroNumero} largura="60mm" /></p>
             <p>FOLHA Nº: <Valor v={reg?.folha} largura="60mm" /></p>
             <p>LIVRO Nº: <Valor v={reg?.livro} largura="60mm" /></p>

@@ -2,7 +2,7 @@
  * Monta o layout (blocos) da declaração de conclusão de módulo e do histórico escolar a partir
  * dos mesmos dados do certificado (montarDadosCertificado), com as pendências que impedem a emissão.
  */
-import { montarDadosCertificado, ESTADOS, type DadosCertificado } from '../certificado/dados';
+import { descreverAto, montarDadosCertificado, ESTADOS, type DadosCertificado } from '../certificado/dados';
 import { formatarCPF } from '../lib/cpf';
 import { dataBR, dataExtenso } from '../lib/datas';
 import { numBR } from '../lib/form';
@@ -18,13 +18,14 @@ export const ROTULO_DOCUMENTO: Record<TipoDocumento, string> = {
 };
 
 export const TEXTO_DECLARACAO_PADRAO =
-  'Declaramos, para os devidos fins, que {nome}, inscrito(a) no CPF sob o nº {cpf}, portador(a) do RG nº {rg} {rg_orgao}-{rg_uf}, nascido(a) em {data_nascimento_extenso}, concluiu com aprovação o MÓDULO TEMÁTICO {modulo}, com carga horária de {carga_horaria} horas, que confere a QUALIFICAÇÃO PROFISSIONAL TÉCNICA de {qualificacao}, integrante do {curso} - Eixo Tecnológico: {eixo}, autorizado pela Deliberação CEE/MS nº {ato_ppc_numero}, de {ato_ppc_data_extenso}, tendo cursado o módulo na turma {turma}, no período de {periodo}, com frequência de {frequencia}%. {situacao_certificado}';
+  'Declaramos, para os devidos fins, que {nome}, inscrito(a) no CPF sob o nº {cpf}, portador(a) do RG nº {rg} {rg_orgao}-{rg_uf}, nascido(a) em {data_nascimento_extenso}, concluiu com aprovação o MÓDULO TEMÁTICO {modulo}, com carga horária de {carga_horaria} horas, que confere a {tipo_qualificacao} de {qualificacao}, integrante do {curso} - Eixo Tecnológico: {eixo}, autorizado pela {ato_ppc_completo}, tendo cursado o módulo na turma {turma}, no período de {periodo}, com frequência de {frequencia}%. {situacao_certificado}';
 
 /** Variáveis aceitas no texto da declaração (exibidas na tela de edição). */
 export const VARIAVEIS_DECLARACAO = [
   'nome', 'cpf', 'rg', 'rg_orgao', 'rg_uf', 'data_nascimento_extenso', 'nacionalidade', 'naturalidade_municipio',
   'naturalidade_uf', 'curso', 'eixo', 'area', 'nivel', 'ato_ppc_numero', 'ato_ppc_data_extenso', 'modulo',
   'qualificacao', 'carga_horaria', 'turma', 'periodo', 'frequencia', 'situacao_certificado',
+  'tipo_qualificacao', 'ato_ppc_completo', 'instituicao',
 ];
 
 /** Resumo exibido na validação pública (sem dados pessoais além do permitido). */
@@ -35,6 +36,8 @@ export interface ResumoDocumento {
   curso: string;
   eixo: string;
   modulo: { ordem: number; nome: string; qualificacao: string; cargaHoraria: number };
+  /** ausente em documentos emitidos antes de 16/11/2026 */
+  rotuloQualificacao?: string;
   periodo: { inicio: string | null; fim: string | null };
   dataEmissao: string;
   situacaoModulo: 'aprovado' | 'reprovado' | 'em andamento';
@@ -99,7 +102,9 @@ export async function prepararDocumento(
   };
   const localData: Bloco = { tipo: 'paragrafo', texto: `${d.localEmissao}, ${dataExtenso(dataEmissao)}.`, alinhar: 'direita', tamanho: 10.5 };
   const qualif = mod.qualificacao_conferida ?? '';
-  const atoTexto = ato ? `${ato.tipo} CEE/MS nº ${ato.numero}, de ${dataBR(ato.data)}` : null;
+  const atoTexto = ato ? descreverAto(ato) : null;
+  const rotulo = d.rotuloQualificacao;
+  const rotuloNivel = `${rotulo}${d.curso.tipo === 'Curso Técnico' ? ' de Nível Médio' : ''}`;
 
   let paginas: DocumentoLayout['paginas'];
   let titulo: string;
@@ -127,11 +132,14 @@ export async function prepararDocumento(
       carga_horaria: String(mod.carga_horaria), turma: d.turma.turma_codigo,
       periodo, frequencia: freq == null ? null : numBR(freq, 1),
       situacao_certificado: situacaoCert,
+      tipo_qualificacao: rotulo.toUpperCase(),
+      ato_ppc_completo: atoTexto,
+      instituicao: d.instituicao.razao_social,
     });
     paginas = [{
       blocos: [
         { tipo: 'espaco', altura: 24 },
-        { tipo: 'titulo', texto: 'DECLARAÇÃO DE CONCLUSÃO DE MÓDULO', subtitulo: `Qualificação Profissional Técnica de Nível Médio — ${qualif}` },
+        { tipo: 'titulo', texto: 'DECLARAÇÃO DE CONCLUSÃO DE MÓDULO', subtitulo: `${rotuloNivel} — ${qualif}` },
         { tipo: 'espaco', altura: 18 },
         { tipo: 'paragrafo', texto, recuo: true, tamanho: 11.5, entrelinha: 1.8 },
         { tipo: 'espaco', altura: 10 },
@@ -162,7 +170,7 @@ export async function prepararDocumento(
     paginas = [
       {
         blocos: [
-          { tipo: 'titulo', texto: 'HISTÓRICO ESCOLAR', subtitulo: `Qualificação Profissional Técnica de Nível Médio — ${qualif} (Módulo ${mod.ordem}: ${mod.nome})` },
+          { tipo: 'titulo', texto: 'HISTÓRICO ESCOLAR', subtitulo: `${rotuloNivel} — ${qualif} (Módulo ${mod.ordem}: ${mod.nome})` },
           { tipo: 'secao', texto: 'Identificação do curso' },
           {
             tipo: 'campos', itens: [
@@ -228,7 +236,7 @@ export async function prepararDocumento(
           {
             tipo: 'campos', itens: cert
               ? [
-                { rotulo: 'Certificado', valor: `Qualificação Profissional Técnica de ${qualif}`, span: 4 },
+                { rotulo: 'Certificado', valor: `${rotulo} de ${qualif}`, span: 4 },
                 { rotulo: 'Registro nº', valor: cert.registro_numero },
                 { rotulo: 'Folha', valor: cert.folha },
                 { rotulo: 'Livro', valor: cert.livro },
@@ -261,6 +269,7 @@ export async function prepararDocumento(
     curso: d.curso.nome,
     eixo: d.curso.eixo,
     modulo: { ordem: mod.ordem, nome: mod.nome, qualificacao: qualif, cargaHoraria: mod.carga_horaria },
+    rotuloQualificacao: rotulo,
     periodo: { inicio: d.turma.data_inicio ?? null, fim: d.turma.data_fim ?? null },
     dataEmissao,
     situacaoModulo: situacao,

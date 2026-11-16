@@ -205,7 +205,8 @@ export async function gerarPdfCertificado(
   doc.registerFontkit(fontkit);
   doc.setTitle(`Certificado ${s.validacao.codigo ?? '(prévia)'} — ${s.aluno.nome}`);
   doc.setAuthor(s.instituicao.nome);
-  doc.setSubject(`Qualificação Profissional Técnica ${s.modulo.qualificacao}`);
+  const rotulo = s.curso.rotuloQualificacao ?? 'Qualificação Profissional Técnica';
+  doc.setSubject(`${rotulo} ${s.modulo.qualificacao}`);
   doc.setCreator('Sistema de Certificados IECT');
   doc.setProducer('Sistema de Certificados IECT');
   if (s.validacao.codigo) doc.setKeywords([s.validacao.codigo]);
@@ -262,7 +263,7 @@ export async function gerarPdfCertificado(
     let y = cabecalho(fo, s, logo);
     y += 8;
     const qualif = s.modulo.qualificacao.toUpperCase();
-    y += fo.centroQuebrado(`(Verso do Certificado da QUALIFICAÇÃO PROFISSIONAL TÉCNICA ${qualif})`, y, 11, f.b);
+    y += fo.centroQuebrado(`(Verso do Certificado da ${rotulo.toUpperCase()} ${qualif})`, y, 11, f.b);
     y += 10;
 
     const xEm = MARGEM.esq + 3.8 * MM;
@@ -292,7 +293,7 @@ export async function gerarPdfCertificado(
     let ye = topoQuadro + padV;
     const xe = MARGEM.esq + padH;
     ye += fo.centroQuebrado('REGISTRO DO INSTITUTO INOVATIVA DE EDUCAÇÃO, CIÊNCIA E TECNOLOGIA - IECT', ye, sz, f.b, xe, interno, lh) + 10;
-    for (const l of quebrar(`CERTIFICADO DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA ${qualif}`, f.r, sz, interno)) {
+    for (const l of quebrar(`CERTIFICADO DA ${rotulo.toUpperCase()} ${qualif}`, f.r, sz, interno)) {
       fo.texto(l.join(' '), xe, ye, sz, f.r, lh);
       ye += lh;
     }

@@ -92,7 +92,7 @@ async function telaEmissao(c: any, mat: number, mod: number, entrada?: EntradaEm
       <h1>Emitir certificado</h1>
       <div class="cartao">
         <p><b>{d.nomeExibido}</b> · CPF {mascararCPF(d.aluno.cpf ?? '')}<br />
-          Qualificação Profissional Técnica: <b>{d.modulo.qualificacao_conferida}</b> (Módulo {d.modulo.ordem}: {d.modulo.nome}, {d.modulo.carga_horaria} h)</p>
+          {d.rotuloQualificacao}: <b>{d.modulo.qualificacao_conferida}</b> (Módulo {d.modulo.ordem}: {d.modulo.nome}, {d.modulo.carga_horaria} h)</p>
         {existente ? (
           <div class="msg ok">Já emitido: <a href={`/admin/certificados/${existente.id}`}>{existente.codigo_validacao}</a>.</div>
         ) : bloqueios.length > 0 ? (

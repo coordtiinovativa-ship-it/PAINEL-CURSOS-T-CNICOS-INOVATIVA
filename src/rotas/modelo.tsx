@@ -61,6 +61,7 @@ rotasModelo.get('/', async (c) => {
       .all<{ id: number; nome: string; cargo: string; funcao: Funcao; assinatura_r2_key: string | null }>()
   ).results;
 
+  const cursosAtivos = (await db.prepare('SELECT id, nome FROM cursos WHERE ativo = 1 ORDER BY nome').all<{ id: number; nome: string }>()).results;
   const decl = await db
     .prepare(`SELECT texto, criado_em FROM modelos_texto WHERE documento = 'declaracao_conclusao_modulo' AND ativo = 1 AND curso_id IS NULL ORDER BY id DESC LIMIT 1`)
     .first<{ texto: string; criado_em: string }>();
@@ -152,10 +153,16 @@ rotasModelo.get('/', async (c) => {
 
       <h2>Prévia com aluno fictício</h2>
       <div class="acoes">
-        <a class="botao" href="/admin/modelo/previa.pdf" target="_blank"><Icone nome="certificados" />Abrir PDF de exemplo</a>
-        <a class="botao sec" href="/admin/modelo/previa" target="_blank">Abrir prévia em tela cheia</a>
+        <label class="check" style="font-size:.9rem">Curso:
+          <select id="curso-previa" onchange="var q='?curso='+this.value;document.getElementById('quadro-previa').src='/admin/modelo/previa'+q;document.getElementById('pdf-previa').href='/admin/modelo/previa.pdf'+q;document.getElementById('tela-previa').href='/admin/modelo/previa'+q;">
+            {cursosAtivos.map((cu) => <option value={cu.id}>{cu.nome}</option>)}
+          </select>
+        </label>
+        <a class="botao" id="pdf-previa" href={`/admin/modelo/previa.pdf?curso=${cursosAtivos[0]?.id ?? ''}`} target="_blank"><Icone nome="certificados" />Abrir PDF de exemplo</a>
+        <a class="botao sec" id="tela-previa" href={`/admin/modelo/previa?curso=${cursosAtivos[0]?.id ?? ''}`} target="_blank">Abrir prévia em tela cheia</a>
       </div>
-      <iframe class="previa-quadro" src="/admin/modelo/previa" title="Prévia do certificado" />
+      <p class="muted" style="margin-top:-.3rem">A prévia usa os atos, a matriz e o texto do curso escolhido, com os dados fixos da instituição.</p>
+      <iframe class="previa-quadro" id="quadro-previa" src={`/admin/modelo/previa?curso=${cursosAtivos[0]?.id ?? ''}`} title="Prévia do certificado" />
     </Pagina>,
   );
 });
@@ -243,7 +250,7 @@ rotasModelo.post('/texto-declaracao', async (c) => {
 
 rotasModelo.get('/previa', async (c) => {
   try {
-    const d = await montarDadosExemplo(c.env.DB);
+    const d = await montarDadosExemplo(c.env.DB, Number(c.req.query('curso')) || null);
     return c.html('<!doctype html>' + (<DocumentoPrevia d={d} tema={c.get('usuario').tema} img={imagensPadrao(d, urlArquivo)} />));
   } catch (e) {
     if (e instanceof NaoEncontrado) return c.text(e.message, 404);
@@ -253,7 +260,7 @@ rotasModelo.get('/previa', async (c) => {
 
 rotasModelo.get('/previa.pdf', async (c) => {
   try {
-    const d = await montarDadosExemplo(c.env.DB);
+    const d = await montarDadosExemplo(c.env.DB, Number(c.req.query('curso')) || null);
     const pdf = await gerarPdfPrevia(c.env, d, {
       registroNumero: '0000', folha: '000', livro: '00', dataRegistro: d.dataEmissao, sistecCodigo: '000000000', sistecData: d.dataEmissao,
     });

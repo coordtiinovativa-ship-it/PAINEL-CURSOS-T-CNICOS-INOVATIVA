@@ -169,7 +169,7 @@ rotasPublico.get('/:codigo', async (c) => {
         <dt>Código de validação</dt><dd><b>{ce.codigo_validacao}</b></dd>
         <dt>Estudante</dt><dd>{s.aluno.nome}</dd>
         <dt>CPF</dt><dd>{mascararCPF(s.aluno.cpf)}</dd>
-        <dt>Certificado</dt><dd>Qualificação Profissional Técnica — <b>{s.modulo.qualificacao}</b></dd>
+        <dt>Certificado</dt><dd>{s.curso.rotuloQualificacao ?? 'Qualificação Profissional Técnica'} — <b>{s.modulo.qualificacao}</b></dd>
         <dt>Módulo temático</dt><dd>Módulo {s.modulo.ordem}: {s.modulo.nome} · {s.modulo.cargaHoraria} horas</dd>
         <dt>Curso</dt><dd>{s.curso.nome}{s.curso.nivel ? <div class="muted">{s.curso.nivel}</div> : null}</dd>
         <dt>Eixo tecnológico</dt><dd>{s.curso.eixo}{s.curso.area ? ` · Área ${s.curso.area}` : ''}</dd>
@@ -233,7 +233,7 @@ async function paginaDocumento(c: any, doc: DocumentoRow, tema: ReturnType<typeo
         <dt>Curso</dt><dd>{r.curso}</dd>
         <dt>Eixo tecnológico</dt><dd>{r.eixo}</dd>
         <dt>Módulo temático</dt><dd>Módulo {r.modulo.ordem}: {r.modulo.nome} · {r.modulo.cargaHoraria} horas</dd>
-        <dt>Qualificação</dt><dd>Qualificação Profissional Técnica — {r.modulo.qualificacao}</dd>
+        <dt>Qualificação</dt><dd>{r.rotuloQualificacao ?? 'Qualificação Profissional Técnica'} — {r.modulo.qualificacao}</dd>
         <dt>Período</dt><dd>{periodo}</dd>
         <dt>Data de emissão</dt><dd>{dataExtenso(r.dataEmissao)}</dd>
       </dl>

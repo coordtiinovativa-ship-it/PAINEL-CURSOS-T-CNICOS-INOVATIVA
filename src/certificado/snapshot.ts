@@ -45,6 +45,8 @@ export interface SnapshotCertificado {
     area: string | null;
     nivel: string | null;
     atoAutorizacao: { tipo: string; numero: string; data: string; orgao: string; doeNumero: string | null; doeData: string | null } | null;
+    /** ausente em certificados emitidos antes de 16/11/2026 (eram todos de curso técnico) */
+    rotuloQualificacao?: string;
   };
   modulo: { id: number; ordem: number; nome: string; qualificacao: string; cargaHoraria: number };
   turma: { codigo: string; anoLetivo: number | null; dataInicio: string | null; dataFim: string | null };
@@ -87,6 +89,7 @@ export function montarSnapshot(d: DadosCertificado, e: DadosEmissao): SnapshotCe
       eixo: d.curso.eixo,
       area: d.curso.area_tecnologica ?? null,
       nivel: d.curso.nivel ?? null,
+      rotuloQualificacao: d.rotuloQualificacao,
       atoAutorizacao: ato
         ? { tipo: ato.tipo, numero: ato.numero, data: ato.data, orgao: ato.orgao_emissor, doeNumero: ato.publicacao_doe_numero ?? null, doeData: ato.publicacao_doe_data ?? null }
         : null,

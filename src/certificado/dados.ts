@@ -65,6 +65,8 @@ export interface DadosCertificado {
   instituicao: Record<string, any>;
   credenciamentoTexto: string | null;
   atoAutorizacao: Record<string, any> | null;
+  /** "Qualificação Profissional Técnica" etc., conforme o tipo do curso da turma */
+  rotuloQualificacao: string;
   curso: Record<string, any>;
   criterios: CriteriosAprovacao;
   modulo: { id: number; nome: string; ordem: number; carga_horaria: number; qualificacao_conferida: string | null };
@@ -86,6 +88,16 @@ export interface DadosCertificado {
 
 export class NaoEncontrado extends Error {}
 
+/** Rótulo da qualificação conforme o tipo do curso (ex.: "Qualificação Profissional Técnica"). */
+export function rotuloQualificacao(tipoCurso: string | null | undefined): string {
+  switch (tipoCurso) {
+    case 'Curso Técnico': return 'Qualificação Profissional Técnica';
+    case 'Especialização Técnica': return 'Especialização Técnica';
+    case 'Aperfeiçoamento': return 'Aperfeiçoamento Profissional';
+    default: return 'Qualificação Profissional'; // FIC e curso livre
+  }
+}
+
 /** "Deliberação CEE/MS nº 13.111, de 18 de dezembro de 2024" a partir de um ato regulatório. */
 export function descreverAto(a: Record<string, any>): string {
   const orgao = a.orgao_emissor.includes('CEE/MS') ? 'CEE/MS ' : '';
@@ -101,6 +113,7 @@ export const VARIAVEIS_CERTIFICADO: [string, string][] = [
   ['curso', 'nome do curso'], ['eixo', 'eixo tecnológico'], ['area', 'área tecnológica'], ['nivel', 'nível'],
   ['carga_horaria', 'carga horária do módulo'], ['carga_horaria_curso', 'carga horária total do curso'],
   ['modulo', 'nome do módulo (maiúsculas)'], ['qualificacao', 'qualificação conferida pelo módulo'],
+  ['tipo_qualificacao', 'QUALIFICAÇÃO PROFISSIONAL TÉCNICA, QUALIFICAÇÃO PROFISSIONAL etc., conforme o tipo do curso'],
   ['ato_ppc_numero', 'nº do ato de aprovação do PPC / autorização do curso'], ['ato_ppc_data_extenso', 'data desse ato por extenso'],
   ['ato_ppc_completo', 'ato de autorização completo (tipo, órgão, nº e data)'],
   ['ato_reconhecimento_completo', 'ato de reconhecimento do curso, completo'], ['ato_criacao_curso_completo', 'ato de criação do curso, completo'],
@@ -152,15 +165,16 @@ export function nomeDoAluno(a: { nome_civil?: string | null; nome_social?: strin
 }
 
 /** Dados de certificado com aluno fictício e todas as disciplinas aprovadas (prévia do modelo). */
-export async function montarDadosExemplo(db: D1Database): Promise<DadosCertificado> {
+export async function montarDadosExemplo(db: D1Database, cursoId?: number | null): Promise<DadosCertificado> {
   const base = await db
     .prepare(
       `SELECT 0 AS matricula_id, 0 AS aluno_id, 0 AS turma_id, 'EXEMPLO' AS turma_codigo, mc.id AS matriz_id,
               CAST(strftime('%Y','now') AS INTEGER) AS ano_letivo, NULL AS data_inicio, NULL AS data_fim, cu.id AS curso_id,
               (SELECT id FROM modulos_tematicos WHERE matriz_id = mc.id ORDER BY ordem LIMIT 1) AS modulo_id
          FROM cursos cu JOIN matrizes_curriculares mc ON mc.curso_id = cu.id
-        WHERE cu.ativo = 1 ORDER BY cu.id, mc.versao DESC LIMIT 1`,
+        WHERE cu.ativo = 1 AND (?1 IS NULL OR cu.id = ?1) ORDER BY cu.id, mc.versao DESC LIMIT 1`,
     )
+    .bind(cursoId ?? null)
     .first<Record<string, any>>();
   if (!base?.modulo_id) throw new NaoEncontrado('Nenhum curso com matriz e módulos cadastrados');
   return comporDados(db, base, base.modulo_id, { aluno: ALUNO_EXEMPLO, todosAprovados: true });
@@ -274,6 +288,7 @@ async function comporDados(
     ato_criacao_curso_completo: (() => { const a = atoDo('criacao_curso'); return a ? descreverAto(a) : null; })(),
     carga_horaria: String(modulo.carga_horaria),
     carga_horaria_curso: String(curso.carga_horaria_total),
+    tipo_qualificacao: rotuloQualificacao(curso.tipo).toUpperCase(),
     curso: curso.nome,
     eixo: curso.eixo,
     area: curso.area_tecnologica,
@@ -309,6 +324,7 @@ async function comporDados(
     instituicao,
     credenciamentoTexto,
     atoAutorizacao: atoPpc ?? null,
+    rotuloQualificacao: rotuloQualificacao(curso.tipo),
     curso,
     criterios,
     modulo,

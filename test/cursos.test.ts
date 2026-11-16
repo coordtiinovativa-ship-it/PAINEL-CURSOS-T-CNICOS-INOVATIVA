@@ -121,6 +121,50 @@ describe('vários cursos', () => {
     expect(sqlite.prepare('SELECT count(*) AS n FROM modulos_tematicos WHERE matriz_id = ?').get(mid2)).toEqual({ n: 2 });
   }, 30_000);
 
+  it('dinâmico pela matrícula: o mesmo aluno em dois cursos recebe os dados de cada curso', async () => {
+    const { c, sqlite } = await admin();
+    const { id, mid, mod } = await cursoB(c, sqlite);
+    turmaB(sqlite, id, mid, mod); // Ana (aluno 1) também matriculada no curso B (matrícula 10)
+    const doCursoA = await (await c.req('/admin/previa/1/1')).text(); // matrícula 1 → curso A
+    const doCursoB = await (await c.req(`/admin/previa/10/${mod}`)).text(); // matrícula 10 → curso B
+    expect(doCursoA).toContain('ANA BEATRIZ FICTÍCIA SOUZA');
+    expect(doCursoB).toContain('ANA BEATRIZ FICTÍCIA SOUZA');
+    expect(doCursoA).toContain('Inovação e Desenvolvimento Corporativo');
+    expect(doCursoA).toContain('nº 13.111');
+    expect(doCursoA).toContain('INSPETOR DE QUALIDADE');
+    expect(doCursoB).toContain('Curso Técnico em Logística');
+    expect(doCursoB).toContain('nº 14.500');
+    expect(doCursoB).toContain('AUXILIAR DE ARMAZENAGEM');
+    expect(doCursoB).not.toContain('Inovação e Desenvolvimento Corporativo');
+    // a declaração de cada matrícula também segue o seu curso
+    const declB = await (await c.req(`/admin/documentos/declaracao_conclusao_modulo/10/${mod}/previa`)).text();
+    expect(declB).toContain('Curso Técnico em Logística');
+    expect(declB).toContain('autorizado pela Deliberação CEE/MS nº 14.500, de 20 de agosto de 2025');
+  }, 30_000);
+
+  it('curso FIC com Portaria: rótulo "Qualificação Profissional" e tipo do ato reais em todos os documentos', async () => {
+    const { c, sqlite } = await admin();
+    const { id, mid, mod } = await cursoB(c, sqlite);
+    sqlite.exec(`UPDATE cursos SET tipo = 'Qualificação Profissional / FIC' WHERE id = ${id};
+                 UPDATE atos_regulatorios SET tipo = 'Portaria', orgao_emissor = 'Secretaria de Estado de Educação - SED/MS' WHERE curso_id = ${id};`);
+    turmaB(sqlite, id, mid, mod);
+    const cert = await (await c.req(`/admin/previa/10/${mod}`)).text();
+    expect(cert).toContain('(Verso do Certificado da QUALIFICAÇÃO PROFISSIONAL AUXILIAR DE ARMAZENAGEM)');
+    expect(cert).not.toContain('QUALIFICAÇÃO PROFISSIONAL TÉCNICA');
+    expect(cert).toContain('conforme Portaria nº 14.500, de 20 de agosto de 2025'); // texto padrão geral usa o ato completo
+    const decl = await (await c.req(`/admin/documentos/declaracao_conclusao_modulo/10/${mod}/previa`)).text();
+    expect(decl).toContain('que confere a QUALIFICAÇÃO PROFISSIONAL de AUXILIAR DE ARMAZENAGEM');
+    expect(decl).toContain('autorizado pela Portaria nº 14.500');
+    expect(decl).toContain('Qualificação Profissional — Auxiliar de Armazenagem'); // subtítulo sem "Técnica de Nível Médio"
+    // emitido: o rótulo fica congelado no snapshot e aparece na validação pública
+    await c.post(`/admin/certificados/emitir/10/${mod}`, {
+      data_emissao: '2026-12-05', registro_numero: '1', folha: '1', livro: '1', data_registro: '2026-12-05', sistec_codigo: 'S-FIC', sistec_data: '2026-12-04',
+    });
+    const s = JSON.parse((sqlite.prepare('SELECT snapshot_json FROM certificados').get() as any).snapshot_json);
+    expect(s.curso.rotuloQualificacao).toBe('Qualificação Profissional');
+    expect(await (await c.req('/v/INV-2026-00001')).text()).toContain('Qualificação Profissional — <b>Auxiliar de Armazenagem</b>');
+  }, 30_000);
+
   it('secretaria não acessa o cadastro de cursos', async () => {
     const amb = await criarAmbiente();
     await amb.criarUsuario('s@iect.test', 'secretaria');
