@@ -1,0 +1,67 @@
+name = "certificados-iect-dev"
+main = "src/index.tsx"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Arquivos estáticos (logo e fundo padrão do modelo aprovado)
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# ---------- ambiente dev (padrão: `wrangler dev`) ----------
+[vars]
+AMBIENTE = "dev"
+URL_PUBLICA = "http://localhost:8787"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "certificados-iect-dev"
+# Substituir pelo id real após `wrangler d1 create certificados-iect-dev`
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "ARQUIVOS"
+bucket_name = "certificados-iect-dev"
+
+# Limites por IP (Rate Limiting do Workers; período: 10 ou 60 s)
+# Validação pública /v: 20 consultas/min — freia varredura de códigos INV sequenciais.
+[[ratelimits]]
+name = "LIMITE_VALIDACAO"
+namespace_id = "2001"
+simple = { limit = 20, period = 60 }
+
+# POST /login: 10 tentativas/min por IP (soma-se ao bloqueio de 15 min por conta após 5 erros).
+[[ratelimits]]
+name = "LIMITE_LOGIN"
+namespace_id = "2002"
+simple = { limit = 10, period = 60 }
+
+# ---------- produção ----------
+[env.production]
+name = "certificados-iect"
+
+[env.production.vars]
+AMBIENTE = "production"
+URL_PUBLICA = "https://certificadostecnicos.inovativa.com.br"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "certificados-iect"
+# Substituir pelo id real após `wrangler d1 create certificados-iect`
+database_id = "00000000-0000-0000-0000-000000000001"
+migrations_dir = "migrations"
+
+[[env.production.r2_buckets]]
+binding = "ARQUIVOS"
+bucket_name = "certificados-iect"
+
+[[env.production.ratelimits]]
+name = "LIMITE_VALIDACAO"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
+[[env.production.ratelimits]]
+name = "LIMITE_LOGIN"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }

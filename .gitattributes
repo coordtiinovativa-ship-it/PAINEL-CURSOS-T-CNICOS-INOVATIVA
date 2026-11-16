@@ -1,0 +1,7 @@
+# Texto sempre com LF no repositório (evita diferenças falsas entre Windows e Linux)
+* text=auto eol=lf
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ttf binary
