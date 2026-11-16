@@ -167,7 +167,7 @@ describe('motor de documentos', () => {
     };
     const ler = (f: string) => new Uint8Array(readFileSync(join(RAIZ, 'public', f)));
     const bytes = await gerarPdfDocumento(layout, {
-      fonteRegular: ler('fontes/Carlito-Regular.ttf'), fonteNegrito: ler('fontes/Carlito-Bold.ttf'), logo: ler('modelo/logo.png'), assinaturas: {},
+      fonteRegular: ler('fontes/Arimo-Regular.ttf'), fonteNegrito: ler('fontes/Arimo-Bold.ttf'), logo: ler('modelo/logo.png'), assinaturas: {},
     });
     const pdf = await PDFDocument.load(bytes);
     expect(pdf.getPageCount()).toBeGreaterThanOrEqual(3);

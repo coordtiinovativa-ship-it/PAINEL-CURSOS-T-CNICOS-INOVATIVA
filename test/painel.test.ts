@@ -226,9 +226,12 @@ describe('prévia do certificado', () => {
     expect(html).toContain('natural de Campo Grande, Estado de Mato Grosso do Sul');
     expect(html).toContain('nascido(a) em 14 de março de 1998');
     expect(html).toContain('RG 1234567 Org. Expedidor SEJUSP-MS');
-    expect(html).toContain('MÓDULO TEMÁTICO DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA QUALIDADE, conferindo-lhe o título de Inspetor de Qualidade.');
+    expect(html.replace(/<\/?b>/g, '')).toContain('MÓDULO TEMÁTICO DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA QUALIDADE, conferindo-lhe o título de Inspetor de Qualidade.');
+    // negrito parcial, como no modelo aprovado
+    expect(html).toContain('<b>CERTIFICADO por ter concluído com êxito o MÓDULO TEMÁTICO DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA QUALIDADE</b>');
+    expect(html).toContain('<b>Área Tecnológica:</b>');
     expect(html).toContain('Credenciamento Deliberação CEE/MS nº 10.994, de 6 de fevereiro de 2017');
-    expect(html).toContain('(Verso do Certificado da QUALIFICAÇÃO PROFISSIONAL TÉCNICA INSPETOR DE QUALIDADE)');
+    expect(html).not.toContain('Verso do Certificado'); // o modelo atualizado não tem essa linha
     expect(html).toContain('Apto para emissão');
     expect(amb.auditoria().at(-1)!.acao).toBe('visualizar_previa');
   });

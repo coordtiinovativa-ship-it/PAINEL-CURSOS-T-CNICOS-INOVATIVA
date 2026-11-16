@@ -476,7 +476,7 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
             <th>Aluno</th>
             {componentes.map((cc) => (
               <th class="c" style="min-width:90px">
-                <a href={`/admin/turmas/${t.id}/modulos/${modulo.id}/disciplinas/${cc.id}`} title="Lançar notas e frequência">{cc.nome}</a>
+                <a href={`/admin/diario/${t.id}/${modulo.id}/${cc.id}`} title="Lançar notas e faltas">{cc.nome}</a>
                 <div class="muted">{cc.carga_horaria_total} h</div>
               </th>
             ))}
@@ -541,6 +541,8 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}/disciplinas/:comp{[0-9]+}', e
   if (ctx.mt.situacao === 'planejado') {
     return c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(`O módulo ${modulo.nome} ainda está "planejado": inicie-o em Módulos da turma antes de lançar notas.`));
   }
+  // o lançamento passou para Secretaria → Notas e Faltas (faltas em nº de aulas, professor e horário)
+  if (c.req.query('antigo') !== '1') return c.redirect(`/admin/diario/${t.id}/${modulo.id}/${cc.id}`);
   return c.html(
     <Pagina voltar={`/admin/turmas/${t.id}/modulos/${modulo.id}`} titulo={`${cc.nome} — ${t.codigo}`} usuario={c.get('usuario')} caminho={c.req.path} erro={c.req.query('erro')}>
       <h1>{cc.nome}</h1>

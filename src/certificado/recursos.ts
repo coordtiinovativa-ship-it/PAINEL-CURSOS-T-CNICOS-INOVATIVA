@@ -30,8 +30,8 @@ export async function r2(env: Bindings, chave: string | null): Promise<Uint8Arra
 
 export async function carregarRecursos(env: Bindings, s: SnapshotCertificado): Promise<RecursosPdf> {
   const [fonteRegular, fonteNegrito, logoR2, fundoR2, fundoVersoR2, ...assinaturas] = await Promise.all([
-    asset(env, '/fontes/Carlito-Regular.ttf'),
-    asset(env, '/fontes/Carlito-Bold.ttf'),
+    asset(env, '/fontes/Arimo-Regular.ttf'),
+    asset(env, '/fontes/Arimo-Bold.ttf'),
     r2(env, s.instituicao.logo_r2_key),
     r2(env, s.instituicao.fundo_r2_key),
     r2(env, s.instituicao.fundo_verso_r2_key ?? null),

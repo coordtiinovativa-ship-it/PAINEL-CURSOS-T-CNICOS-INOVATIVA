@@ -27,7 +27,7 @@ const PRETO = rgb(0.07, 0.11, 0.19);
 const MARINHO = cor(CORES.marinho);
 const CINZA = cor(CORES.cinza);
 const BORDA = cor(CORES.borda);
-// Sem ligaduras e sem recorte de fonte (o pdf-lib perde glifos da Carlito ao recortar)
+// Sem ligaduras e sem recorte de fonte (o pdf-lib perde glifos ao recortar). Fonte Arimo = métrica da Arial do modelo.
 const OPCOES_FONTE = { subset: false, features: { liga: false, clig: false, dlig: false, calt: false, rlig: false } };
 
 interface Ctx {
@@ -265,9 +265,10 @@ function bloco(ctx: Ctx, bl: Exclude<Bloco, { tipo: 'tabela' }>, desenhar: boole
           let ty = top + altImg + 5;
           if (it.nome) { centro(ctx, it.nome, ty, 9, ctx.b, PRETO, cx, colW); ty += 9 * LH; }
           centro(ctx, it.legenda, ty, 8.5, ctx.r, CINZA, cx, colW);
+          if (it.detalhe) centro(ctx, it.detalhe, ty + 8.5 * LH, 7.5, ctx.r, CINZA, cx, colW);
         });
       }
-      return 6 + altImg + 5 + 9 * LH + 8.5 * LH + 6;
+      return 6 + altImg + 5 + 9 * LH + 8.5 * LH + (bl.itens.some((i) => i.detalhe) ? 7.5 * LH : 0) + 6;
     }
   }
 }

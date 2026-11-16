@@ -22,7 +22,7 @@ export type Bloco =
   | { tipo: 'tabela'; colunas: ColunaTabela[]; linhas: string[][]; total?: string[] }
   | { tipo: 'lista'; itens: string[] }
   | { tipo: 'nota'; texto: string }
-  | { tipo: 'assinaturas'; itens: { legenda: string; nome?: string | null; assinatura_r2_key?: string | null }[] }
+  | { tipo: 'assinaturas'; itens: { legenda: string; nome?: string | null; assinatura_r2_key?: string | null; detalhe?: string | null }[] }
   | { tipo: 'espaco'; altura: number };
 
 export interface PaginaDoc {

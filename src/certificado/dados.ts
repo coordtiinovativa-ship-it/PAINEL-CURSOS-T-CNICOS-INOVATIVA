@@ -3,7 +3,7 @@
  * Usado pela prévia em tela e, no passo 3, pelo PDF e pelo snapshot da emissão.
  */
 import { avaliarModulo, criteriosDoCurso, type AvaliacaoModulo, type CriteriosAprovacao } from '../lib/aprovacao';
-import { dataExtenso } from '../lib/datas';
+import { dataBR, dataExtenso } from '../lib/datas';
 import { segmentarModelo, type Segmento } from '../lib/modelo';
 import { moduloNaTurma, ROTULO_SITUACAO, type SituacaoModulo } from '../lib/turmaModulos';
 
@@ -48,6 +48,15 @@ export interface Signatario {
   nome: string;
   cargo: string;
   assinatura_r2_key: string | null;
+  /** "Portaria nº 001/2026, de 10/01/2026" (nomeação), impressa abaixo da assinatura */
+  portaria?: string | null;
+}
+
+export function descreverPortaria(s: { portaria_tipo?: string | null; portaria_numero?: string | null; portaria_data?: string | null }): string | null {
+  if (!s.portaria_numero) return null;
+  let data = '';
+  try { data = s.portaria_data ? `, de ${dataBR(s.portaria_data)}` : ''; } catch { /* data inválida: omite */ }
+  return `${s.portaria_tipo || 'Portaria'} nº ${s.portaria_numero}${data}`;
 }
 
 export interface DisciplinaResultado {
@@ -206,7 +215,7 @@ async function comporDados(
                  ORDER BY data DESC LIMIT 1`).bind(base.curso_id).first<Record<string, any>>(),
     db.prepare('SELECT id, nome, carga_horaria_total AS ch FROM componentes_curriculares WHERE modulo_id = ? ORDER BY ordem').bind(moduloId).all<{ id: number; nome: string; ch: number }>(),
     db.prepare('SELECT * FROM resultados WHERE matricula_id = ?').bind(matriculaId).all<Record<string, any>>(),
-    db.prepare(`SELECT nome, cargo, funcao, assinatura_r2_key FROM signatarios WHERE ativo = 1 AND funcao IN ('diretor_pedagogico','secretario')`).all<Signatario & { funcao: string }>(),
+    db.prepare(`SELECT nome, cargo, funcao, assinatura_r2_key, portaria_tipo, portaria_numero, portaria_data FROM signatarios WHERE ativo = 1 AND funcao IN ('diretor_pedagogico','secretario')`).all<Signatario & { funcao: string; portaria_tipo: string | null; portaria_numero: string | null; portaria_data: string | null }>(),
     db.prepare(`SELECT * FROM atos_regulatorios WHERE curso_id = ? AND ativo = 1 ORDER BY data DESC`).bind(base.curso_id).all<Record<string, any>>(),
   ]);
   const exemplo = !!opcoes.todosAprovados;
@@ -245,8 +254,10 @@ async function comporDados(
     mediaFinal: avaliacao.disciplinas[i].mediaFinal,
   }));
 
-  const diretor = signatarios.results.find((s) => s.funcao === 'diretor_pedagogico') ?? null;
-  const secretario = signatarios.results.find((s) => s.funcao === 'secretario') ?? null;
+  const comPortaria = (s: (typeof signatarios.results)[number] | undefined): Signatario | null =>
+    s ? { nome: s.nome, cargo: s.cargo, assinatura_r2_key: s.assinatura_r2_key, portaria: descreverPortaria(s) } : null;
+  const diretor = comPortaria(signatarios.results.find((s) => s.funcao === 'diretor_pedagogico'));
+  const secretario = comPortaria(signatarios.results.find((s) => s.funcao === 'secretario'));
   const nomeExibido = nomeDoAluno(aluno);
 
   const faltantes: string[] = [];
@@ -264,7 +275,10 @@ async function comporDados(
   }
   for (const [s, rotulo] of [[diretor, 'Diretor(a) Pedagógico(a)'], [secretario, 'Secretário(a)']] as const) {
     if (!s || s.nome.includes('A DEFINIR')) faltantes.push(`Signatário: ${rotulo} não cadastrado`);
-    else if (!s.assinatura_r2_key) avisos.push(`Assinatura digitalizada de ${rotulo} não enviada (será assinada à mão).`);
+    else {
+      if (!s.assinatura_r2_key) avisos.push(`Assinatura digitalizada de ${rotulo} não enviada (será assinada à mão).`);
+      if (!s.portaria) avisos.push(`Portaria de nomeação de ${rotulo} não cadastrada (Cadastros → Signatários): não sairá abaixo da assinatura.`);
+    }
   }
   if (!avaliacao.aprovado) {
     faltantes.push(avaliacao.pendente ? 'Resultados do módulo incompletos' : 'Aluno não aprovado no módulo');

@@ -1,7 +1,7 @@
 /**
  * PDF do certificado (A4 paisagem, frente + verso) com pdf-lib, a partir do snapshot.
  * Mesmo layout e medidas da prévia em tela (src/certificado/previa.tsx), extraídos do
- * modelo aprovado no PPC. Fonte Carlito (métrica idêntica à Calibri do modelo).
+ * modelo aprovado no PPC. Fonte Arimo (métrica idêntica à Arial do modelo; a Arial não pode ser embutida).
  */
 import { degrees, PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
@@ -25,9 +25,9 @@ const MARGEM = { topo: 11.43 * MM, dir: 24.13 * MM, base: 13.97 * MM, esq: 24.13
 const LARG = W - MARGEM.esq - MARGEM.dir;
 const PRETO = rgb(0, 0, 0);
 const CINZA = rgb(0.33, 0.33, 0.33);
-const LH_NORMAL = 1.22; // altura de linha "normal" da Calibri/Carlito
+const LH_NORMAL = 1.15; // altura de linha "normal" da Arial/Arimo
 // Sem ligaduras (fi, ti...): o pdf-lib calcula errado a largura delas e "come" espaços.
-// subset: false — o recorte de fonte do pdf-lib/fontkit perde glifos da Carlito.
+// subset: false — o recorte de fonte do pdf-lib/fontkit perde glifos.
 const OPCOES_FONTE = { subset: false, features: { liga: false, clig: false, dlig: false, calt: false, rlig: false } };
 
 interface Fontes { r: PDFFont; b: PDFFont }
@@ -113,6 +113,48 @@ function justificado(fo: Folha, t: string, topo: number, size: number, font: PDF
       fo.texto(p, x, topo + i * lh, size, font, lh);
       x += larguras[j] + gap;
     });
+  });
+  return linhas.length * lh;
+}
+
+/** Parágrafo justificado com trechos em negrito/normal (texto rico), recuo na 1ª linha. Retorna a altura. */
+function justificadoRico(fo: Folha, trechos: { t: string; b: boolean }[], topo: number, size: number, lh: number, recuo: number) {
+  // palavras = sequência de pedaços (texto, negrito) sem espaço entre eles
+  type Palavra = { pedacos: { t: string; font: PDFFont }[]; w: number };
+  const palavras: Palavra[] = [];
+  let atual: Palavra | null = null;
+  for (const tr of trechos) {
+    const font = tr.b ? fo.f.b : fo.f.r;
+    const partes = tr.t.split(/(\s+)/);
+    for (const parte of partes) {
+      if (!parte) continue;
+      if (/^\s+$/.test(parte)) { atual = null; continue; }
+      if (!atual) { atual = { pedacos: [], w: 0 }; palavras.push(atual); }
+      atual.pedacos.push({ t: parte, font });
+      atual.w += font.widthOfTextAtSize(parte, size);
+    }
+  }
+  const esp = fo.f.r.widthOfTextAtSize(' ', size);
+  const linhas: Palavra[][] = [];
+  let linha: Palavra[] = [];
+  let w = 0;
+  for (const pal of palavras) {
+    const disp = LARG - (linhas.length === 0 ? recuo : 0);
+    if (linha.length && w + esp + pal.w > disp) { linhas.push(linha); linha = [pal]; w = pal.w; }
+    else { w += (linha.length ? esp : 0) + pal.w; linha.push(pal); }
+  }
+  if (linha.length) linhas.push(linha);
+  linhas.forEach((ls, i) => {
+    const x0 = MARGEM.esq + (i === 0 ? recuo : 0);
+    const disponivel = LARG - (i === 0 ? recuo : 0);
+    const soma = ls.reduce((a, p) => a + p.w, 0);
+    const gap = i < linhas.length - 1 && ls.length > 1 ? (disponivel - soma) / (ls.length - 1) : esp;
+    let x = x0;
+    for (const pal of ls) {
+      let px = x;
+      for (const pd of pal.pedacos) { fo.texto(pd.t, px, topo + i * lh, size, pd.font, lh); px += pd.font.widthOfTextAtSize(pd.t, size); }
+      x += pal.w + gap;
+    }
   });
   return linhas.length * lh;
 }
@@ -229,7 +271,8 @@ export async function gerarPdfCertificado(
     y += 14;
     fo.centro('C  E  R  T  I  F  I  C  A  D  O', y, 21, f.b);
     y += 21 * LH_NORMAL + 16;
-    y += justificado(fo, s.textoFrente, y, 11, f.b, 11 * 1.55, 19.05 * MM);
+    // certificados antigos (sem texto rico) saíam com o texto inteiro em negrito
+    y += justificadoRico(fo, s.textoFrenteRico ?? [{ t: s.textoFrente, b: true }], y, 11, 11 * 1.55, 19.05 * MM);
     y += 14 + 4;
     const ld = `${localData(s.local, s.dataEmissao)}.`;
     fo.texto(ld, MARGEM.esq + LARG - f.r.widthOfTextAtSize(ld, 11), y, 11, f.r);
@@ -238,17 +281,24 @@ export async function gerarPdfCertificado(
     const col = LARG / 3;
     const altImg = 15 * MM;
     const larLinha = 62 * MM;
-    const colunas: [string[], Uint8Array | PDFImage | undefined][] = [
-      [['Assinatura da Diretora', 'Pedagógica'], ass.diretor_pedagogico],
-      [['Assinatura Titular'], undefined],
-      [['Assinatura do Secretário(a)'], ass.secretario],
+    const sigDe = (funcao: string) => s.signatarios.find((x) => x.funcao === funcao);
+    const colunas: [string[], PDFImage | undefined, ReturnType<typeof sigDe>][] = [
+      [['Assinatura da Diretora', 'Pedagógica'], ass.diretor_pedagogico, sigDe('diretor_pedagogico')],
+      [['Assinatura Titular'], undefined, undefined],
+      [['Assinatura do Secretário(a)'], ass.secretario, sigDe('secretario')],
     ];
-    colunas.forEach(([legenda, img], i) => {
+    colunas.forEach(([legenda, img, sig], i) => {
       const cx = MARGEM.esq + i * col;
-      if (img) fo.imagem(img as PDFImage, cx + (col - 55 * MM) / 2, y, 55 * MM, altImg, 'base');
+      if (img) fo.imagem(img, cx + (col - 55 * MM) / 2, y, 55 * MM, altImg, 'base');
       const topoLinha = y + altImg + 1 * MM;
       fo.linha(cx + (col - larLinha) / 2, topoLinha, cx + (col + larLinha) / 2, topoLinha);
       legenda.forEach((l, k) => fo.centro(l, topoLinha + 1 * MM + k * 10.5 * 1.15, 10.5, f.r, cx, col, 10.5 * 1.15));
+      // nome e portaria de nomeação do signatário
+      if (sig) {
+        const base = topoLinha + 1 * MM + legenda.length * 10.5 * 1.15 + 1;
+        fo.centro(sig.nome, base, 8, f.b, cx, col, 8 * 1.2);
+        if (sig.portaria) fo.centro(sig.portaria, base + 8 * 1.2, 8, f.r, cx, col, 8 * 1.2);
+      }
     });
 
     const cod = s.validacao.codigo ? `Validação: ${s.validacao.codigo}` : 'Validação: INV-AAAA-NNNNN (gerado na emissão)';
@@ -261,10 +311,8 @@ export async function gerarPdfCertificado(
     const fo = new Folha(doc.addPage([W, H]), f);
     fo.p.drawImage(fundoVerso, { x: 0, y: 0, width: W, height: H });
     let y = cabecalho(fo, s, logo);
-    y += 8;
+    y += 8; // o modelo atualizado não tem a linha "(Verso do Certificado da ...)"
     const qualif = s.modulo.qualificacao.toUpperCase();
-    y += fo.centroQuebrado(`(Verso do Certificado da ${rotulo.toUpperCase()} ${qualif})`, y, 11, f.b);
-    y += 10;
 
     const xEm = MARGEM.esq + 3.8 * MM;
     const em = s.aluno.ensinoMedio;
@@ -314,13 +362,19 @@ export async function gerarPdfCertificado(
     const gap = 6 * MM;
     const meia = (interno - gap) / 2;
     const altAss = 11 * MM;
+    const sigsVerso = [s.signatarios.find((x) => x.funcao === 'diretor_pedagogico'), s.signatarios.find((x) => x.funcao === 'secretario')];
     ([['Diretora Pedagógica', ass.diretor_pedagogico], ['Secretário(a)', ass.secretario]] as const).forEach(([leg, img], i) => {
       const cx = xe + i * (meia + gap);
       if (img) fo.imagem(img, cx + (meia - 45 * MM) / 2, ye, 45 * MM, altAss, 'base');
       fo.linha(cx, ye + altAss, cx + meia, ye + altAss);
       fo.centro(leg, ye + altAss + 1 * MM, sz, f.r, cx, meia, lh);
+      const sig = sigsVerso[i];
+      if (sig) {
+        fo.centro(sig.nome, ye + altAss + 1 * MM + lh, 7.5, f.b, cx, meia, 7.5 * 1.2);
+        if (sig.portaria) fo.centro(sig.portaria, ye + altAss + 1 * MM + lh + 7.5 * 1.2, 7.5, f.r, cx, meia, 7.5 * 1.2);
+      }
     });
-    ye += altAss + 1 * MM + lh;
+    ye += altAss + 1 * MM + lh + (sigsVerso.some(Boolean) ? 2 * 7.5 * 1.2 : 0);
 
     // --- direita
     const xd = MARGEM.esq + colW + padH;

@@ -11,7 +11,7 @@ const CSS = `
 html, body { margin: 0; background: #e9edf2 }
 html[data-tema="escuro"] body { background: #0A1422 }
 @media (prefers-color-scheme: dark) { html[data-tema="sistema"] body { background: #0A1422 } }
-body { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; color: rgb(18,28,48); -webkit-print-color-adjust: exact; print-color-adjust: exact }
+body { font-family: Arial, Arimo, "Liberation Sans", Helvetica, sans-serif; color: rgb(18,28,48); -webkit-print-color-adjust: exact; print-color-adjust: exact }
 .pg { width: ${A4.largura}mm; min-height: ${A4.altura}mm; margin: 8mm auto; background: #fff; position: relative; overflow: hidden;
   box-shadow: 0 2px 14px rgba(0,0,0,.18); padding: ${A4.margem.topo}mm ${A4.margem.lado}mm ${A4.margem.base}mm; break-after: page }
 .cab { text-align: center } .cab img { width: 50mm; height: 13mm; object-fit: contain; display: block; margin: 0 auto 2.5pt }
@@ -97,6 +97,7 @@ const Bl: FC<{ b: Bloco; url: (k: string | null | undefined) => string | null }>
                 <div class="ln" />
                 {i.nome && <b>{i.nome}</b>}
                 <span>{i.legenda}</span>
+                {i.detalhe && <span style="display:block;font-size:7.5pt">{i.detalhe}</span>}
               </div>
             );
           })}
@@ -149,7 +150,7 @@ export const DocumentoHtml: FC<{ layout: DocumentoLayout; url: (k: string | null
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{layout.titulo}</title>
-      <link href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&display=swap" rel="stylesheet" />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
     </head>
     <body>

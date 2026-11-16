@@ -10,6 +10,7 @@ export interface Segmento {
   texto: string;
   variavel?: string;
   faltante?: boolean;
+  negrito?: boolean;
 }
 
 /** Divide o modelo em trechos fixos e variáveis (para destacar faltantes na prévia). */
@@ -17,17 +18,21 @@ export function segmentarModelo(
   modelo: string,
   dados: Record<string, string | null | undefined>,
 ): Segmento[] {
+  // Trechos entre **asteriscos duplos** saem em negrito (como no modelo aprovado)
   const out: Segmento[] = [];
-  let ultimo = 0;
-  for (const m of modelo.matchAll(RE_VAR)) {
-    if (m.index! > ultimo) out.push({ texto: modelo.slice(ultimo, m.index) });
-    const nome = m[1];
-    const v = dados[nome];
-    const faltante = v == null || String(v).trim() === '';
-    out.push({ texto: faltante ? `[${nome}]` : String(v), variavel: nome, faltante });
-    ultimo = m.index! + m[0].length;
-  }
-  if (ultimo < modelo.length) out.push({ texto: modelo.slice(ultimo) });
+  modelo.split('**').forEach((trecho, i) => {
+    const negrito = i % 2 === 1;
+    let ultimo = 0;
+    for (const m of trecho.matchAll(RE_VAR)) {
+      if (m.index! > ultimo) out.push({ texto: trecho.slice(ultimo, m.index), negrito });
+      const nome = m[1];
+      const v = dados[nome];
+      const faltante = v == null || String(v).trim() === '';
+      out.push({ texto: faltante ? `[${nome}]` : String(v), variavel: nome, faltante, negrito });
+      ultimo = m.index! + m[0].length;
+    }
+    if (ultimo < trecho.length) out.push({ texto: trecho.slice(ultimo), negrito });
+  });
   return out;
 }
 
@@ -44,5 +49,5 @@ export function preencherModelo(
     }
     return String(v);
   });
-  return { texto, faltantes: [...faltantes] };
+  return { texto: texto.replace(/\*\*/g, ''), faltantes: [...faltantes] };
 }

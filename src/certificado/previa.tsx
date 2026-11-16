@@ -34,7 +34,7 @@ const CSS = `
 html, body { margin: 0; background: #e9edf2 }
 html[data-tema="escuro"] body { background: #0A1422 }
 @media (prefers-color-scheme: dark) { html[data-tema="sistema"] body { background: #0A1422 } }
-body { font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif; color: #000;
+body { font-family: Arial, Arimo, "Liberation Sans", Helvetica, sans-serif; color: #000;
   -webkit-print-color-adjust: exact; print-color-adjust: exact }
 .folha { width: 297mm; height: 210mm; position: relative; margin: 8mm auto; background: #fff;
   box-shadow: 0 2px 14px rgba(0,0,0,.18); overflow: hidden; page-break-after: always; break-after: page }
@@ -45,13 +45,14 @@ p { margin: 0 }
 .cab1 { text-align: center; font-weight: 700; font-size: 10.5pt; margin-bottom: 1pt }
 .cab2 { text-align: center; font-size: 9pt; margin-bottom: 1pt }
 .titulo { text-align: center; font-weight: 700; font-size: 21pt; margin: 4pt 0 16pt; white-space: pre }
-.corpo { text-align: justify; font-weight: 700; font-size: 11pt; line-height: 1.55; text-indent: 19.05mm; margin-bottom: 14pt }
+.corpo { text-align: justify; font-weight: 400; font-size: 11pt; line-height: 1.55; text-indent: 19.05mm; margin-bottom: 14pt }
 .local { text-align: right; font-size: 11pt; margin: 4pt 0 18pt }
 .assinaturas { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; font-size: 10.5pt; line-height: 1.15 }
 .assin { display: flex; flex-direction: column; align-items: center }
 .assin .img { height: 15mm; display: flex; align-items: flex-end; justify-content: center }
 .assin .img img { max-height: 15mm; max-width: 55mm }
 .assin .linha { width: 62mm; border-top: 1px solid #000; margin-top: 1mm; padding-top: 1mm }
+.port { font-size: 8pt; color: #222; line-height: 1.2; margin-top: 1pt } .port b { font-weight: 700 }
 .verso-titulo { text-align: center; font-weight: 700; font-size: 11pt; margin: 0 0 10pt }
 .em { font-size: 10pt; margin-left: 3.8mm } .em p { margin-bottom: 5pt } .em p.ult { margin-bottom: 10pt }
 .registros { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #000; font-size: 9.5pt; margin: 0 auto; width: 100% }
@@ -90,8 +91,25 @@ const Cabecalho: FC<{ d: DadosCertificado; img: ImagensCertificado }> = ({ d, im
   );
 };
 
+/** Nome e portaria de nomeação do signatário, abaixo da linha de assinatura. */
+const Portaria: FC<{ s: DadosCertificado['diretor'] }> = ({ s }) =>
+  s && !s.nome.includes('A DEFINIR') ? (
+    <div class="port"><b>{s.nome}</b>{s.portaria ? <><br />{s.portaria}</> : <><br /><span class="falta">[portaria não cadastrada]</span></>}</div>
+  ) : null;
+
 const ImgAssinatura: FC<{ src: string | null; grande?: boolean }> = ({ src }) =>
   src ? <img src={src} alt="assinatura" /> : <span class="ph-assin">assinatura digitalizada</span>;
+
+/** Trechos seguidos com o mesmo peso viram um só <b> (variáveis dentro de um trecho em negrito). */
+function agruparNegrito<T extends { negrito?: boolean }>(segs: T[]) {
+  const out: { negrito: boolean; itens: T[] }[] = [];
+  for (const s of segs) {
+    const n = !!s.negrito;
+    if (out.length && out.at(-1)!.negrito === n) out.at(-1)!.itens.push(s);
+    else out.push({ negrito: n, itens: [s] });
+  }
+  return out;
+}
 
 const localData = (local: string, iso: string | null | undefined) =>
   iso ? `${local}, ${dataExtenso(iso)}` : null;
@@ -103,13 +121,17 @@ export const Frente: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Re
       <Cabecalho d={d} img={img} />
       <p class="titulo" style="margin-top:14pt">C  E  R  T  I  F  I  C  A  D  O</p>
       <p class="corpo">
-        {d.textoFrente.map((s) => (s.faltante ? <span class="falta" title={`Campo não preenchido: ${s.variavel}`}>{s.texto}</span> : s.texto))}
+        {agruparNegrito(d.textoFrente).map((g) => {
+          const conteudo = g.itens.map((s) => s.faltante ? <span class="falta" title={`Campo não preenchido: ${s.variavel}`}>{s.texto}</span> : s.texto);
+          return g.negrito ? <b>{conteudo}</b> : conteudo;
+        })}
       </p>
       <p class="local">{localData(d.localEmissao, d.dataEmissao)}.</p>
       <div class="assinaturas">
         <div class="assin">
           <div class="img"><ImgAssinatura src={img.assinaturaDiretor} /></div>
           <div class="linha">Assinatura da Diretora<br />Pedagógica</div>
+          <Portaria s={d.diretor} />
         </div>
         <div class="assin">
           <div class="img" />
@@ -118,6 +140,7 @@ export const Frente: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Re
         <div class="assin">
           <div class="img"><ImgAssinatura src={img.assinaturaSecretario} /></div>
           <div class="linha">Assinatura do Secretário(a)</div>
+          <Portaria s={d.secretario} />
         </div>
       </div>
     </div>
@@ -136,7 +159,7 @@ export const Verso: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Reg
       <img class="fundo" src={img.fundoVerso} alt="" />
       <div class="conteudo">
         <Cabecalho d={d} img={img} />
-        <p class="verso-titulo" style="margin-top:8pt">(Verso do Certificado da {d.rotuloQualificacao.toUpperCase()} {qualif})</p>
+        <div style="height:8pt" />
         <div class="em">
           <p>Conclusão do Ensino Médio:</p>
           <p>
@@ -156,8 +179,8 @@ export const Verso: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Reg
             <p style="margin-bottom:14pt">ANO LETIVO: <Valor v={d.turma.ano_letivo} largura="60mm" /></p>
             <p style="margin-bottom:6pt">{reg?.dataRegistro ? localData(local, reg.dataRegistro) : <>{local}, <Valor v={null} largura="50mm" /></>}</p>
             <div class="duas-assin">
-              <div><div class="img"><ImgAssinatura src={img.assinaturaDiretor} /></div><div class="linha">Diretora Pedagógica</div></div>
-              <div><div class="img"><ImgAssinatura src={img.assinaturaSecretario} /></div><div class="linha">Secretário(a)</div></div>
+              <div><div class="img"><ImgAssinatura src={img.assinaturaDiretor} /></div><div class="linha">Diretora Pedagógica</div><Portaria s={d.diretor} /></div>
+              <div><div class="img"><ImgAssinatura src={img.assinaturaSecretario} /></div><div class="linha">Secretário(a)</div><Portaria s={d.secretario} /></div>
             </div>
           </div>
           <div>
@@ -193,7 +216,7 @@ export const DocumentoPrevia: FC<{
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>Prévia — {d.nomeExibido} — {d.modulo.nome}</title>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link href="https://fonts.googleapis.com/css2?family=Carlito:wght@400;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&display=swap" rel="stylesheet" />
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
     </head>
     <body>

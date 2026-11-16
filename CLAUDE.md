@@ -351,3 +351,17 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - QR code aponta para `{URL_PUBLICA}/v/{codigo}?t={token}`; o verso imprime o código e a URL sem o token.
 - PDF gerado com pdf-lib a partir do snapshot (não do cadastro vivo), fonte Carlito embutida inteira e sem
   ligaduras (o recorte de fonte do pdf-lib perde glifos). PDF de prévia sai com marca d'água e sem QR.
+
+### Modelo atualizado do certificado e Notas e Faltas (16/11/2026)
+- Modelo novo (`MODELOS CERTIFICADOS/Modelo_Certificado_IECT_PPC.docx`): fonte Arial (no sistema: **Arimo**, métricas
+  idênticas, OFL, em `public/fontes`), **negrito parcial** no texto da frente (marcado com `**...**` no texto do modelo;
+  migração 0011 aplica nos textos existentes) e verso **sem** a linha "(Verso do Certificado da ...)".
+- **Portarias abaixo das assinaturas** (decisão da direção): nome do signatário + "Portaria nº X, de dd/mm/aaaa" (do cadastro
+  de Signatários) na frente e no verso do certificado e nas declarações/históricos. Sem portaria → aviso na prévia.
+- **Secretaria → Notas e Faltas** (`/admin/diario`, `src/rotas/diario.tsx`, permissão `resultados.lancar`): turma → módulo →
+  disciplina. Por disciplina na turma (`turma_disciplinas`): professor, dias da semana, horário de início/término e tempo de
+  cada aula (min). Faltas em **nº de aulas** (`resultados.faltas`); frequência calculada (`src/lib/frequencia.ts`):
+  100 × (1 − faltas × tempo da aula ÷ 60 ÷ CH). Faltas não podem passar das aulas previstas; mudar o tempo da aula recalcula.
+  A tela antiga de lançamento por disciplina (Turmas) redireciona para cá.
+- Pendente: importar faltas pela planilha (hoje a importação aceita frequência em %).
+

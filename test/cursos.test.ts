@@ -44,6 +44,9 @@ function turmaB(sqlite: any, cursoId: number, mid: number, mod: number) {
   }
 }
 
+/** O texto do certificado tem trechos em negrito (<b>); compara só o texto. */
+const semTags = (h: string) => h.replace(/<\/?b>/g, '');
+
 describe('vários cursos', () => {
   it('cadastra curso, ato, matriz e componentes pelas telas (com CBO e auditoria)', async () => {
     const { c, sqlite, auditoria } = await admin();
@@ -66,7 +69,7 @@ describe('vários cursos', () => {
     const { c, sqlite } = await admin();
     const { id, mid, mod } = await cursoB(c, sqlite);
     turmaB(sqlite, id, mid, mod);
-    const b = await (await c.req(`/admin/previa/10/${mod}`)).text();
+    const b = semTags(await (await c.req(`/admin/previa/10/${mod}`)).text());
     expect(b).toContain('Projeto Pedagógico do Curso Técnico em Logística');
     expect(b).toContain('conforme Deliberação CEE/MS nº 14.500, de 20 de agosto de 2025');
     expect(b).not.toContain('13.111');
@@ -90,13 +93,13 @@ describe('vários cursos', () => {
     const previa = await (await c.req(`/admin/previa/10/${mod}`)).text();
     expect(previa).toContain('credenciado pela Deliberação CEE/MS nº 10.994, de 6 de fevereiro de 2017, certifica que ANA BEATRIZ FICTÍCIA SOUZA concluiu o módulo ARMAZENAGEM (200 h) do Curso Técnico em Logística, autorizado pela Deliberação CEE/MS nº 14.500, de 20 de agosto de 2025');
     // o curso 1 não é afetado
-    expect(await (await c.req('/admin/previa/1/1')).text()).toContain('A Direção do Instituto Inovativa');
+    expect(semTags(await (await c.req('/admin/previa/1/1')).text())).toContain('A Direção do Instituto Inovativa');
     // variável sem valor (curso sem reconhecimento) bloqueia a emissão
     await c.post(`/admin/cursos/${id}/textos/certificado_qualificacao`, { texto: 'Certificamos que {nome} concluiu o {curso}, reconhecido pela {ato_reconhecimento_completo}, com aproveitamento.' });
     expect(await (await c.req(`/admin/previa/10/${mod}`)).text()).toContain('Texto do certificado: {ato_reconhecimento_completo} sem valor');
     // voltar ao padrão geral
     await c.post(`/admin/cursos/${id}/textos/certificado_qualificacao`, { usar_padrao: '1' });
-    expect(await (await c.req(`/admin/previa/10/${mod}`)).text()).toContain('A Direção do Instituto Inovativa');
+    expect(semTags(await (await c.req(`/admin/previa/10/${mod}`)).text())).toContain('A Direção do Instituto Inovativa');
   }, 30_000);
 
   it('módulo cuja soma das disciplinas não confere bloqueia a emissão', async () => {
@@ -149,8 +152,8 @@ describe('vários cursos', () => {
     sqlite.exec(`UPDATE cursos SET tipo = 'Qualificação Profissional / FIC' WHERE id = ${id};
                  UPDATE atos_regulatorios SET tipo = 'Portaria', orgao_emissor = 'Secretaria de Estado de Educação - SED/MS' WHERE curso_id = ${id};`);
     turmaB(sqlite, id, mid, mod);
-    const cert = await (await c.req(`/admin/previa/10/${mod}`)).text();
-    expect(cert).toContain('(Verso do Certificado da QUALIFICAÇÃO PROFISSIONAL AUXILIAR DE ARMAZENAGEM)');
+    const cert = semTags(await (await c.req(`/admin/previa/10/${mod}`)).text());
+    expect(cert).toContain('MÓDULO TEMÁTICO DA QUALIFICAÇÃO PROFISSIONAL ARMAZENAGEM');
     expect(cert).not.toContain('QUALIFICAÇÃO PROFISSIONAL TÉCNICA');
     expect(cert).toContain('conforme Portaria nº 14.500, de 20 de agosto de 2025'); // texto padrão geral usa o ato completo
     const decl = await (await c.req(`/admin/documentos/declaracao_conclusao_modulo/10/${mod}/previa`)).text();

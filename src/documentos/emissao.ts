@@ -35,8 +35,8 @@ export async function recursosDocumento(env: Bindings, layout: DocumentoLayout):
     for (const b of pg.blocos)
       if (b.tipo === 'assinaturas') for (const i of b.itens) if (i.assinatura_r2_key) chaves.add(i.assinatura_r2_key);
   const [fonteRegular, fonteNegrito, logoR2, ...ass] = await Promise.all([
-    asset(env, '/fontes/Carlito-Regular.ttf'),
-    asset(env, '/fontes/Carlito-Bold.ttf'),
+    asset(env, '/fontes/Arimo-Regular.ttf'),
+    asset(env, '/fontes/Arimo-Bold.ttf'),
     r2(env, layout.instituicao.logo_r2_key),
     ...[...chaves].map((k) => r2(env, k)),
   ]);

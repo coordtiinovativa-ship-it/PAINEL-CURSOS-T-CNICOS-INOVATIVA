@@ -214,6 +214,7 @@ export const SECOES_MENU: SecaoMenu[] = [
     itens: [
       { href: '/admin/alunos', rotulo: 'Alunos', perm: 'alunos.editar' },
       { href: '/admin/turmas', rotulo: 'Turmas e resultados', perm: 'turmas.editar' },
+      { href: '/admin/diario', rotulo: 'Notas e Faltas', perm: 'resultados.lancar' },
       { href: '/admin/importacao', rotulo: 'Importar Planilhas', perm: 'alunos.editar' },
       { separador: true },
       { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
@@ -345,9 +346,9 @@ const Head: FC<{ titulo: string }> = ({ titulo }) => (
 
 /** Telas que existem (para o "Voltar" automático subir até uma tela válida). */
 const TELAS = [
-  /^\/admin$/, /^\/admin\/(alunos|turmas|certificados|documentos|importacao|modelo|signatarios|instituicao|cursos|usuarios|auditoria|relatorios)$/,
+  /^\/admin$/, /^\/admin\/(alunos|turmas|certificados|documentos|importacao|modelo|signatarios|instituicao|cursos|usuarios|auditoria|relatorios|diario)$/,
   /^\/admin\/(alunos|turmas|certificados|documentos|importacao|signatarios|cursos|usuarios)\/\d+$/,
-  /^\/admin\/turmas\/\d+\/modulos\/\d+$/, /^\/admin\/cursos\/\d+\/matrizes\/\d+$/, /^\/admin\/certificados\/pendentes$/,
+  /^\/admin\/turmas\/\d+\/modulos\/\d+$/, /^\/admin\/diario\/\d+\/\d+$/, /^\/admin\/cursos\/\d+\/matrizes\/\d+$/, /^\/admin\/certificados\/pendentes$/,
 ];
 /** Destino padrão do "Voltar": o nível acima que seja uma tela existente. */
 export function caminhoPai(caminho: string): string {

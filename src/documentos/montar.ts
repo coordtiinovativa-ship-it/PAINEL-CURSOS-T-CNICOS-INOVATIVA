@@ -104,8 +104,8 @@ export async function prepararDocumento(
   const assinaturas: Bloco = {
     tipo: 'assinaturas',
     itens: [
-      { legenda: d.secretario?.cargo ?? 'Secretário(a)', nome: d.secretario?.nome ?? null, assinatura_r2_key: d.secretario?.assinatura_r2_key ?? null },
-      { legenda: d.diretor?.cargo ?? 'Diretora Pedagógica', nome: d.diretor?.nome ?? null, assinatura_r2_key: d.diretor?.assinatura_r2_key ?? null },
+      { legenda: d.secretario?.cargo ?? 'Secretário(a)', nome: d.secretario?.nome ?? null, assinatura_r2_key: d.secretario?.assinatura_r2_key ?? null, detalhe: d.secretario?.portaria ?? null },
+      { legenda: d.diretor?.cargo ?? 'Diretora Pedagógica', nome: d.diretor?.nome ?? null, assinatura_r2_key: d.diretor?.assinatura_r2_key ?? null, detalhe: d.diretor?.portaria ?? null },
     ],
   };
   const localData: Bloco = { tipo: 'paragrafo', texto: `${d.localEmissao}, ${dataExtenso(dataEmissao)}.`, alinhar: 'direita', tamanho: 10.5 };

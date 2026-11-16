@@ -23,6 +23,7 @@ export interface SignatarioSnapshot {
   nome: string;
   cargo: string;
   assinatura_r2_key: string | null;
+  portaria?: string | null;
 }
 
 export interface SnapshotCertificado {
@@ -60,6 +61,8 @@ export interface SnapshotCertificado {
   };
   disciplinas: { nome: string; ch: number; mediaFinal: number | null; frequencia: number | null; resultado: string }[];
   textoFrente: string;
+  /** trechos com negrito (ausente em certificados antigos: o texto inteiro saía em negrito) */
+  textoFrenteRico?: { t: string; b: boolean }[];
   local: string;
   dataEmissao: string;
   registro: { numero: string | null; folha: string | null; livro: string | null; anoLetivo: number | null; data: string | null };
@@ -72,7 +75,7 @@ export function montarSnapshot(d: DadosCertificado, e: DadosEmissao): SnapshotCe
   const i = d.instituicao;
   const ato = d.atoAutorizacao;
   const sig = (s: DadosCertificado['diretor'], funcao: SignatarioSnapshot['funcao']): SignatarioSnapshot[] =>
-    s ? [{ funcao, nome: s.nome, cargo: s.cargo, assinatura_r2_key: s.assinatura_r2_key }] : [];
+    s ? [{ funcao, nome: s.nome, cargo: s.cargo, assinatura_r2_key: s.assinatura_r2_key, portaria: s.portaria ?? null }] : [];
   return {
     versao: 1,
     tipo: 'qualificacao_intermediaria',
@@ -123,6 +126,12 @@ export function montarSnapshot(d: DadosCertificado, e: DadosEmissao): SnapshotCe
     },
     disciplinas: d.disciplinas.map((x) => ({ nome: x.nome, ch: x.ch, mediaFinal: x.mediaFinal, frequencia: x.frequencia, resultado: x.resultado })),
     textoFrente: d.textoFrente.map((s) => s.texto).join(''),
+    textoFrenteRico: d.textoFrente.reduce<{ t: string; b: boolean }[]>((acc, s) => {
+      const b = !!s.negrito;
+      if (acc.length && acc[acc.length - 1].b === b) acc[acc.length - 1].t += s.texto;
+      else if (s.texto) acc.push({ t: s.texto, b });
+      return acc;
+    }, []),
     local: d.localEmissao,
     dataEmissao: e.dataEmissao,
     registro: { numero: e.registroNumero, folha: e.folha, livro: e.livro, anoLetivo: d.turma.ano_letivo ?? null, data: e.dataRegistro },
