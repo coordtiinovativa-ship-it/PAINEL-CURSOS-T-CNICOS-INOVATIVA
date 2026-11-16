@@ -26,7 +26,7 @@ rotasDocumentos.get('/', async (c) => {
   const lista = (
     await c.env.DB.prepare(
       `SELECT d.id, d.tipo, d.codigo_validacao, d.data_emissao, d.status, d.emitido_por, t.codigo AS turma, mt.nome AS modulo,
-              coalesce(a.nome_social, a.nome_civil) AS aluno
+              CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END AS aluno
          FROM documentos d JOIN matriculas m ON m.id = d.matricula_id JOIN alunos a ON a.id = m.aluno_id
          JOIN turmas t ON t.id = m.turma_id LEFT JOIN modulos_tematicos mt ON mt.id = d.modulo_id
         WHERE ? = '' OR d.codigo_validacao LIKE ? OR a.nome_civil LIKE ? OR a.nome_social LIKE ? OR t.codigo LIKE ?

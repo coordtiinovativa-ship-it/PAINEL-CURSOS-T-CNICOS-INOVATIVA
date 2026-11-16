@@ -8,6 +8,7 @@ import { ErroValidacao, inteiro, lerCorpo, numBR, numero, texto } from '../lib/f
 import { dataBR } from '../lib/datas';
 import { formatarCPF } from '../lib/cpf';
 import { avaliarDisciplina, criteriosDoCurso, ROTULO_METODO } from '../lib/aprovacao';
+import { nomeDoAluno } from '../certificado/dados';
 
 export const rotasTurmas = new Hono<Env>();
 rotasTurmas.use('*', exigir('turmas.editar'));
@@ -126,8 +127,8 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
   const db = c.env.DB;
   const matriculas = (
     await db.prepare(
-      `SELECT m.*, a.nome_civil, a.nome_social, a.cpf, a.ra FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
-        WHERE m.turma_id = ? ORDER BY coalesce(a.nome_social, a.nome_civil)`,
+      `SELECT m.*, a.nome_civil, a.nome_social, a.usar_nome_social, a.cpf, a.ra FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
+        WHERE m.turma_id = ? ORDER BY CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`,
     ).bind(t.id).all<Record<string, any>>()
   ).results;
   const disponiveis = (
@@ -168,7 +169,7 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
         <tr><th>Aluno</th><th>CPF</th><th>RA</th><th>Situação</th><th></th></tr>
         {matriculas.map((m) => (
           <tr>
-            <td><a href={`/admin/alunos/${m.aluno_id}`}>{m.nome_social ?? m.nome_civil}</a></td>
+            <td><a href={`/admin/alunos/${m.aluno_id}`}>{nomeDoAluno(m)}</a></td>
             <td>{formatarCPF(m.cpf)}</td>
             <td>{m.ra ?? ''}</td>
             <td>
@@ -277,7 +278,7 @@ async function contextoModulo(c: any) {
   const componentes = (await db.prepare('SELECT * FROM componentes_curriculares WHERE modulo_id = ? ORDER BY ordem').bind(modulo.id).all<Record<string, any>>()).results;
   const matriculas = (
     await db.prepare(
-      `SELECT m.id, m.situacao, coalesce(a.nome_social, a.nome_civil) AS nome, a.id AS aluno_id
+      `SELECT m.id, m.situacao, CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END AS nome, a.id AS aluno_id
          FROM matriculas m JOIN alunos a ON a.id = m.aluno_id WHERE m.turma_id = ? ORDER BY 3`,
     ).bind(t.id).all<Record<string, any>>()
   ).results;

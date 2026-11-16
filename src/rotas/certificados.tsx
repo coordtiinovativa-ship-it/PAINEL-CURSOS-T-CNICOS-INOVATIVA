@@ -21,7 +21,7 @@ rotasCertificados.get('/', async (c) => {
   const lista = (
     await c.env.DB.prepare(
       `SELECT ce.id, ce.codigo_validacao, ce.data_emissao, ce.registro_numero, ce.folha, ce.livro, ce.status,
-              coalesce(a.nome_social, a.nome_civil) AS aluno, t.codigo AS turma, mt.nome AS modulo
+              CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END AS aluno, t.codigo AS turma, mt.nome AS modulo
          FROM certificados ce JOIN matriculas m ON m.id = ce.matricula_id JOIN alunos a ON a.id = m.aluno_id
          JOIN turmas t ON t.id = m.turma_id LEFT JOIN modulos_tematicos mt ON mt.id = ce.modulo_id
         WHERE ? = '' OR ce.codigo_validacao LIKE ? OR a.nome_civil LIKE ? OR a.nome_social LIKE ? OR t.codigo LIKE ?

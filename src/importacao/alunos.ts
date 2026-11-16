@@ -30,7 +30,18 @@ const APELIDOS: Record<CampoAluno, string[]> = {
   ensino_medio_uf: ['ensino_medio_uf', 'uf_ensino_medio', 'uf_da_escola'],
   ensino_medio_ano_conclusao: ['ensino_medio_ano_conclusao', 'ano_conclusao_ensino_medio', 'ano_de_conclusao', 'ano_conclusao', 'conclusao_ensino_medio', 'ano_de_conclusao_do_ensino_medio'],
   email: ['email', 'e_mail', 'correio_eletronico'],
-  telefone: ['telefone', 'celular', 'fone', 'whatsapp', 'telefone_celular'],
+  telefone: ['telefone', 'fone', 'telefone_fixo', 'telefone_residencial'],
+  celular: ['celular', 'whatsapp', 'telefone_celular', 'cel'],
+  usar_nome_social: ['usar_nome_social', 'usa_nome_social'],
+  estado_civil: ['estado_civil'],
+  necessidades_especificas: ['necessidades_especificas', 'necessidades_educacionais_especificas', 'necessidade_especial', 'deficiencia', 'nee'],
+  rg_data_expedicao: ['rg_data_expedicao', 'data_expedicao', 'data_de_expedicao', 'data_expedicao_rg', 'expedicao_rg'],
+  cep: ['cep'],
+  endereco: ['endereco', 'logradouro', 'rua', 'endereco_residencial'],
+  bairro: ['bairro'],
+  complemento: ['complemento'],
+  endereco_municipio: ['endereco_municipio', 'municipio', 'cidade', 'municipio_de_residencia', 'cidade_de_residencia'],
+  endereco_uf: ['endereco_uf', 'uf', 'estado', 'uf_de_residencia'],
 };
 
 export const ROTULOS_MODELO: [CampoAluno, string][] = [
@@ -40,7 +51,10 @@ export const ROTULOS_MODELO: [CampoAluno, string][] = [
   ['naturalidade_uf', 'Naturalidade (UF)'], ['nome_pai', 'Nome do pai'], ['nome_mae', 'Nome da mãe'], ['escolaridade', 'Escolaridade'],
   ['ensino_medio_instituicao', 'Ensino médio - instituição'], ['ensino_medio_municipio', 'Ensino médio - município'],
   ['ensino_medio_uf', 'Ensino médio - UF'], ['ensino_medio_ano_conclusao', 'Ensino médio - ano de conclusão'],
-  ['email', 'E-mail'], ['telefone', 'Telefone'],
+  ['email', 'E-mail'], ['telefone', 'Telefone'], ['celular', 'Celular'], ['estado_civil', 'Estado civil'],
+  ['necessidades_especificas', 'Necessidades educacionais específicas'], ['rg_data_expedicao', 'Data de expedição do RG'],
+  ['cep', 'CEP'], ['endereco', 'Endereço'], ['bairro', 'Bairro'], ['complemento', 'Complemento'],
+  ['endereco_municipio', 'Município (residência)'], ['endereco_uf', 'UF (residência)'], ['usar_nome_social', 'Usar nome social'],
 ];
 
 // cabeçalhos do próprio modelo também são reconhecidos
@@ -52,7 +66,8 @@ export function modeloAlunosCSV(): string {
   return gerarCSV([
     ROTULOS_MODELO.map(([, r]) => r),
     ['Maria Exemplo da Silva', '', '529.982.247-25', '2026010', '1234567', 'SEJUSP', 'MS', '15/01/2000', 'F', 'Parda', 'brasileira', 'Campo Grande', 'MS',
-      'João Exemplo da Silva', 'Ana Exemplo da Silva', 'Ensino médio completo', 'Escola Estadual Exemplo', 'Campo Grande', 'MS', '2018', 'maria@exemplo.com', '(67) 99999-0000'],
+      'João Exemplo da Silva', 'Ana Exemplo da Silva', 'Ensino médio completo', 'Escola Estadual Exemplo', 'Campo Grande', 'MS', '2018', 'maria@exemplo.com', '(67) 3333-0000',
+      '(67) 99999-0000', 'Solteiro(a)', '', '10/02/2015', '79010-310', 'Rua Exemplo, 100', 'Centro', 'Apto 1', 'Campo Grande', 'MS', 'não'],
   ]);
 }
 
@@ -83,8 +98,19 @@ function normalizarValor(campo: CampoAluno, bruto: string): string | null {
   if (!v) return null;
   switch (campo) {
     case 'cpf': return normalizarCPF(v);
-    case 'data_nascimento': return normalizarData(v);
-    case 'rg_uf': case 'naturalidade_uf': case 'ensino_medio_uf': {
+    case 'data_nascimento': case 'rg_data_expedicao': return normalizarData(v);
+    case 'usar_nome_social': {
+      const s = chave(v);
+      if (['1', 's', 'sim', 'x', 'verdadeiro', 'true'].includes(s)) return '1';
+      if (['0', 'n', 'nao', 'falso', 'false'].includes(s)) return '0';
+      throw new ErroValidacao(`valor inválido "${v}" (use sim ou não)`);
+    }
+    case 'cep': {
+      const d = v.replace(/\.0+$/, '').replace(/\D/g, '').padStart(8, '0');
+      if (d.length !== 8) throw new ErroValidacao(`CEP inválido "${v}"`);
+      return `${d.slice(0, 5)}-${d.slice(5)}`;
+    }
+    case 'rg_uf': case 'naturalidade_uf': case 'ensino_medio_uf': case 'endereco_uf': {
       const uf = normalizarUF(v);
       if (!uf) throw new ErroValidacao(`UF inválida "${v}"`);
       return uf;

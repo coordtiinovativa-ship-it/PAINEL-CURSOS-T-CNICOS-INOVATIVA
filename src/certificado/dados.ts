@@ -11,6 +11,9 @@ export const CAMPOS_ALUNO = [
   'cor_raca', 'naturalidade_municipio', 'naturalidade_uf', 'nacionalidade', 'nome_pai', 'nome_mae',
   'escolaridade', 'ensino_medio_instituicao', 'ensino_medio_municipio', 'ensino_medio_uf',
   'ensino_medio_ano_conclusao', 'email', 'telefone',
+  // ficha completa (migração 0008)
+  'usar_nome_social', 'estado_civil', 'necessidades_especificas', 'rg_data_expedicao', 'celular',
+  'cep', 'endereco', 'bairro', 'complemento', 'endereco_municipio', 'endereco_uf',
 ] as const;
 export type CampoAluno = (typeof CAMPOS_ALUNO)[number];
 export type Aluno = { id: number } & Record<CampoAluno, string | null>;
@@ -117,7 +120,15 @@ export const ALUNO_EXEMPLO: Aluno = {
   nome_pai: 'João Exemplo da Silva', nome_mae: 'Ana Exemplo da Silva', escolaridade: 'Ensino médio completo',
   ensino_medio_instituicao: 'Escola Estadual Exemplo', ensino_medio_municipio: 'Campo Grande', ensino_medio_uf: 'MS',
   ensino_medio_ano_conclusao: '2018', email: null, telefone: null,
+  usar_nome_social: '0', estado_civil: null, necessidades_especificas: null, rg_data_expedicao: null, celular: null,
+  cep: null, endereco: null, bairro: null, complemento: null, endereco_municipio: null, endereco_uf: null,
 };
+
+/** Nome impresso nos documentos: o social só quando a chave "usar nome social" estiver ligada. */
+export function nomeDoAluno(a: { nome_civil?: string | null; nome_social?: string | null; usar_nome_social?: unknown }): string {
+  const usar = a.usar_nome_social == null || String(a.usar_nome_social) !== '0';
+  return ((usar && a.nome_social?.trim()) || a.nome_civil || '').trim();
+}
 
 /** Dados de certificado com aluno fictício e todas as disciplinas aprovadas (prévia do modelo). */
 export async function montarDadosExemplo(db: D1Database): Promise<DadosCertificado> {
@@ -194,13 +205,13 @@ async function comporDados(
 
   const diretor = signatarios.results.find((s) => s.funcao === 'diretor_pedagogico') ?? null;
   const secretario = signatarios.results.find((s) => s.funcao === 'secretario') ?? null;
-  const nomeExibido = (aluno.nome_social || aluno.nome_civil || '').trim();
+  const nomeExibido = nomeDoAluno(aluno);
 
   const faltantes: string[] = [];
   const avisos: string[] = [];
   for (const [campo, rotulo] of OBRIGATORIOS_ALUNO) if (vazio(aluno[campo])) faltantes.push(`Aluno: ${rotulo}`);
   if (vazio(aluno.nome_pai)) avisos.push('Nome do pai não informado: a filiação sairá só com o nome da mãe.');
-  if (aluno.nome_social) avisos.push('O certificado usará o nome social do(a) estudante.');
+  if (aluno.nome_social && nomeExibido !== aluno.nome_civil) avisos.push('O certificado usará o nome social do(a) estudante.');
   if (!credenciamento) faltantes.push('Instituição: ato de credenciamento');
   if (!atoPpc) faltantes.push('Curso: ato de aprovação do PPC / autorização');
   if (!modulo.qualificacao_conferida) faltantes.push('Módulo: qualificação conferida');

@@ -9,7 +9,7 @@ import { Pagina } from '../views/layout';
 import { exigir } from '../auth/sessao';
 import { avaliarModulo, criteriosDoCurso } from '../lib/aprovacao';
 import { formatarCPF } from '../lib/cpf';
-import { OBRIGATORIOS_ALUNO, type Aluno } from '../certificado/dados';
+import { nomeDoAluno, OBRIGATORIOS_ALUNO, type Aluno } from '../certificado/dados';
 
 export const rotasPendentes = new Hono<Env>();
 rotasPendentes.use('*', exigir('certificados.emitir'));
@@ -39,7 +39,7 @@ export async function listarPendentes(db: D1Database, turmaId?: number): Promise
          JOIN alunos a ON a.id = m.aluno_id
          JOIN modulos_tematicos mt ON mt.matriz_id = t.matriz_id AND mt.tem_terminalidade = 1
         WHERE m.situacao <> 'desistente' ${filtroTurma}
-        ORDER BY t.codigo, mt.ordem, coalesce(a.nome_social, a.nome_civil)`,
+        ORDER BY t.codigo, mt.ordem, CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`,
     ).bind(...binds).all<Record<string, any>>(),
     db.prepare('SELECT id, modulo_id, nome FROM componentes_curriculares WHERE modulo_id IS NOT NULL ORDER BY ordem').all<{ id: number; modulo_id: number; nome: string }>(),
     db.prepare(
@@ -120,7 +120,7 @@ rotasPendentes.get('/', async (c) => {
         {visiveis.map((l) => (
           <tr>
             <td>
-              <a href={`/admin/alunos/${l.aluno.id}`}>{l.aluno.nome_social ?? l.aluno.nome_civil}</a>
+              <a href={`/admin/alunos/${l.aluno.id}`}>{nomeDoAluno(l.aluno)}</a>
               <div class="muted">CPF {l.aluno.cpf ? formatarCPF(l.aluno.cpf) : '—'}</div>
             </td>
             <td style="white-space:nowrap"><a href={`/admin/turmas/${l.turma_id}/modulos/${l.modulo_id}`}>{l.turma}</a></td>

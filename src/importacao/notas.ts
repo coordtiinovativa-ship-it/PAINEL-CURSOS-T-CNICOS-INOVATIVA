@@ -6,6 +6,7 @@
 import { avaliarDisciplina, avaliarModulo, criteriosDoCurso, type AvaliacaoModulo, type CriteriosAprovacao } from '../lib/aprovacao';
 import { formatarCPF } from '../lib/cpf';
 import { ErroValidacao, numBR } from '../lib/form';
+import { nomeDoAluno } from '../certificado/dados';
 import { chave, gerarCSV, normalizarCPF, normalizarNumero, type Tabela } from './planilha';
 
 type Campo = 'nota' | 'exame' | 'freq';
@@ -18,7 +19,7 @@ const SUFIXOS: [RegExp, Campo][] = [
 const campoPorTexto = (s: string): Campo | null => SUFIXOS.find(([re]) => re.test(s))?.[1] ?? null;
 
 interface Componente { id: number; nome: string; ch: number }
-interface Matricula { id: number; aluno_id: number; cpf: string; ra: string | null; nome_civil: string; nome_social: string | null }
+interface Matricula { id: number; aluno_id: number; cpf: string; ra: string | null; nome_civil: string; nome_social: string | null; usar_nome_social: number }
 type Valores = { nota: number | null; exame: number | null; freq: number | null };
 
 export interface Alteracao { componenteId: number; disciplina: string; antes: Valores; depois: Valores }
@@ -46,8 +47,8 @@ async function contexto(db: D1Database, turmaId: number, moduloId: number) {
   if (!turma) throw new ErroValidacao('Turma ou módulo inválido.');
   const [comps, mats, res] = await Promise.all([
     db.prepare('SELECT id, nome, carga_horaria_total AS ch FROM componentes_curriculares WHERE modulo_id = ? ORDER BY ordem').bind(moduloId).all<Componente>(),
-    db.prepare(`SELECT m.id, m.aluno_id, a.cpf, a.ra, a.nome_civil, a.nome_social FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
-                 WHERE m.turma_id = ? AND m.situacao <> 'desistente' ORDER BY coalesce(a.nome_social, a.nome_civil)`).bind(turmaId).all<Matricula>(),
+    db.prepare(`SELECT m.id, m.aluno_id, a.cpf, a.ra, a.nome_civil, a.nome_social, a.usar_nome_social FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
+                 WHERE m.turma_id = ? AND m.situacao <> 'desistente' ORDER BY CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`).bind(turmaId).all<Matricula>(),
     db.prepare(`SELECT r.* FROM resultados r JOIN matriculas m ON m.id = r.matricula_id WHERE m.turma_id = ?
                  AND r.componente_id IN (SELECT id FROM componentes_curriculares WHERE modulo_id = ?)`).bind(turmaId, moduloId).all<Record<string, any>>(),
   ]);
@@ -55,7 +56,7 @@ async function contexto(db: D1Database, turmaId: number, moduloId: number) {
   return { turma, criterios: criteriosDoCurso(turma as any), comps: comps.results, mats: mats.results, atuais };
 }
 
-const nomeDe = (m: Matricula) => m.nome_social ?? m.nome_civil;
+const nomeDe = (m: Matricula) => nomeDoAluno(m);
 
 /** Modelo já preenchido com os alunos da turma, disciplinas do módulo e valores atuais. */
 export async function modeloNotasCSV(db: D1Database, turmaId: number, moduloId: number): Promise<string> {
