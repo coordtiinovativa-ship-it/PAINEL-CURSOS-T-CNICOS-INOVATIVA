@@ -40,6 +40,8 @@ simple = { limit = 10, period = 60 }
 # ---------- produção ----------
 [env.production]
 name = "certificados-iect"
+# Conta Cloudflare onde está a zona institutoinovativa.org (Admin@institutoinovativa.org)
+account_id = "43c07b1adb4e7a883dee9ada17422bdc"
 # Domínio próprio na zona institutoinovativa.org (já na Cloudflare): o deploy cria DNS e certificado HTTPS.
 routes = [{ pattern = "certificadostecnicos.institutoinovativa.org", zone_name = "institutoinovativa.org", custom_domain = true }]
 # Só o domínio oficial: sem endereço *.workers.dev nem URLs de prévia (evita QR/cookies em outro endereço)
@@ -57,19 +59,20 @@ URL_PUBLICA = "https://certificadostecnicos.institutoinovativa.org"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "certificados-iect"
-database_id = "0f1526e7-f6d7-4798-8a4b-7d09f20445d3"  # criado em 16/11/2026 (região ENAM)
+database_id = "a36875c4-ae5b-45cb-ad96-7777aec6020b"  # criado em 16/11/2026 (região ENAM)
 migrations_dir = "migrations"
 
 [[env.production.r2_buckets]]
 binding = "ARQUIVOS"
 bucket_name = "certificados-iect"
 
+# namespace_id deve ser único na conta Cloudflare (a conta tem outros projetos)
 [[env.production.ratelimits]]
 name = "LIMITE_VALIDACAO"
-namespace_id = "1001"
+namespace_id = "742101"
 simple = { limit = 20, period = 60 }
 
 [[env.production.ratelimits]]
 name = "LIMITE_LOGIN"
-namespace_id = "1002"
+namespace_id = "742102"
 simple = { limit = 10, period = 60 }

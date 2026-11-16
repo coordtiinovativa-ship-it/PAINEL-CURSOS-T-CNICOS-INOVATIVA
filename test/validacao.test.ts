@@ -86,7 +86,8 @@ describe('página pública de validação', () => {
       expect(r.status, cod).toBe(404);
       expect(await r.text()).toContain('Certificado não encontrado');
     }
-    expect(auditoria().at(-1)!.acao).toBe('consulta_publica_inexistente');
+    // consultas a códigos inexistentes não gravam no banco (proteção da cota de gravações do D1)
+    expect(auditoria().some((a) => a.acao === 'consulta_publica_inexistente')).toBe(false);
   }, 30_000);
 
   it('página inicial de consulta não exige login', async () => {

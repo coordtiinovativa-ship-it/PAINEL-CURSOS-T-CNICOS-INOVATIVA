@@ -109,7 +109,8 @@ rotasPublico.get('/:codigo', async (c) => {
   const doc = ce ? null : await buscarDocumento(c.env.DB, codigo);
   if (doc) return paginaDocumento(c, doc, tema);
   if (!ce) {
-    await auditar(c, 'consulta_publica_inexistente', 'certificado', null, null, { codigo: codigo.slice(0, 40) }, PUBLICO);
+    // Sem gravar no banco: uma varredura de códigos não pode consumir a cota diária de gravações do D1.
+    console.warn(`[validacao] código inexistente ${codigo.slice(0, 40)} ip=${c.req.header('CF-Connecting-IP') ?? '?'}`);
     return c.html(
       <PaginaPublica titulo="Certificado não encontrado" tema={tema} rodape={<Rodape />}>
         <div class="selo erro" style="text-transform:none">

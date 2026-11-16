@@ -37,15 +37,16 @@ Para recriar o banco local do zero: apagar `.wrangler/state` e repetir os dois c
 5. O domínio `certificadostecnicos.institutoinovativa.org` é criado automaticamente pelo deploy
    (`routes` com `custom_domain = true` no `wrangler.toml`; a zona institutoinovativa.org já está na Cloudflare).
 
-### Regra de WAF (camada extra, opcional — criar no painel após o deploy)
+### Regra de WAF (NECESSÁRIA — criar no painel)
 
-O sistema já limita por IP no próprio Worker (20 consultas/min em `/v`, 10 logins/min). A regra abaixo barra
-rajadas antes de chegarem ao Worker. O token do wrangler não tem permissão de firewall, por isso é feita no painel:
+Teste em produção (16/11/2026): o Rate Limiting nativo do Workers **não bloqueou** nesta conta (120 consultas do
+mesmo IP em 74 s passaram). A proteção efetiva por IP é esta regra de WAF na zona. O token do wrangler não tem
+permissão de firewall, por isso é criada no painel:
 
 Cloudflare → institutoinovativa.org → **Security → WAF → Rate limiting rules → Create rule**
 
-- Nome: `Certificados - validação pública`
+- Nome: `Certificados - validação e login`
 - Expressão (Edit expression):
-  `(http.host eq "certificadostecnicos.institutoinovativa.org" and starts_with(http.request.uri.path, "/v"))`
+  `(http.host eq "certificadostecnicos.institutoinovativa.org" and (starts_with(http.request.uri.path, "/v") or (http.request.uri.path eq "/login" and http.request.method eq "POST")))`
 - Contar por: **IP** · Quando exceder: **15 requisições** em **10 segundos**
 - Ação: **Block** por **10 segundos** (no plano gratuito, período e bloqueio são de 10 s)
