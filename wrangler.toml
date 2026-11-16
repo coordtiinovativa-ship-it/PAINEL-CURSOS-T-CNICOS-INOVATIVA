@@ -42,6 +42,13 @@ simple = { limit = 10, period = 60 }
 name = "certificados-iect"
 # Domínio próprio na zona institutoinovativa.org (já na Cloudflare): o deploy cria DNS e certificado HTTPS.
 routes = [{ pattern = "certificadostecnicos.institutoinovativa.org", custom_domain = true }]
+# Só o domínio oficial: sem endereço *.workers.dev nem URLs de prévia (evita QR/cookies em outro endereço)
+workers_dev = false
+preview_urls = false
+
+# Logs de produção (erros e requisições) no painel da Cloudflare
+[env.production.observability]
+enabled = true
 
 [env.production.vars]
 AMBIENTE = "production"
@@ -50,8 +57,7 @@ URL_PUBLICA = "https://certificadostecnicos.institutoinovativa.org"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "certificados-iect"
-# Substituir pelo id real após `wrangler d1 create certificados-iect`
-database_id = "00000000-0000-0000-0000-000000000001"
+database_id = "0f1526e7-f6d7-4798-8a4b-7d09f20445d3"  # criado em 16/11/2026 (região ENAM)
 migrations_dir = "migrations"
 
 [[env.production.r2_buckets]]
