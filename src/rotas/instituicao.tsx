@@ -111,7 +111,8 @@ const CAMPOS_ATO = [
 
 const FormAto = async ({ c, ato, erro }: { c: any; ato?: Record<string, any>; erro?: string }) => {
   const cursos = (await c.env.DB.prepare('SELECT id, nome FROM cursos ORDER BY nome').all()).results as { id: number; nome: string }[];
-  const dono = ato?.curso_id ? `curso:${ato.curso_id}` : 'instituicao:1';
+  const cursoQuery = Number(c.req.query('curso')) || null;
+  const dono = ato?.curso_id ? `curso:${ato.curso_id}` : cursoQuery ? `curso:${cursoQuery}` : 'instituicao:1';
   return (
     <Pagina titulo="Ato regulatório" usuario={c.get('usuario')} caminho={c.req.path} erro={erro}>
       <h1>{ato?.id ? 'Editar ato regulatório' : 'Novo ato regulatório'}</h1>
@@ -129,7 +130,7 @@ const FormAto = async ({ c, ato, erro }: { c: any; ato?: Record<string, any>; er
           <Campo nome="publicacao_doe_numero" rotulo="DOE/MS nº" valor={ato?.publicacao_doe_numero} />
           <Campo nome="publicacao_doe_data" rotulo="Data da publicação" tipo="date" valor={ato?.publicacao_doe_data} />
           <Campo nome="veiculo_publicacao" rotulo="Veículo" valor={ato?.veiculo_publicacao ?? 'DOE/MS'} />
-          <div class="largo acoes"><button>Salvar</button><a class="botao sec" href="/admin/instituicao">Cancelar</a></div>
+          <div class="largo acoes"><button>Salvar</button><a class="botao sec" href={ato?.curso_id || cursoQuery ? `/admin/cursos/${ato?.curso_id ?? cursoQuery}#atos` : '/admin/instituicao'}>Cancelar</a></div>
         </form>
       </div>
     </Pagina>
@@ -181,5 +182,6 @@ rotasInstituicao.post('/atos/:id', async (c) => {
       .run();
     await auditar(c, 'atualizar', 'ato_regulatorio', Number(id), antes, d);
   }
+  if (d.curso_id) return c.redirect(`/admin/cursos/${d.curso_id}?ok=` + encodeURIComponent('Ato do curso salvo.') + '#atos');
   return c.redirect('/admin/instituicao?ok=' + encodeURIComponent('Ato regulatório salvo.'));
 });

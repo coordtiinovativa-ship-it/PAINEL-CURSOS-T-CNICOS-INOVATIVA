@@ -303,6 +303,17 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   aprovado/reprovado (PPC 11.1.1). Aluno precisa estar matriculado na turma.
 - Aguardando a planilha real da secretaria para ajustar apelidos de cabeçalho, se necessário.
 
+### Vários cursos (16/11/2026)
+- Cadastros → **Cursos e Matrizes** (`src/rotas/cursos-gestao.tsx`): cadastro do curso (dados do PPC, CBO), atos do
+  curso, matriz curricular versionada (módulos, disciplinas com CH teórica/prática/total, TCC/estágio) e textos.
+- Cada documento usa automaticamente **os atos e o texto do curso da turma** + **os fixos da instituição**
+  (cabeçalho, credenciamento, logo, fundos, assinaturas). Texto do curso → senão texto padrão geral (migração 0009).
+- Variáveis extras no texto: `{ato_ppc_completo}`, `{ato_reconhecimento_completo}`, `{ato_criacao_curso_completo}`,
+  `{ato_credenciamento_completo}`, `{instituicao}`, `{mantenedora}`, `{carga_horaria}`, `{carga_horaria_curso}`.
+  Variável usada sem valor bloqueia a emissão.
+- Matriz em uso por turma fica travada (crie nova versão, que copia a anterior). Módulo cuja soma das disciplinas
+  difere da CH do módulo bloqueia a emissão.
+
 ### Produção (fase 7 — 16/11/2026)
 - No ar em https://certificadostecnicos.institutoinovativa.org, conta Cloudflare **Admin@institutoinovativa.org's
   Account** (`account_id` 43c07b1a… no `wrangler.toml`), onde está a zona institutoinovativa.org.

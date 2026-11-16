@@ -86,6 +86,27 @@ export interface DadosCertificado {
 
 export class NaoEncontrado extends Error {}
 
+/** "Deliberação CEE/MS nº 13.111, de 18 de dezembro de 2024" a partir de um ato regulatório. */
+export function descreverAto(a: Record<string, any>): string {
+  const orgao = a.orgao_emissor.includes('CEE/MS') ? 'CEE/MS ' : '';
+  return `${a.tipo} ${orgao}nº ${a.numero}, de ${dataExtenso(a.data)}`;
+}
+
+/** Variáveis aceitas no texto do certificado (tela de textos do curso). */
+export const VARIAVEIS_CERTIFICADO: [string, string][] = [
+  ['nome', 'nome do(a) estudante (social, se a chave estiver ligada)'], ['nacionalidade', 'nacionalidade'],
+  ['naturalidade_municipio', 'município de naturalidade'], ['naturalidade_uf', 'estado de naturalidade, por extenso'],
+  ['data_nascimento_extenso', 'data de nascimento por extenso'], ['rg', 'RG'], ['rg_orgao', 'órgão expedidor do RG'], ['rg_uf', 'UF do RG'],
+  ['nome_pai', 'filiação (pai)'], ['nome_mae', 'filiação (mãe)'],
+  ['curso', 'nome do curso'], ['eixo', 'eixo tecnológico'], ['area', 'área tecnológica'], ['nivel', 'nível'],
+  ['carga_horaria', 'carga horária do módulo'], ['carga_horaria_curso', 'carga horária total do curso'],
+  ['modulo', 'nome do módulo (maiúsculas)'], ['qualificacao', 'qualificação conferida pelo módulo'],
+  ['ato_ppc_numero', 'nº do ato de aprovação do PPC / autorização do curso'], ['ato_ppc_data_extenso', 'data desse ato por extenso'],
+  ['ato_ppc_completo', 'ato de autorização completo (tipo, órgão, nº e data)'],
+  ['ato_reconhecimento_completo', 'ato de reconhecimento do curso, completo'], ['ato_criacao_curso_completo', 'ato de criação do curso, completo'],
+  ['ato_credenciamento_completo', 'credenciamento da instituição (fixo)'], ['instituicao', 'nome da instituição (fixo)'], ['mantenedora', 'mantenedora (fixo)'],
+];
+
 /** Data de hoje em Mato Grosso do Sul (UTC−4), ISO. */
 export function hojeMS(): string {
   return new Date(Date.now() - 4 * 3600_000).toISOString().slice(0, 10);
@@ -157,7 +178,7 @@ async function comporDados(
 ): Promise<DadosCertificado> {
   const { alunoSobrescrito } = opcoes;
   const matriculaId = base.matricula_id as number;
-  const [instituicao, curso, modulo, alunoDb, credenciamento, atoPpc, componentes, resultados, signatarios] = await Promise.all([
+  const [instituicao, curso, modulo, alunoDb, credenciamento, atoPpc, componentes, resultados, signatarios, atosCurso] = await Promise.all([
     db.prepare('SELECT * FROM instituicoes WHERE id = (SELECT instituicao_id FROM cursos WHERE id = ?)').bind(base.curso_id).first<Record<string, any>>(),
     db.prepare('SELECT cu.*, e.nome AS eixo FROM cursos cu LEFT JOIN eixos_tecnologicos e ON e.id = cu.eixo_id WHERE cu.id = ?').bind(base.curso_id).first<Record<string, any>>(),
     db.prepare('SELECT * FROM modulos_tematicos WHERE id = ? AND matriz_id = ?').bind(moduloId, base.matriz_id).first<DadosCertificado['modulo']>(),
@@ -169,7 +190,9 @@ async function comporDados(
     db.prepare('SELECT id, nome, carga_horaria_total AS ch FROM componentes_curriculares WHERE modulo_id = ? ORDER BY ordem').bind(moduloId).all<{ id: number; nome: string; ch: number }>(),
     db.prepare('SELECT * FROM resultados WHERE matricula_id = ?').bind(matriculaId).all<Record<string, any>>(),
     db.prepare(`SELECT nome, cargo, funcao, assinatura_r2_key FROM signatarios WHERE ativo = 1 AND funcao IN ('diretor_pedagogico','secretario')`).all<Signatario & { funcao: string }>(),
+    db.prepare(`SELECT * FROM atos_regulatorios WHERE curso_id = ? AND ativo = 1 ORDER BY data DESC`).bind(base.curso_id).all<Record<string, any>>(),
   ]);
+  const atoDo = (...finalidades: string[]) => atosCurso.results.find((a) => finalidades.includes(a.finalidade)) ?? null;
   if (!modulo) throw new NaoEncontrado('Módulo não pertence à matriz da turma');
   if (!alunoDb || !instituicao || !curso) throw new NaoEncontrado('Dados incompletos');
 
@@ -215,6 +238,11 @@ async function comporDados(
   if (!credenciamento) faltantes.push('Instituição: ato de credenciamento');
   if (!atoPpc) faltantes.push('Curso: ato de aprovação do PPC / autorização');
   if (!modulo.qualificacao_conferida) faltantes.push('Módulo: qualificação conferida');
+  const chComponentes = componentes.results.reduce((soma, cc) => soma + cc.ch, 0);
+  if (!componentes.results.length) faltantes.push('Matriz: módulo sem disciplinas cadastradas');
+  else if (chComponentes !== modulo.carga_horaria) {
+    faltantes.push(`Matriz: as disciplinas do módulo somam ${chComponentes} h, mas o módulo tem ${modulo.carga_horaria} h`);
+  }
   for (const [s, rotulo] of [[diretor, 'Diretor(a) Pedagógico(a)'], [secretario, 'Secretário(a)']] as const) {
     if (!s || s.nome.includes('A DEFINIR')) faltantes.push(`Signatário: ${rotulo} não cadastrado`);
     else if (!s.assinatura_r2_key) avisos.push(`Assinatura digitalizada de ${rotulo} não enviada (será assinada à mão).`);
@@ -231,12 +259,21 @@ async function comporDados(
     .bind(curso.id)
     .first<{ texto: string }>();
   let modelo = modeloRow?.texto ?? '';
+  if (!modelo.trim()) faltantes.push('Curso: texto do certificado não cadastrado');
   if (vazio(aluno.nome_pai)) modelo = modelo.replace(/\{nome_pai\}\s+e\s+\{nome_mae\}/, '{nome_mae}');
 
   const ext = (iso: string | null) => {
     try { return iso ? dataExtenso(iso) : null; } catch { return null; }
   };
   const textoFrente = segmentarModelo(modelo, {
+    instituicao: instituicao.razao_social,
+    mantenedora: instituicao.mantenedora_razao_social,
+    ato_credenciamento_completo: credenciamento ? descreverAto(credenciamento) : null,
+    ato_ppc_completo: atoPpc ? descreverAto(atoPpc) : null,
+    ato_reconhecimento_completo: (() => { const a = atoDo('renovacao_reconhecimento', 'reconhecimento'); return a ? descreverAto(a) : null; })(),
+    ato_criacao_curso_completo: (() => { const a = atoDo('criacao_curso'); return a ? descreverAto(a) : null; })(),
+    carga_horaria: String(modulo.carga_horaria),
+    carga_horaria_curso: String(curso.carga_horaria_total),
     curso: curso.nome,
     eixo: curso.eixo,
     area: curso.area_tecnologica,
@@ -256,6 +293,12 @@ async function comporDados(
     modulo: modulo.nome.toUpperCase(),
     qualificacao: modulo.qualificacao_conferida,
   });
+
+  // Variável usada no texto mas sem valor (ex.: ato de reconhecimento ainda não cadastrado) impede a emissão
+  const jaApontados = new Set(['nome', 'nacionalidade', 'naturalidade_municipio', 'naturalidade_uf', 'data_nascimento_extenso', 'rg', 'rg_orgao', 'rg_uf', 'nome_pai', 'nome_mae', 'ato_ppc_numero', 'ato_ppc_data_extenso', 'ato_ppc_completo', 'qualificacao']);
+  for (const v of new Set(textoFrente.filter((x) => x.faltante).map((x) => x.variavel!))) {
+    if (!jaApontados.has(v)) faltantes.push(`Texto do certificado: {${v}} sem valor`);
+  }
 
   const credenciamentoTexto = credenciamento
     ? `Credenciamento ${credenciamento.tipo} ${credenciamento.orgao_emissor.includes('CEE/MS') ? 'CEE/MS ' : ''}nº ${credenciamento.numero}, de ${dataExtenso(credenciamento.data)}`

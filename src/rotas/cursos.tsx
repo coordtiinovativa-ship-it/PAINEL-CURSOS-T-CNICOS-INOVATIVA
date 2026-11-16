@@ -9,37 +9,7 @@ import { calcularMediaFinal, criteriosDoCurso, ROTULO_METODO, type MetodoExame }
 export const rotasCursos = new Hono<Env>();
 rotasCursos.use('*', exigir('cursos.editar'));
 
-rotasCursos.get('/', async (c) => {
-  const cursos = (
-    await c.env.DB.prepare(
-      `SELECT cu.*, e.nome AS eixo FROM cursos cu LEFT JOIN eixos_tecnologicos e ON e.id = cu.eixo_id ORDER BY cu.nome`,
-    ).all<Record<string, any>>()
-  ).results;
-  return c.html(
-    <Pagina titulo="Cursos" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
-      <h1>Cursos</h1>
-      <table>
-        <tr><th>Curso</th><th>Eixo</th><th class="n">CH</th><th>Aprovação</th><th></th></tr>
-        {cursos.map((cu) => {
-          const cr = criteriosDoCurso(cu as any);
-          return (
-            <tr>
-              <td>{cu.nome}<div class="muted">{cu.nivel}</div></td>
-              <td>{cu.eixo}</td>
-              <td class="n">{cu.carga_horaria_total} h</td>
-              <td class="muted">
-                freq. ≥ {numBR(cr.frequenciaMinima)}% · média ≥ {numBR(cr.notaMinima)} · após exame ≥ {numBR(cr.notaMinimaExame)}
-                <br />{ROTULO_METODO[cr.metodoExame]}
-                {cr.metodoExame === 'media_ponderada' ? ` (pesos ${numBR(cr.pesoMedia)} e ${numBR(cr.pesoExame)})` : ''}
-              </td>
-              <td><a href={`/admin/cursos/${cu.id}/parametros`}>parâmetros de aprovação</a><br /><a href={`/admin/cursos/${cu.id}/modulos`}>perfil e competências dos módulos</a></td>
-            </tr>
-          );
-        })}
-      </table>
-    </Pagina>,
-  );
-});
+// A lista e o cadastro de cursos ficam em ./cursos-gestao.tsx
 
 const FormParametros = ({ c, cu, erro }: { c: any; cu: Record<string, any>; erro?: string }) => {
   const cr = criteriosDoCurso(cu as any);
@@ -62,7 +32,7 @@ const FormParametros = ({ c, cu, erro }: { c: any; cu: Record<string, any>; erro
             opcoes={Object.entries(ROTULO_METODO) as [string, string][]} />
           <Campo nome="peso_media" rotulo="Peso da média (só p/ média ponderada)" valor={numBR(cr.pesoMedia)} />
           <Campo nome="peso_exame" rotulo="Peso do exame (só p/ média ponderada)" valor={numBR(cr.pesoExame)} />
-          <div class="largo acoes"><button>Salvar parâmetros</button><a class="botao sec" href="/admin/cursos">Voltar</a></div>
+          <div class="largo acoes"><button>Salvar parâmetros</button><a class="botao sec" href={`/admin/cursos/${cu.id}`}>Voltar</a></div>
         </form>
       </div>
       <div class="cartao">
@@ -119,7 +89,7 @@ rotasCursos.post('/:id{[0-9]+}/parametros', async (c) => {
     .run();
   const antes = Object.fromEntries(cols.map((k) => [k, cu[k]]));
   await auditar(c, 'atualizar_parametros', 'curso', cu.id, antes, d);
-  return c.redirect('/admin/cursos?ok=' + encodeURIComponent('Parâmetros de aprovação salvos.'));
+  return c.redirect(`/admin/cursos/${cu.id}?ok=` + encodeURIComponent('Parâmetros de aprovação salvos.'));
 });
 
 // ---------------------------------------------------------------------
@@ -138,7 +108,7 @@ rotasCursos.get('/:id{[0-9]+}/modulos', async (c) => {
   ).results;
   return c.html(
     <Pagina titulo="Perfil e competências" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
-      <p><a href="/admin/cursos">← Cursos</a></p>
+      <p><a href={`/admin/cursos/${cu.id}`}>← {cu.nome}</a></p>
       <h1>Perfil profissional e competências</h1>
       <p class="muted" style="margin-top:-.6rem"><b>{cu.nome}</b> · textos do PPC impressos no verso do histórico escolar.
         Documentos já emitidos não mudam ao editar.</p>

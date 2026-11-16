@@ -221,7 +221,7 @@ export const SECOES_MENU: SecaoMenu[] = [
     id: 'cadastros', rotulo: 'Cadastros', icone: 'cadastros',
     itens: [
       { href: '/admin/instituicao', rotulo: 'Instituição e Atos', perm: 'instituicao.editar' },
-      { href: '/admin/cursos', rotulo: 'Cursos e Aprovação', perm: 'cursos.editar' },
+      { href: '/admin/cursos', rotulo: 'Cursos e Matrizes', perm: 'cursos.editar' },
       { separador: true },
       { href: '/admin/modelo', rotulo: 'Modelo do Certificado', perm: 'instituicao.editar' },
       { href: '/admin/signatarios', rotulo: 'Signatários', perm: 'signatarios.editar' },
