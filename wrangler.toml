@@ -40,10 +40,12 @@ simple = { limit = 10, period = 60 }
 # ---------- produção ----------
 [env.production]
 name = "certificados-iect"
+# Domínio próprio na zona institutoinovativa.org (já na Cloudflare): o deploy cria DNS e certificado HTTPS.
+routes = [{ pattern = "certificadostecnicos.institutoinovativa.org", custom_domain = true }]
 
 [env.production.vars]
 AMBIENTE = "production"
-URL_PUBLICA = "https://certificadostecnicos.inovativa.com.br"
+URL_PUBLICA = "https://certificadostecnicos.institutoinovativa.org"
 
 [[env.production.d1_databases]]
 binding = "DB"

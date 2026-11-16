@@ -50,7 +50,7 @@ describe('emissão do certificado', () => {
     const s = JSON.parse(ce.snapshot_json) as SnapshotCertificado;
     expect(s.aluno.nome).toBe('Ana Beatriz Fictícia Souza');
     expect(s.textoFrente).toContain('ANA BEATRIZ FICTÍCIA SOUZA');
-    expect(s.validacao.url).toBe(`https://certificadostecnicos.inovativa.com.br/v/INV-2026-00001?t=${ce.token}`);
+    expect(s.validacao.url).toBe(`https://certificadostecnicos.institutoinovativa.org/v/INV-2026-00001?t=${ce.token}`);
     expect(s.registro).toMatchObject({ numero: '1', folha: '1', livro: '1', anoLetivo: 2026 });
     expect(await hashSnapshot(s)).toBe(ce.hash_sha256);
 

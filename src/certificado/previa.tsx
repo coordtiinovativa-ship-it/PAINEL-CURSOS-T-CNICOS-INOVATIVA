@@ -169,7 +169,7 @@ export const Verso: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Reg
               <div>
                 Autenticidade deste certificado:<br />
                 <b>{reg?.codigoValidacao ?? 'INV-AAAA-NNNNN'}</b><br />
-                {reg?.urlValidacao ?? 'certificadostecnicos.inovativa.com.br/v/…'}
+                {reg?.urlValidacao ?? 'certificadostecnicos.institutoinovativa.org/v/…'}
               </div>
             </div>
           </div>

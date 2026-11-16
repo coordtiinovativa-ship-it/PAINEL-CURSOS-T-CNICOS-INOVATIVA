@@ -336,7 +336,7 @@ export async function gerarPdfCertificado(
     else fo.p.drawRectangle({ x: xd, y: H - yd - ladoQr, width: ladoQr, height: ladoQr, borderColor: CINZA, borderWidth: 0.5, borderDashArray: [2, 2] });
     const xt = xd + ladoQr + 3 * MM;
     const lh7 = 7.5 * LH_NORMAL;
-    const urlVisivel = s.validacao.url ? s.validacao.url.replace(/^https?:\/\//, '').replace(/\?.*$/, '') : 'certificadostecnicos.inovativa.com.br/v/…';
+    const urlVisivel = s.validacao.url ? s.validacao.url.replace(/^https?:\/\//, '').replace(/\?.*$/, '') : 'certificadostecnicos.institutoinovativa.org/v/…';
     const yt = yd + (ladoQr - 3 * lh7) / 2;
     fo.texto('Autenticidade deste certificado:', xt, yt, 7.5, f.r, lh7, CINZA);
     fo.texto(s.validacao.codigo ?? 'INV-AAAA-NNNNN', xt, yt + lh7, 7.5, f.b, lh7, CINZA);

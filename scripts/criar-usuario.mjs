@@ -2,7 +2,7 @@
 /**
  * Cria (ou redefine a senha de) um usuário diretamente no D1. Uso típico: criar o primeiro admin master.
  *
- *   node scripts/criar-usuario.mjs --email fulano@inovativa.com.br --nome "Fulano de Tal"            (D1 local)
+ *   node scripts/criar-usuario.mjs --email fulano@institutoinovativa.org --nome "Fulano de Tal"            (D1 local)
  *   node scripts/criar-usuario.mjs --email ... --nome ... --perfil administrador
  *   node scripts/criar-usuario.mjs --email ... --nome ... --producao                                  (D1 de produção)
  *

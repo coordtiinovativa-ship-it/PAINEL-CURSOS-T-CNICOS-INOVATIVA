@@ -130,7 +130,7 @@ Seguir esta ordem. Usar dados fictícios até os reais chegarem; tudo que vem do
 4. Página pública de validação.
 5. Declaração de conclusão de módulo e histórico escolar (mesmo motor da prévia).
 6. Importação da planilha de alunos e resultados, com relatório de campos faltantes e conferência de aprovação.
-7. Deploy em produção (domínio certificadostecnicos.inovativa.com.br) e criação do primeiro admin master.
+7. Deploy em produção (domínio certificadostecnicos.institutoinovativa.org) e criação do primeiro admin master.
 Depois de 05/12: emissão em lote, revogação, 2ª via, livro de registro exportável, ata de resultados.
 
 ---
@@ -238,7 +238,9 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 ## DECISÕES DA DIREÇÃO (13/11/2026 — prevalecem sobre o que estiver acima)
 
 - **CNPJ 44.362.171/0001-36 é do IECT.** CNPJ da mantenedora: não informado.
-- **Domínio público**: `certificadostecnicos.inovativa.com.br` (QR code e página `/v/{codigo}`).
+- **Domínio público**: `certificadostecnicos.institutoinovativa.org` (QR code e página `/v/{codigo}`).
+  Decisão de 16/11/2026: substitui `certificadostecnicos.inovativa.com.br`, porque inovativa.com.br usa o DNS do
+  Registro.br e institutoinovativa.org já está na Cloudflare (domínio próprio do Worker + WAF sem migrar DNS).
 - **Parâmetros de aprovação editáveis na tela** (por curso): frequência mínima, média mínima, média mínima
   após exame e forma de cálculo da média final após exame (média ponderada com pesos, exame substitui a
   média, ou maior nota). Padrão: ponderada 1:1, 75% / 6,0 / 5,0.
@@ -269,6 +271,7 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - Toda consulta pública é registrada na auditoria como usuário "público".
 - **Limite por IP** (Rate Limiting nativo do Workers, `[[ratelimits]]` no `wrangler.toml`, middleware
   `src/lib/limite.ts`): `/v` 20 consultas/min; `POST /login` 10 tentativas/min. Excedeu → página 429.
+  Valores confirmados pela direção em 16/11/2026. Camada extra opcional: regra de WAF na zona (ver README).
 - Menu lateral no estilo SysGEP (seções recolhíveis: Secretaria, Cadastros, Sistema) em `src/views/layout.tsx`.
 - "Emissão de Certificados" (`/admin/certificados/pendentes`): aprovados aguardando certificado, por turma.
 

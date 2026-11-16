@@ -34,4 +34,18 @@ Para recriar o banco local do zero: apagar `.wrangler/state` e repetir os dois c
 2. Copiar o `database_id` para `[env.production]` em `wrangler.toml`
 3. `npm run db:migrate:prod` e `npm run deploy`
 4. `node scripts/criar-usuario.mjs --email ... --nome ... --producao` (primeiro admin master)
-5. Apontar `certificadostecnicos.inovativa.com.br` para o Worker
+5. O domínio `certificadostecnicos.institutoinovativa.org` é criado automaticamente pelo deploy
+   (`routes` com `custom_domain = true` no `wrangler.toml`; a zona institutoinovativa.org já está na Cloudflare).
+
+### Regra de WAF (camada extra, opcional — criar no painel após o deploy)
+
+O sistema já limita por IP no próprio Worker (20 consultas/min em `/v`, 10 logins/min). A regra abaixo barra
+rajadas antes de chegarem ao Worker. O token do wrangler não tem permissão de firewall, por isso é feita no painel:
+
+Cloudflare → institutoinovativa.org → **Security → WAF → Rate limiting rules → Create rule**
+
+- Nome: `Certificados - validação pública`
+- Expressão (Edit expression):
+  `(http.host eq "certificadostecnicos.institutoinovativa.org" and starts_with(http.request.uri.path, "/v"))`
+- Contar por: **IP** · Quando exceder: **15 requisições** em **10 segundos**
+- Ação: **Block** por **10 segundos** (no plano gratuito, período e bloqueio são de 10 s)

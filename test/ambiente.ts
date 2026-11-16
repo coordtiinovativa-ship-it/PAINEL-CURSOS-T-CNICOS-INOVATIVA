@@ -88,7 +88,7 @@ export async function criarAmbiente(opcoes: { ficticios?: boolean } = {}) {
       }
     },
   } as unknown as Fetcher;
-  const env = { DB: d1, ARQUIVOS: criarR2(), ASSETS, AMBIENTE: 'dev', URL_PUBLICA: 'https://certificadostecnicos.inovativa.com.br' };
+  const env = { DB: d1, ARQUIVOS: criarR2(), ASSETS, AMBIENTE: 'dev', URL_PUBLICA: 'https://certificadostecnicos.institutoinovativa.org' };
 
   async function criarUsuario(email: string, perfil: string, senha = 'SenhaForte123', trocar = 0) {
     sqlite.prepare('INSERT INTO usuarios (nome, email, perfil, senha_hash, trocar_senha) VALUES (?, ?, ?, ?, ?)')
