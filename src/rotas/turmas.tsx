@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../tipos';
-import { Campo, Pagina, Selecao } from '../views/layout';
+import { Campo, Icone, Pagina, Selecao } from '../views/layout';
 import { exigir } from '../auth/sessao';
 import { pode } from '../auth/permissoes';
 import { auditar } from '../lib/auditoria';
@@ -123,6 +123,68 @@ async function carregarTurma(c: any): Promise<Record<string, any> | null> {
   ).bind(Number(c.req.param('id'))).first<Record<string, any>>();
 }
 
+const CSS_TURMA = `
+.turma-cab{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;align-items:flex-start;margin-bottom:1rem}
+.turma-cab h1{margin:0 0 .45rem}
+.chips{display:flex;gap:.4rem;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .65rem;border-radius:999px;background:var(--superficie);border:1px solid var(--borda);font-size:.82rem;color:var(--texto-2)}
+.chip b{color:var(--texto);font-weight:600}
+.chip svg{width:14px;height:14px;flex:none}
+.atalhos-turma{display:flex;gap:.45rem;flex-wrap:wrap}
+.resumo-turma{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.8rem;margin-bottom:1.4rem}
+.resumo-turma .cartao{margin:0;padding:.85rem 1rem;display:flex;flex-direction:column;gap:.1rem}
+.resumo-turma .cartao span{font-size:.8rem;color:var(--texto-2)}
+.resumo-turma .cartao b{font-size:1.25rem;color:var(--titulo)}
+.etapas{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;position:relative;margin-bottom:.4rem}
+.etapa{background:var(--superficie);border:1px solid var(--borda);border-radius:14px;padding:1rem 1.1rem 1.05rem;box-shadow:var(--sombra);
+  display:flex;flex-direction:column;gap:.55rem;position:relative;border-top:4px solid var(--borda-forte)}
+.etapa.em_andamento{border-top-color:var(--ciano)} .etapa.concluido{border-top-color:var(--verde-agua)}
+.etapa .num{display:flex;align-items:center;gap:.6rem}
+.etapa .bola{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:.95rem;flex:none;
+  background:var(--superficie-2);color:var(--texto-2);border:2px solid var(--borda-forte)}
+.etapa.em_andamento .bola{background:var(--ciano);border-color:var(--ciano);color:#fff}
+.etapa.concluido .bola{background:var(--verde-agua);border-color:var(--verde-agua);color:#fff}
+.etapa .bola svg{width:18px;height:18px}
+.etapa h3{margin:0;font-size:1rem;color:var(--titulo);line-height:1.2}
+.etapa .qualif{font-size:.85rem;color:var(--texto-2)}
+.etapa .periodo{display:flex;align-items:center;gap:.4rem;font-size:.86rem}
+.etapa .acao{margin-top:auto}
+.etapa .acao .botao,.etapa .acao span.botao{width:100%;justify-content:center}
+span.botao.desligado{background:var(--superficie-2);color:var(--texto-2);border:1px dashed var(--borda-forte);cursor:default}
+.etapa details{border-top:1px dashed var(--borda);padding-top:.5rem}
+.etapa details summary{cursor:pointer;font-size:.82rem;color:var(--link);list-style:none}
+.etapa details summary::-webkit-details-marker{display:none}
+.etapa form.editar-etapa{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-top:.55rem}
+.etapa form.editar-etapa label{font-size:.75rem}
+.etapa form.editar-etapa .largo{grid-column:1/-1}
+.etapa form.editar-etapa input,.etapa form.editar-etapa select{padding:.32rem .45rem;font-size:.86rem}
+.dica-ordem{font-size:.82rem;color:var(--texto-2);margin:0 0 1.6rem}
+.secao-cab{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin:1.6rem 0 .7rem}
+.secao-cab h2{margin:0}
+.secao-cab form{display:flex;gap:.45rem;flex-wrap:wrap;align-items:center;margin:0}
+.secao-cab select{min-width:280px}
+.aluno-cel{display:flex;align-items:center;gap:.6rem}
+.iniciais{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:.78rem;font-weight:700;flex:none;
+  background:linear-gradient(135deg,var(--azul),var(--verde-agua));color:#fff}
+.sit{display:inline-block;padding:.1rem .55rem;border-radius:999px;font-size:.76rem;font-weight:650}
+.sit.cursando{background:rgba(37,160,220,.15);color:var(--link)} .sit.concluído{background:var(--ok-bg);color:var(--ok)}
+.sit.reprovado{background:var(--erro-bg);color:var(--erro)} .sit.desistente{background:var(--th);color:var(--texto-2)}
+.linha-acoes{display:flex;gap:.35rem;align-items:center;justify-content:flex-end}
+.linha-acoes form{margin:0;display:flex;gap:.35rem;align-items:center}
+.linha-acoes select{padding:.28rem .4rem;font-size:.84rem}
+.linha-acoes button{padding:.3rem .6rem;font-size:.82rem}
+.vazio-estado{text-align:center;padding:2.2rem 1rem;border:1px dashed var(--borda-forte);border-radius:14px;background:var(--superficie);color:var(--texto-2)}
+.vazio-estado svg{width:38px;height:38px;color:var(--borda-forte)}
+.vazio-estado b{display:block;color:var(--texto);font-size:1.02rem;margin:.4rem 0 .2rem}
+details.dados-turma{margin-top:1.6rem}
+details.dados-turma > summary{cursor:pointer;font-weight:650;color:var(--titulo);font-size:1.05rem;list-style:none;display:flex;align-items:center;gap:.4rem}
+details.dados-turma > summary::-webkit-details-marker{display:none}
+details.dados-turma[open] > summary{margin-bottom:.7rem}
+`;
+
+const iniciais = (nome: string) => nome.split(/\s+/).filter((p) => p.length > 2 || p === nome).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
+const periodoTexto = (i: string | null, f: string | null) => (i ? `${dataBR(i)} a ${f ? dataBR(f) : 'em curso'}` : 'período a definir');
+
 rotasTurmas.get('/:id{[0-9]+}', async (c) => {
   const t = await carregarTurma(c);
   if (!t) return c.notFound();
@@ -135,85 +197,135 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
   ).results;
   const disponiveis = (
     await db.prepare(
-      `SELECT id, coalesce(nome_social, nome_civil) AS nome, cpf FROM alunos
+      `SELECT id, CASE WHEN usar_nome_social = 1 AND trim(coalesce(nome_social, '')) <> '' THEN nome_social ELSE nome_civil END AS nome, cpf FROM alunos
         WHERE id NOT IN (SELECT aluno_id FROM matriculas WHERE turma_id = ?) ORDER BY 2`,
     ).bind(t.id).all<{ id: number; nome: string; cpf: string }>()
   ).results;
   const modulos = await modulosDaTurma(db, t.id);
   const u = c.get('usuario');
+  const editar = pode(u.perfil, 'turmas.editar');
+  const atual = modulos.find((m) => m.situacao === 'em_andamento');
+  const concluidos = modulos.filter((m) => m.situacao === 'concluido').length;
+  const ativos = matriculas.filter((m) => m.situacao === 'cursando').length;
+  const turnos: Record<string, string> = Object.fromEntries(TURNOS);
 
   return c.html(
-    <Pagina titulo={`Turma ${t.codigo}`} usuario={u} caminho={c.req.path} ok={c.req.query('ok')} erro={c.req.query('erro')}>
-      <h1>Turma {t.codigo}</h1>
-      <p>{t.curso} · matriz v{t.versao}</p>
+    <Pagina titulo={`Turma ${t.codigo}`} usuario={u} caminho={c.req.path} ok={c.req.query('ok')} erro={c.req.query('erro')} voltar="/admin/turmas">
+      <style dangerouslySetInnerHTML={{ __html: CSS_TURMA }} />
+      <div class="turma-cab">
+        <div>
+          <h1>Turma {t.codigo}</h1>
+          <div class="chips">
+            <span class="chip"><Icone nome="cursos" /><b>{t.curso}</b></span>
+            <span class="chip">matriz v{t.versao}</span>
+            <span class="chip">{periodoTexto(t.data_inicio, t.data_fim)}</span>
+            {t.turno && <span class="chip">{turnos[t.turno] ?? t.turno}</span>}
+            {t.polo && <span class="chip">{t.polo}</span>}
+            {t.ano_letivo && <span class="chip">ano letivo {t.ano_letivo}</span>}
+          </div>
+        </div>
+        <div class="atalhos-turma">
+          {pode(u.perfil, 'resultados.lancar') && <a class="botao sec" href="/admin/importacao"><Icone nome="baixar" />Importar planilha</a>}
+          {pode(u.perfil, 'certificados.emitir') && <a class="botao sec" href={`/admin/certificados/pendentes?turma=${t.id}`}><Icone nome="certificados" />Emissão de certificados</a>}
+          {pode(u.perfil, 'relatorios.emitir') && <a class="botao sec" href={`/admin/relatorios?turma=${t.id}`}><Icone nome="documento" />Relatórios</a>}
+        </div>
+      </div>
+
+      <div class="resumo-turma">
+        <div class="cartao"><span>Alunos matriculados</span><b>{matriculas.length}</b><span>{ativos} cursando</span></div>
+        <div class="cartao"><span>Módulo atual</span><b>{atual ? `${atual.ordem}. ${atual.nome}` : concluidos === modulos.length && modulos.length ? 'Curso concluído' : '—'}</b>
+          <span>{atual ? periodoTexto(atual.data_inicio, atual.data_fim) : ''}</span></div>
+        <div class="cartao"><span>Módulos concluídos</span><b>{concluidos} de {modulos.length}</b><span>certificados liberados nos concluídos</span></div>
+      </div>
 
       <h2>Módulos da turma</h2>
-      <p class="muted" style="margin-top:-.4rem">Os módulos são feitos em ordem: um módulo só começa quando o anterior for concluído.
-        Notas só podem ser lançadas em módulo em andamento ou concluído; certificados, declarações e históricos só de módulo concluído.
-        O período do módulo é o que sai nos documentos.</p>
-      <table>
-        <tr><th>Módulo</th><th>Qualificação</th><th class="n">CH</th><th>Início</th><th>Término</th><th>Situação</th><th></th><th></th></tr>
-        {modulos.map((m) => {
-          const f = `tm-${m.id}`;
-          const editar = pode(u.perfil, 'turmas.editar');
-          return (
+      <div class="etapas">
+        {modulos.map((m) => (
+          <div class={`etapa ${m.situacao}`}>
+            <div class="num">
+              <span class="bola">{m.situacao === 'concluido' ? <Icone nome="valido" /> : m.ordem}</span>
+              <div>
+                <h3>{m.nome}</h3>
+                <div class="qualif">{m.qualificacao_conferida} · <span style="white-space:nowrap">{m.carga_horaria} h</span></div>
+              </div>
+            </div>
+            <div class="periodo"><span class={`tag ${m.situacao === 'concluido' ? 'ok' : m.situacao === 'em_andamento' ? 'aviso' : ''}`}>{ROTULO_SITUACAO[m.situacao]}</span>
+              <span class="muted">{periodoTexto(m.data_inicio, m.data_fim)}</span></div>
+            <div class="acao">
+              {m.situacao === 'planejado'
+                ? <span class="botao desligado">Aguardando o módulo anterior</span>
+                : <a class="botao" href={`/admin/turmas/${t.id}/modulos/${m.modulo_id}`}>{m.situacao === 'concluido' ? 'Resultados e certificados' : 'Lançar resultados'}</a>}
+            </div>
+            {editar && (
+              <details>
+                <summary>Alterar período e situação</summary>
+                <form method="post" action={`/admin/turmas/${t.id}/modulos-turma/${m.id}`} class="editar-etapa">
+                  <label>Início<input type="date" name="data_inicio" value={m.data_inicio ?? ''} /></label>
+                  <label>Término<input type="date" name="data_fim" value={m.data_fim ?? ''} /></label>
+                  <label class="largo">Situação
+                    <select name="situacao">{(Object.keys(ROTULO_SITUACAO) as SituacaoModulo[]).map((sit) => <option value={sit} selected={m.situacao === sit}>{ROTULO_SITUACAO[sit]}</option>)}</select>
+                  </label>
+                  <button class="largo"><Icone nome="salvar" />Salvar módulo</button>
+                </form>
+              </details>
+            )}
+          </div>
+        ))}
+      </div>
+      <p class="dica-ordem">Os módulos são feitos em ordem: um módulo só começa quando o anterior for concluído. Notas só em módulo em andamento ou concluído;
+        certificados, declarações e históricos só de módulo concluído. O período do módulo é o que sai nos documentos.</p>
+
+      <div class="secao-cab">
+        <h2>Alunos matriculados ({matriculas.length})</h2>
+        {editar && disponiveis.length > 0 && (
+          <form method="post" action={`/admin/turmas/${t.id}/matriculas`}>
+            <select name="aluno_id" required>
+              <option value="">Selecione o aluno para matricular…</option>
+              {disponiveis.map((a) => <option value={a.id}>{a.nome} — {formatarCPF(a.cpf)}</option>)}
+            </select>
+            <button><Icone nome="incluir" />Matricular</button>
+          </form>
+        )}
+      </div>
+      {matriculas.length ? (
+        <table>
+          <tr><th>Aluno</th><th>CPF</th><th>RA</th><th>Situação</th><th class="n">Ações</th></tr>
+          {matriculas.map((m) => (
             <tr>
-              <td>{m.ordem}. {m.nome}</td>
-              <td>{m.qualificacao_conferida}</td>
-              <td class="n" style="white-space:nowrap">{m.carga_horaria} h</td>
-              <td><input form={f} type="date" name="data_inicio" value={m.data_inicio ?? ''} disabled={!editar} /></td>
-              <td><input form={f} type="date" name="data_fim" value={m.data_fim ?? ''} disabled={!editar} /></td>
+              <td><a class="aluno-cel" href={`/admin/alunos/${m.aluno_id}`}><span class="iniciais">{iniciais(nomeDoAluno(m))}</span>{nomeDoAluno(m)}</a></td>
+              <td style="white-space:nowrap">{formatarCPF(m.cpf)}</td>
+              <td>{m.ra ?? '—'}</td>
+              <td><span class={`sit ${m.situacao}`}>{SITUACOES.find(([v]) => v === m.situacao)?.[1] ?? m.situacao}</span></td>
               <td>
-                <select form={f} name="situacao" disabled={!editar}>
-                  {(Object.keys(ROTULO_SITUACAO) as SituacaoModulo[]).map((sit) => <option value={sit} selected={m.situacao === sit}>{ROTULO_SITUACAO[sit]}</option>)}
-                </select>
-              </td>
-              <td>{editar && <form id={f} method="post" action={`/admin/turmas/${t.id}/modulos-turma/${m.id}`} style="margin:0"><button class="sec">salvar</button></form>}</td>
-              <td style="white-space:nowrap">
-                {m.situacao === 'planejado'
-                  ? <span class="muted">aguardando início</span>
-                  : <a href={`/admin/turmas/${t.id}/modulos/${m.modulo_id}`}>{m.situacao === 'concluido' ? 'resultados e certificados' : 'lançar resultados'}</a>}
+                {editar && (
+                  <div class="linha-acoes">
+                    <form method="post" action={`/admin/turmas/${t.id}/matriculas/${m.id}`}>
+                      <select name="situacao" aria-label="Situação da matrícula">{SITUACOES.map(([v, r]) => <option value={v} selected={m.situacao === v}>{r}</option>)}</select>
+                      <button class="sec">Alterar</button>
+                    </form>
+                    <form method="post" action={`/admin/turmas/${t.id}/matriculas/${m.id}/remover`} onsubmit="return confirm('Remover a matrícula? Só é possível se não houver resultados lançados.')">
+                      <button class="sec" title="Remover matrícula" style="color:var(--erro)"><Icone nome="excluir" /></button>
+                    </form>
+                  </div>
+                )}
               </td>
             </tr>
-          );
-        })}
-      </table>
-
-      <h2>Alunos matriculados ({matriculas.length})</h2>
-      <table>
-        <tr><th>Aluno</th><th>CPF</th><th>RA</th><th>Situação</th><th></th></tr>
-        {matriculas.map((m) => (
-          <tr>
-            <td><a href={`/admin/alunos/${m.aluno_id}`}>{nomeDoAluno(m)}</a></td>
-            <td>{formatarCPF(m.cpf)}</td>
-            <td>{m.ra ?? ''}</td>
-            <td>
-              <form method="post" action={`/admin/turmas/${t.id}/matriculas/${m.id}`} class="acoes" style="margin:0">
-                <select name="situacao">{SITUACOES.map(([v, r]) => <option value={v} selected={m.situacao === v}>{r}</option>)}</select>
-                <button class="sec">salvar</button>
-              </form>
-            </td>
-            <td>
-              <form method="post" action={`/admin/turmas/${t.id}/matriculas/${m.id}/remover`} onsubmit="return confirm('Remover a matrícula? Só é possível se não houver resultados lançados.')">
-                <button class="sec">remover</button>
-              </form>
-            </td>
-          </tr>
-        ))}
-      </table>
-      {disponiveis.length > 0 && (
-        <form method="post" action={`/admin/turmas/${t.id}/matriculas`} class="acoes">
-          <select name="aluno_id" required>
-            <option value="">Selecione o aluno…</option>
-            {disponiveis.map((a) => <option value={a.id}>{a.nome} — {formatarCPF(a.cpf)}</option>)}
-          </select>
-          <button>Matricular</button>
-          <a href="/admin/alunos/novo">cadastrar novo aluno</a>
-        </form>
+          ))}
+        </table>
+      ) : (
+        <div class="vazio-estado">
+          <Icone nome="alunos" />
+          <b>Nenhum aluno matriculado ainda</b>
+          {disponiveis.length
+            ? <>Selecione um aluno acima e clique em <b style="display:inline;font-size:inherit">Matricular</b>, ou importe a planilha da turma.</>
+            : <>Cadastre os alunos em <a href="/admin/alunos/novo">Alunos → Incluir</a> ou importe a planilha em <a href="/admin/importacao">Importar Planilhas</a>.</>}
+        </div>
       )}
 
-      <h2>Dados da turma</h2>
-      <div class="cartao">{await FormTurma({ c, t })}</div>
+      <details class="dados-turma">
+        <summary><Icone nome="alterar" />Dados da turma (código, polo, datas, turno, ano letivo)</summary>
+        <div class="cartao">{await FormTurma({ c, t })}</div>
+      </details>
     </Pagina>,
   );
 });
@@ -349,8 +461,7 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
     ).bind(t.id, modulo.id).all<{ matricula_id: number; id: number; codigo_validacao: string }>()).results.map((x) => [x.matricula_id, x]),
   );
   return c.html(
-    <Pagina titulo={`${t.codigo} — ${modulo.nome}`} usuario={u} caminho={c.req.path} ok={c.req.query('ok')}>
-      <p><a href={`/admin/turmas/${t.id}`}>← Turma {t.codigo}</a></p>
+    <Pagina voltar={`/admin/turmas/${t.id}`} titulo={`${t.codigo} — ${modulo.nome}`} usuario={u} caminho={c.req.path} ok={c.req.query('ok')}>
       <h1>Módulo {modulo.ordem}: {modulo.nome} <span class={`tag ${mt.situacao === 'concluido' ? 'ok' : mt.situacao === 'em_andamento' ? 'aviso' : ''}`}>{ROTULO_SITUACAO[mt.situacao]}</span></h1>
       <p class="muted" style="margin-top:-.6rem">Período no módulo: {mt.data_inicio ? dataBR(mt.data_inicio) : '—'} a {mt.data_fim ? dataBR(mt.data_fim) : '—'}
         {mt.situacao !== 'concluido' && <> · <b>certificados e documentos ficam disponíveis quando o módulo for concluído</b> (em <a href={`/admin/turmas/${t.id}`}>Módulos da turma</a>)</>}</p>
@@ -431,8 +542,7 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}/disciplinas/:comp{[0-9]+}', e
     return c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(`O módulo ${modulo.nome} ainda está "planejado": inicie-o em Módulos da turma antes de lançar notas.`));
   }
   return c.html(
-    <Pagina titulo={`${cc.nome} — ${t.codigo}`} usuario={c.get('usuario')} caminho={c.req.path} erro={c.req.query('erro')}>
-      <p><a href={`/admin/turmas/${t.id}/modulos/${modulo.id}`}>← Módulo {modulo.nome}</a></p>
+    <Pagina voltar={`/admin/turmas/${t.id}/modulos/${modulo.id}`} titulo={`${cc.nome} — ${t.codigo}`} usuario={c.get('usuario')} caminho={c.req.path} erro={c.req.query('erro')}>
       <h1>{cc.nome}</h1>
       <p class="muted">Turma {t.codigo} · {cc.carga_horaria_total} h · notas de 0 a 10 (use vírgula ou ponto) · frequência em %</p>
       <form method="post">

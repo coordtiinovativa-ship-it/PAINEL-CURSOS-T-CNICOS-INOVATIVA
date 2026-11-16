@@ -35,6 +35,8 @@ export interface DocumentoLayout {
   instituicao: { nome: string; enderecoLinha: string; credenciamento: string; logo_r2_key: string | null };
   paginas: PaginaDoc[];
   validacao: { codigo: string | null; url: string | null };
+  /** Rodapé próprio (relatórios): substitui o rodapé de validação/QR e numera as páginas */
+  rodape?: string[];
 }
 
 /** Medidas A4 retrato (mm) — compartilhadas pelos dois renderizadores. */

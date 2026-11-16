@@ -87,8 +87,7 @@ async function telaEmissao(c: any, mat: number, mod: number, entrada?: EntradaEm
   })).toString();
 
   return (
-    <Pagina titulo="Emitir certificado" usuario={c.get('usuario')} caminho={c.req.path}>
-      <p><a href={voltar}>← Módulo {d.modulo.nome} · turma {d.turma.turma_codigo}</a></p>
+    <Pagina voltar={voltar} titulo="Emitir certificado" usuario={c.get('usuario')} caminho={c.req.path}>
       <h1>Emitir certificado</h1>
       <div class="cartao">
         <p><b>{d.nomeExibido}</b> · CPF {mascararCPF(d.aluno.cpf ?? '')}<br />
@@ -174,8 +173,7 @@ rotasCertificados.get('/:id{[0-9]+}', async (c) => {
   const s = JSON.parse(ce.snapshot_json) as SnapshotCertificado;
   const u = c.get('usuario');
   return c.html(
-    <Pagina titulo={ce.codigo_validacao} usuario={u} caminho={c.req.path} ok={c.req.query('ok')}>
-      <p><a href="/admin/certificados">← Certificados</a></p>
+    <Pagina voltar={"/admin/certificados"} titulo={ce.codigo_validacao} usuario={u} caminho={c.req.path} ok={c.req.query('ok')}>
       <h1>Certificado {ce.codigo_validacao} <span class={`tag ${ROTULO_STATUS[ce.status]}`}>{ce.status}</span></h1>
       <div class="acoes">
         <a class="botao" href={`/admin/certificados/${ce.id}/pdf`} target="_blank">Abrir PDF</a>

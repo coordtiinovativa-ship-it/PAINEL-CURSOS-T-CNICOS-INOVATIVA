@@ -107,8 +107,7 @@ rotasCursos.get('/:id{[0-9]+}/modulos', async (c) => {
     ).bind(cu.id).all<Record<string, any>>()
   ).results;
   return c.html(
-    <Pagina titulo="Perfil e competências" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
-      <p><a href={`/admin/cursos/${cu.id}`}>← {cu.nome}</a></p>
+    <Pagina voltar={`/admin/cursos/${cu.id}`} titulo="Perfil e competências" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
       <h1>Perfil profissional e competências</h1>
       <p class="muted" style="margin-top:-.6rem"><b>{cu.nome}</b> · textos do PPC impressos no verso do histórico escolar.
         Documentos já emitidos não mudam ao editar.</p>
@@ -152,8 +151,7 @@ async function carregarModulo(c: any) {
 }
 
 const FormModulo = ({ c, m, erro }: { c: any; m: Record<string, any>; erro?: string }) => (
-  <Pagina titulo={`Módulo ${m.nome}`} usuario={c.get('usuario')} caminho={c.req.path} erro={erro}>
-    <p><a href={`/admin/cursos/${c.req.param('id')}/modulos`}>← Perfil e competências</a></p>
+  <Pagina voltar={`/admin/cursos/${c.req.param('id')}/modulos`} titulo={`Módulo ${m.nome}`} usuario={c.get('usuario')} caminho={c.req.path} erro={erro}>
     <h1>Módulo {m.ordem}: {m.nome}</h1>
     <div class="cartao">
       <form method="post" class="grade">

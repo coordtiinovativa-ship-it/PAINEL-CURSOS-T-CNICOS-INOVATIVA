@@ -31,7 +31,7 @@ describe('módulos da turma (em sequência)', () => {
     ]);
     const html = await (await c.req(`/admin/turmas/${id}`)).text();
     expect(html).toContain('Módulos da turma');
-    expect(html).toContain('aguardando início');
+    expect(html).toContain('Aguardando o módulo anterior');
   });
 
   it('respeita a ordem: não inicia o módulo 3 com o 2 em andamento; conclusão exige datas coerentes', async () => {

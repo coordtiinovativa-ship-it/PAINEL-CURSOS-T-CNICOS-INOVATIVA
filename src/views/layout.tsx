@@ -86,6 +86,10 @@ a{color:var(--link)}
 .tema button[aria-pressed="true"]{background:#fff;color:var(--marinho);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .tema button:hover:not([aria-pressed="true"]){color:#fff}
 .principal{min-width:0}
+.voltar{display:inline-flex;align-items:center;gap:.35rem;margin:0 0 .9rem;padding:.32rem .8rem .32rem .55rem;border:1px solid var(--borda);
+  border-radius:999px;background:var(--superficie);color:var(--texto-2);font-size:.85rem;font-weight:550;text-decoration:none;box-shadow:var(--sombra)}
+.voltar svg{width:16px;height:16px}
+.voltar:hover{color:var(--titulo);border-color:var(--ciano)}
 main{max-width:1200px;margin:0 auto;padding:26px 28px 60px}
 h1{color:var(--titulo);margin:.1rem 0 1.1rem;font-size:1.6rem;font-weight:650;letter-spacing:-.01em}
 h2{color:var(--titulo);font-size:1.12rem;margin:1.7rem 0 .7rem;font-weight:620}
@@ -189,6 +193,7 @@ const ICONES: Record<string, string> = {
   claro: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   escuro: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   senha: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>',
+  voltar: '<path d="M15 18 9 12l6-6"/><path d="M9 12h11"/>',
   sair: '<path d="M9 4H5v16h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
 };
 
@@ -214,6 +219,7 @@ export const SECOES_MENU: SecaoMenu[] = [
       { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
       { href: '/admin/certificados', rotulo: 'Certificados Emitidos', perm: 'relatorios.emitir' },
       { href: '/admin/documentos', rotulo: 'Declarações e Históricos', perm: 'relatorios.emitir' },
+      { href: '/admin/relatorios', rotulo: 'Relatórios', perm: 'relatorios.emitir' },
       { href: '/v', rotulo: 'Validação Pública', perm: 'relatorios.emitir', externo: true },
     ],
   },
@@ -337,12 +343,32 @@ const Head: FC<{ titulo: string }> = ({ titulo }) => (
   </head>
 );
 
+/** Telas que existem (para o "Voltar" automático subir até uma tela válida). */
+const TELAS = [
+  /^\/admin$/, /^\/admin\/(alunos|turmas|certificados|documentos|importacao|modelo|signatarios|instituicao|cursos|usuarios|auditoria|relatorios)$/,
+  /^\/admin\/(alunos|turmas|certificados|documentos|importacao|signatarios|cursos|usuarios)\/\d+$/,
+  /^\/admin\/turmas\/\d+\/modulos\/\d+$/, /^\/admin\/cursos\/\d+\/matrizes\/\d+$/, /^\/admin\/certificados\/pendentes$/,
+];
+/** Destino padrão do "Voltar": o nível acima que seja uma tela existente. */
+export function caminhoPai(caminho: string): string {
+  const partes = caminho.replace(/\/+$/, '').split('/');
+  while (partes.length > 2) {
+    partes.pop();
+    const c = partes.join('/');
+    if (TELAS.some((re) => re.test(c))) return c;
+  }
+  return '/admin';
+}
+
 export const Pagina: FC<
-  PropsWithChildren<{ titulo: string; usuario?: UsuarioSessao; caminho?: string; ok?: string | null; erro?: string | null; tema?: Tema }>
-> = ({ titulo, usuario, caminho = '', ok, erro, tema, children }) => {
+  PropsWithChildren<{ titulo: string; usuario?: UsuarioSessao; caminho?: string; ok?: string | null; erro?: string | null; tema?: Tema;
+    /** destino do botão Voltar; false esconde; omitido = nível acima do endereço */ voltar?: string | false }>
+> = ({ titulo, usuario, caminho = '', ok, erro, tema, voltar, children }) => {
   const t: Tema = (usuario?.tema as Tema) ?? tema ?? 'sistema';
+  const destinoVoltar = voltar === false || caminho === '/admin' || !usuario ? null : voltar ?? caminhoPai(caminho);
   const conteudo = (
     <>
+      {destinoVoltar && <a class="voltar" href={destinoVoltar}><Icone nome="voltar" />Voltar</a>}
       {ok && <div class="msg ok">{ok}</div>}
       {erro && <div class="msg erro">{erro}</div>}
       {children}

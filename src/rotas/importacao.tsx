@@ -283,8 +283,7 @@ rotasImportacao.get('/:id{[0-9]+}', async (c) => {
       : (analise as AnaliseNotas).linhas.filter((l) => !l.erros.length).reduce((s, l) => s + l.alteracoes.length, 0)
     : 0;
   return c.html(
-    <Pagina titulo="Conferência da importação" usuario={u} caminho="/admin/importacao" ok={c.req.query('ok')} erro={erro}>
-      <p><a href="/admin/importacao">← Importar planilhas</a></p>
+    <Pagina voltar={"/admin/importacao"} titulo="Conferência da importação" usuario={u} caminho="/admin/importacao" ok={c.req.query('ok')} erro={erro}>
       <h1>{imp.tipo === 'alunos' ? 'Importação de alunos' : 'Importação de notas e frequência'}</h1>
       <p class="muted" style="margin-top:-.6rem">
         Arquivo <b>{imp.nome_arquivo}</b> · enviado por {imp.criado_por} em {dataBR(imp.criado_em)}

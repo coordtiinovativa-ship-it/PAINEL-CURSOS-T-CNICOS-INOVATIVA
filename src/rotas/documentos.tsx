@@ -74,8 +74,7 @@ async function tela(c: any, tipo: TipoDocumento, mat: number, mod: number, erros
   const base = `/admin/documentos/${tipo}/${mat}/${mod}`;
   const outro: TipoDocumento = tipo === 'historico_escolar' ? 'declaracao_conclusao_modulo' : 'historico_escolar';
   return (
-    <Pagina titulo={ROTULO_DOCUMENTO[tipo]} usuario={c.get('usuario')} caminho="/admin/documentos">
-      <p><a href={`/admin/turmas/${p.dados.turma.turma_id}/modulos/${mod}`}>← Módulo {p.dados.modulo.nome} · turma {p.dados.turma.turma_codigo}</a></p>
+    <Pagina voltar={`/admin/turmas/${p.dados.turma.turma_id}/modulos/${mod}`} titulo={ROTULO_DOCUMENTO[tipo]} usuario={c.get('usuario')} caminho="/admin/documentos">
       <h1>{ROTULO_DOCUMENTO[tipo]}</h1>
       <div class="cartao">
         <p style="margin-top:0"><b>{p.dados.nomeExibido}</b> · CPF {mascararCPF(p.dados.aluno.cpf ?? '')} ·
@@ -167,8 +166,7 @@ rotasDocumentos.get('/:id{[0-9]+}', async (c) => {
   if (!d) return c.notFound();
   const s = JSON.parse(d.snapshot_json) as SnapshotDocumento;
   return c.html(
-    <Pagina titulo={d.codigo_validacao} usuario={c.get('usuario')} caminho="/admin/documentos" ok={c.req.query('ok')}>
-      <p><a href="/admin/documentos">← Declarações e históricos</a></p>
+    <Pagina voltar={"/admin/documentos"} titulo={d.codigo_validacao} usuario={c.get('usuario')} caminho="/admin/documentos" ok={c.req.query('ok')}>
       <h1>{ROTULO_DOCUMENTO[d.tipo as TipoDocumento]} {d.codigo_validacao} <span class={`tag ${d.status === 'válido' ? 'ok' : 'erro'}`}>{d.status}</span></h1>
       <div class="acoes">
         <a class="botao" href={`/admin/documentos/${d.id}/pdf`} target="_blank">Abrir PDF</a>

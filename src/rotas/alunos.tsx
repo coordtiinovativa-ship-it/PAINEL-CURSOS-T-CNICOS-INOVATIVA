@@ -191,7 +191,7 @@ const Moldura: FC<{
   const podeExcluir = !!id && pode(u.perfil, 'alunos.excluir');
   const lista = modo === 'lista';
   return (
-    <Pagina titulo={titulo} usuario={u} caminho="/admin/alunos" erro={erro} ok={ok}>
+    <Pagina titulo={titulo} usuario={u} caminho="/admin/alunos" erro={erro} ok={ok} voltar={lista ? '/admin' : '/admin/alunos'}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div id="cadastro-aluno" data-modo={lista ? 'ver' : modo}>
         <div class="ficha-titulo">Cadastro de Alunos {id ? <small>· {nomeDoAluno(aluno!)}</small> : modo === 'novo' ? <small>· novo aluno</small> : null}</div>

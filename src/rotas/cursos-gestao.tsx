@@ -144,8 +144,7 @@ const FormCurso = ({ cu, eixosLista, cbos, acao }: { cu: Record<string, any>; ei
 
 rotasCursosGestao.get('/novo', async (c) =>
   c.html(
-    <Pagina titulo="Novo curso" usuario={c.get('usuario')} caminho="/admin/cursos" erro={c.req.query('erro')}>
-      <p><a href="/admin/cursos">← Cursos</a></p>
+    <Pagina voltar={"/admin/cursos"} titulo="Novo curso" usuario={c.get('usuario')} caminho="/admin/cursos" erro={c.req.query('erro')}>
       <h1>Novo curso</h1>
       <div class="cartao"><FormCurso cu={{}} eixosLista={await eixos(c.env.DB)} cbos="" acao="/admin/cursos/novo" /></div>
       <p class="muted">Depois de salvar, cadastre os atos do curso (deliberação de autorização), a matriz curricular e, se o PPC tiver texto próprio, o texto do certificado.</p>
@@ -196,9 +195,8 @@ rotasCursosGestao.get('/:id{[0-9]+}', async (c) => {
   };
 
   return c.html(
-    <Pagina titulo={cu.nome} usuario={c.get('usuario')} caminho="/admin/cursos" ok={c.req.query('ok')} erro={c.req.query('erro')}>
+    <Pagina voltar={"/admin/cursos"} titulo={cu.nome} usuario={c.get('usuario')} caminho="/admin/cursos" ok={c.req.query('ok')} erro={c.req.query('erro')}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <p><a href="/admin/cursos">← Cursos</a></p>
       <h1>{cu.nome} {!cu.ativo && <span class="tag">inativo</span>}</h1>
       <nav class="indice">
         <a href="#dados">Dados do curso</a><a href="#atos">Atos do curso</a><a href="#matriz">Matriz curricular</a>
@@ -407,9 +405,8 @@ rotasCursosGestao.get('/:id{[0-9]+}/matrizes/:mid{[0-9]+}', async (c) => {
   );
 
   return c.html(
-    <Pagina titulo={`Matriz v${m.versao}`} usuario={c.get('usuario')} caminho="/admin/cursos" ok={c.req.query('ok')} erro={c.req.query('erro')}>
+    <Pagina voltar={`${ir(ctx.id)}#matriz`} titulo={`Matriz v${m.versao}`} usuario={c.get('usuario')} caminho="/admin/cursos" ok={c.req.query('ok')} erro={c.req.query('erro')}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <p><a href={`${ir(ctx.id)}#matriz`}>← {m.curso}</a></p>
       <h1>Matriz curricular v{m.versao}</h1>
       <p class="muted" style="margin-top:-.6rem">Vigente desde {dataBR(m.vigente_desde)} ·
         Total: <b>{total} h</b> {total === m.ch_curso ? <span class="tag ok">confere com o curso</span> : <span class="tag aviso">curso: {m.ch_curso} h</span>}</p>

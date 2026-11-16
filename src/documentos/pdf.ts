@@ -117,6 +117,10 @@ function rodape(ctx: Ctx) {
   const v = ctx.layout.validacao;
   const topo = H - A4.rodape * MM + 2 * MM;
   linha(ctx, X0, topo - 3, X0 + LARG, topo - 3);
+  if (ctx.layout.rodape) {
+    ctx.layout.rodape.forEach((l, i) => texto(ctx, l, X0, topo + 2 + i * 9.5, 7.5, i === 0 ? ctx.b : ctx.r, CINZA));
+    return;
+  }
   const lado = 16 * MM;
   const xq = X0 + LARG - lado;
   if (v.url) desenharQr(ctx, v.url, xq, topo, lado);
@@ -336,6 +340,14 @@ export async function gerarPdfDocumento(layout: DocumentoLayout, rec: RecursosDo
       bloco(ctx, bl, true);
       ctx.y += h;
     }
+  }
+  if (layout.rodape) {
+    // numeração "Página X de Y" no rodapé dos relatórios
+    const paginas = doc.getPages();
+    paginas.forEach((pg, i) => {
+      const t = `Página ${i + 1} de ${paginas.length}`;
+      pg.drawText(t, { x: X0 + LARG - ctx.r.widthOfTextAtSize(t, 7.5), y: H - (H - A4.rodape * MM + 2 * MM + 2 + 7.5 * 0.9), size: 7.5, font: ctx.r, color: CINZA });
+    });
   }
   return doc.save();
 }

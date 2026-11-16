@@ -324,6 +324,14 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - Documentos e validação usam o **período do módulo** (snapshot `modulo.periodo`), não o da turma inteira.
 - Pendente para depois: rematrícula em módulo com aproveitamento de disciplinas aprovadas (PPC).
 
+### Navegação, visual e relatórios (16/11/2026)
+- Botão **Voltar** padrão no layout (`Pagina` prop `voltar`; sem ela, sobe para a tela existente acima — `caminhoPai`).
+- Tela da turma redesenhada: cabeçalho com dados, resumo, módulos como etapas, alunos com estado vazio.
+- **Secretaria → Relatórios** (`/admin/relatorios`, permissão `relatorios.emitir`: todos os perfis):
+  - Alunos por situação de matrícula (filtros situação/curso/turma) em PDF, tela ou CSV.
+  - Todo relatório traz **quem emitiu, data e hora** (cabeçalho do PDF/rodapé de todas as páginas) e vai para a auditoria.
+  - Motor de documentos aceita `rodape` próprio (sem QR) e numera as páginas.
+
 ### Produção (fase 7 — 16/11/2026)
 - No ar em https://certificadostecnicos.institutoinovativa.org, conta Cloudflare **Admin@institutoinovativa.org's
   Account** (`account_id` 43c07b1a… no `wrangler.toml`), onde está a zona institutoinovativa.org.

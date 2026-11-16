@@ -120,6 +120,9 @@ export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | n
           </div>
           <div class="faixa" />
           {pg.blocos.map((b) => <Bl b={b} url={url} />)}
+          {layout.rodape ? (
+            <div class="ro"><div>{layout.rodape.map((l, i) => (i ? <><br />{l}</> : <b>{l}</b>))}</div></div>
+          ) : (
           <div class="ro">
             <div>
               {v.codigo ? (
@@ -130,6 +133,7 @@ export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | n
             </div>
             <div class="qr">{v.codigo ? 'QR' : 'QR code'}</div>
           </div>
+          )}
           {previa && <div class="marca">PRÉVIA — SEM VALIDADE</div>}
         </section>
       ))}
