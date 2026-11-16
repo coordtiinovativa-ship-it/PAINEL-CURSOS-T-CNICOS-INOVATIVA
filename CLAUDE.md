@@ -275,6 +275,18 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - Menu lateral no estilo SysGEP (seções recolhíveis: Secretaria, Cadastros, Sistema) em `src/views/layout.tsx`.
 - "Emissão de Certificados" (`/admin/certificados/pendentes`): aprovados aguardando certificado, por turma.
 
+### Declaração e histórico (fase 5)
+- **Motor de documentos** (`src/documentos/`): o documento é uma lista de blocos (título, seção, parágrafo,
+  campos, tabela, lista, nota, assinaturas) renderizada em HTML (prévia) e em PDF (A4 retrato), com quebra
+  automática de página. Reutilizar para ata de resultados e livro de registro.
+- Declaração e histórico são **registrados** (tabela `documentos`): código INV na mesma sequência dos
+  certificados, chave do QR, snapshot (layout + resumo), hash, PDF no R2; validados em `/v` como os certificados.
+- **Declaração de conclusão de módulo**: o PPC não tem modelo; texto proposto e editável (com versões guardadas)
+  em Modelo do certificado. Exige aprovação no módulo. Cita o registro do certificado quando já emitido.
+- **Histórico escolar por módulo**: anverso com identificação, disciplinas (CH, média final, frequência, AP/RP);
+  verso com perfil profissional e competências do módulo (cadastrar em Cursos → perfil e competências, a partir
+  do PPC). Exige notas completas; aluno reprovado também pode receber (mostra RP).
+
 ### Emissão (fase 3)
 - Código SISTEC e data do SISTEC são **obrigatórios no momento da emissão** (bloqueado também por trigger no banco).
 - Registro (nº/folha/livro) sugerido automaticamente a partir de "registros por folha" e "folhas por livro"

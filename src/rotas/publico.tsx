@@ -14,6 +14,25 @@ import { mascararCPF } from '../lib/cpf';
 import { dataBR, dataExtenso } from '../lib/datas';
 import type { SnapshotCertificado } from '../certificado/snapshot';
 import { temaDoCookie } from './auth';
+import { ROTULO_DOCUMENTO, type TipoDocumento } from '../documentos/montar';
+import type { SnapshotDocumento } from '../documentos/emissao';
+
+interface DocumentoRow {
+  id: number;
+  tipo: TipoDocumento;
+  codigo_validacao: string;
+  token: string;
+  status: 'válido' | 'revogado';
+  motivo_revogacao: string | null;
+  revogado_em: string | null;
+  pdf_r2_key: string;
+  snapshot_json: string;
+}
+
+async function buscarDocumento(db: D1Database, codigo: string): Promise<DocumentoRow | null> {
+  if (!analisarCodigo(codigo)) return null;
+  return db.prepare('SELECT * FROM documentos WHERE codigo_validacao = ?').bind(codigo.trim().toUpperCase()).first<DocumentoRow>();
+}
 
 export const rotasPublico = new Hono<Env>();
 
@@ -87,6 +106,8 @@ rotasPublico.get('/:codigo', async (c) => {
   const codigo = c.req.param('codigo').trim().toUpperCase();
   const tema = temaDoCookie(c);
   const ce = await buscar(c.env.DB, codigo);
+  const doc = ce ? null : await buscarDocumento(c.env.DB, codigo);
+  if (doc) return paginaDocumento(c, doc, tema);
   if (!ce) {
     await auditar(c, 'consulta_publica_inexistente', 'certificado', null, null, { codigo: codigo.slice(0, 40) }, PUBLICO);
     return c.html(
@@ -179,8 +200,67 @@ rotasPublico.get('/:codigo', async (c) => {
   );
 });
 
+// ------------------------ Documentos (declaração/histórico) ------------------------
+async function paginaDocumento(c: any, doc: DocumentoRow, tema: ReturnType<typeof temaDoCookie>) {
+  const { resumo: r } = JSON.parse(doc.snapshot_json) as SnapshotDocumento;
+  const comChave = mesmoToken(c.req.query('t'), doc.token);
+  await auditar(c, 'consulta_publica', 'documento', doc.id, null, { codigo: doc.codigo_validacao, via_qrcode: comChave }, PUBLICO);
+  const rotulo = ROTULO_DOCUMENTO[doc.tipo];
+  const periodo = r.periodo.inicio && r.periodo.fim ? `${dataBR(r.periodo.inicio)} a ${dataBR(r.periodo.fim)}` : '—';
+  return c.html(
+    <PaginaPublica titulo={`${rotulo} ${doc.codigo_validacao}`} tema={tema} rodape={<Rodape />}>
+      {doc.status === 'válido' ? (
+        <div class="selo ok">
+          <Icone nome="valido" />
+          <div><b>{rotulo} {doc.tipo === 'historico_escolar' ? 'válido' : 'válida'}</b>Documento emitido e registrado pelo Instituto Inovativa.</div>
+        </div>
+      ) : (
+        <div class="selo erro">
+          <Icone nome="revogado" />
+          <div>
+            <b>Documento revogado</b>
+            Este documento foi revogado{doc.revogado_em ? ` em ${dataBR(doc.revogado_em)}` : ''} e <strong>não tem validade</strong>.
+            {doc.motivo_revogacao && <div>Motivo: {doc.motivo_revogacao}</div>}
+          </div>
+        </div>
+      )}
+      <dl class="dados">
+        <dt>Código de validação</dt><dd><b>{doc.codigo_validacao}</b></dd>
+        <dt>Documento</dt><dd>{rotulo}</dd>
+        <dt>Estudante</dt><dd>{r.aluno}</dd>
+        <dt>CPF</dt><dd>{mascararCPF(r.cpf)}</dd>
+        <dt>Curso</dt><dd>{r.curso}</dd>
+        <dt>Eixo tecnológico</dt><dd>{r.eixo}</dd>
+        <dt>Módulo temático</dt><dd>Módulo {r.modulo.ordem}: {r.modulo.nome} · {r.modulo.cargaHoraria} horas</dd>
+        <dt>Qualificação</dt><dd>Qualificação Profissional Técnica — {r.modulo.qualificacao}</dd>
+        <dt>Período</dt><dd>{periodo}</dd>
+        <dt>Data de emissão</dt><dd>{dataExtenso(r.dataEmissao)}</dd>
+      </dl>
+      <div class="acoes" style="margin-top:1rem">
+        {doc.status === 'válido' && comChave ? (
+          <a class="botao" href={`/v/${doc.codigo_validacao}/pdf?t=${doc.token}`} target="_blank" rel="noopener"><Icone nome="baixar" />Baixar o PDF original</a>
+        ) : doc.status === 'válido' ? (
+          <p class="muted" style="margin:0">Para baixar o PDF original, leia o QR code impresso no documento.</p>
+        ) : null}
+      </div>
+      <h2>Consultar outro documento</h2>
+      <div class="cartao"><FormConsulta /></div>
+    </PaginaPublica>,
+  );
+}
+
 // ------------------------------ PDF original ------------------------------
 rotasPublico.get('/:codigo/pdf', async (c) => {
+  const doc = await buscarDocumento(c.env.DB, c.req.param('codigo'));
+  if (doc) {
+    if (doc.status !== 'válido' || !mesmoToken(c.req.query('t'), doc.token)) return c.text('PDF indisponível. Use o QR code impresso no documento.', 404);
+    const obj = await c.env.ARQUIVOS.get(doc.pdf_r2_key);
+    if (!obj) return c.text('PDF indisponível.', 404);
+    await auditar(c, 'download_publico_pdf', 'documento', doc.id, null, { codigo: doc.codigo_validacao }, PUBLICO);
+    return new Response(obj.body, {
+      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${doc.codigo_validacao}.pdf"`, 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'same-origin' },
+    });
+  }
   const ce = await buscar(c.env.DB, c.req.param('codigo'));
   if (!ce || ce.status !== 'válido' || !ce.pdf_r2_key || !mesmoToken(c.req.query('t'), ce.token)) {
     return c.text('PDF indisponível. Use o QR code impresso no certificado.', 404);

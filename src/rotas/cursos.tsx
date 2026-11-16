@@ -32,7 +32,7 @@ rotasCursos.get('/', async (c) => {
                 <br />{ROTULO_METODO[cr.metodoExame]}
                 {cr.metodoExame === 'media_ponderada' ? ` (pesos ${numBR(cr.pesoMedia)} e ${numBR(cr.pesoExame)})` : ''}
               </td>
-              <td><a href={`/admin/cursos/${cu.id}/parametros`}>parâmetros de aprovação</a></td>
+              <td><a href={`/admin/cursos/${cu.id}/parametros`}>parâmetros de aprovação</a><br /><a href={`/admin/cursos/${cu.id}/modulos`}>perfil e competências dos módulos</a></td>
             </tr>
           );
         })}
@@ -120,4 +120,106 @@ rotasCursos.post('/:id{[0-9]+}/parametros', async (c) => {
   const antes = Object.fromEntries(cols.map((k) => [k, cu[k]]));
   await auditar(c, 'atualizar_parametros', 'curso', cu.id, antes, d);
   return c.redirect('/admin/cursos?ok=' + encodeURIComponent('Parâmetros de aprovação salvos.'));
+});
+
+// ---------------------------------------------------------------------
+// Perfil profissional e competências (verso do histórico escolar)
+// ---------------------------------------------------------------------
+const linhasCompetencias = (t: string | null) => (t ?? '').split('\n').map((x) => x.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean);
+
+rotasCursos.get('/:id{[0-9]+}/modulos', async (c) => {
+  const cu = await carregar(c);
+  if (!cu) return c.notFound();
+  const modulos = (
+    await c.env.DB.prepare(
+      `SELECT mt.*, mc.versao FROM modulos_tematicos mt JOIN matrizes_curriculares mc ON mc.id = mt.matriz_id
+        WHERE mc.curso_id = ? ORDER BY mc.versao DESC, mt.ordem`,
+    ).bind(cu.id).all<Record<string, any>>()
+  ).results;
+  return c.html(
+    <Pagina titulo="Perfil e competências" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
+      <p><a href="/admin/cursos">← Cursos</a></p>
+      <h1>Perfil profissional e competências</h1>
+      <p class="muted" style="margin-top:-.6rem"><b>{cu.nome}</b> · textos do PPC impressos no verso do histórico escolar.
+        Documentos já emitidos não mudam ao editar.</p>
+      <div class="cartao">
+        <h2 style="margin-top:0">Perfil profissional de conclusão do curso</h2>
+        <form method="post" action={`/admin/cursos/${cu.id}/perfil`}>
+          <textarea name="perfil_profissional_conclusao" rows={6} style="width:100%">{cu.perfil_profissional_conclusao ?? ''}</textarea>
+          <p class="muted">Usado no histórico quando o módulo não tiver perfil próprio.</p>
+          <button>Salvar perfil do curso</button>
+        </form>
+      </div>
+      <table>
+        <tr><th>Módulo</th><th>Qualificação</th><th>Perfil profissional</th><th class="c">Competências</th><th></th></tr>
+        {modulos.map((m) => (
+          <tr>
+            <td>{m.ordem}. {m.nome}<div class="muted">matriz v{m.versao} · {m.carga_horaria} h</div></td>
+            <td>{m.qualificacao_conferida}</td>
+            <td>{m.perfil_profissional ? <span class="tag ok">cadastrado</span> : <span class="tag aviso">pendente</span>}</td>
+            <td class="c">{linhasCompetencias(m.competencias).length || <span class="tag aviso">pendente</span>}</td>
+            <td><a href={`/admin/cursos/${cu.id}/modulos/${m.id}`}>editar</a></td>
+          </tr>
+        ))}
+      </table>
+    </Pagina>,
+  );
+});
+
+rotasCursos.post('/:id{[0-9]+}/perfil', async (c) => {
+  const cu = await carregar(c);
+  if (!cu) return c.notFound();
+  const perfil = texto(await lerCorpo(c), 'perfil_profissional_conclusao');
+  await c.env.DB.prepare(`UPDATE cursos SET perfil_profissional_conclusao = ?, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`).bind(perfil, cu.id).run();
+  await auditar(c, 'atualizar_perfil', 'curso', cu.id, { perfil_profissional_conclusao: cu.perfil_profissional_conclusao }, { perfil_profissional_conclusao: perfil });
+  return c.redirect(`/admin/cursos/${cu.id}/modulos?ok=` + encodeURIComponent('Perfil do curso salvo.'));
+});
+
+async function carregarModulo(c: any) {
+  return (c.env.DB as D1Database).prepare(
+    `SELECT mt.* FROM modulos_tematicos mt JOIN matrizes_curriculares mc ON mc.id = mt.matriz_id WHERE mt.id = ? AND mc.curso_id = ?`,
+  ).bind(Number(c.req.param('mid')), Number(c.req.param('id'))).first<Record<string, any>>();
+}
+
+const FormModulo = ({ c, m, erro }: { c: any; m: Record<string, any>; erro?: string }) => (
+  <Pagina titulo={`Módulo ${m.nome}`} usuario={c.get('usuario')} caminho={c.req.path} erro={erro}>
+    <p><a href={`/admin/cursos/${c.req.param('id')}/modulos`}>← Perfil e competências</a></p>
+    <h1>Módulo {m.ordem}: {m.nome}</h1>
+    <div class="cartao">
+      <form method="post" class="grade">
+        <Campo nome="qualificacao_conferida" rotulo="Qualificação conferida (título impresso no certificado)" valor={m.qualificacao_conferida} obrigatorio classe="largo" />
+        <label class="largo">Perfil profissional de conclusão do módulo
+          <textarea name="perfil_profissional" rows={7}>{m.perfil_profissional ?? ''}</textarea>
+        </label>
+        <label class="largo">Competências do módulo — uma por linha
+          <textarea name="competencias" rows={10}>{m.competencias ?? ''}</textarea>
+          <span class="muted">Copie do PPC. Cada linha vira um item da lista no verso do histórico.</span>
+        </label>
+        <div class="largo acoes"><button>Salvar</button></div>
+      </form>
+    </div>
+  </Pagina>
+);
+
+rotasCursos.get('/:id{[0-9]+}/modulos/:mid{[0-9]+}', async (c) => {
+  const m = await carregarModulo(c);
+  if (!m) return c.notFound();
+  return c.html(<FormModulo c={c} m={m} />);
+});
+
+rotasCursos.post('/:id{[0-9]+}/modulos/:mid{[0-9]+}', async (c) => {
+  const m = await carregarModulo(c);
+  if (!m) return c.notFound();
+  const corpo = await lerCorpo(c);
+  const d = {
+    qualificacao_conferida: texto(corpo, 'qualificacao_conferida'),
+    perfil_profissional: texto(corpo, 'perfil_profissional'),
+    competencias: linhasCompetencias(texto(corpo, 'competencias')).join('\n') || null,
+  };
+  if (!d.qualificacao_conferida) return c.html(<FormModulo c={c} m={{ ...m, ...d }} erro="Informe a qualificação conferida." />, 400);
+  await c.env.DB.prepare('UPDATE modulos_tematicos SET qualificacao_conferida = ?, perfil_profissional = ?, competencias = ? WHERE id = ?')
+    .bind(d.qualificacao_conferida, d.perfil_profissional, d.competencias, m.id).run();
+  const antes = { qualificacao_conferida: m.qualificacao_conferida, perfil_profissional: m.perfil_profissional, competencias: m.competencias };
+  await auditar(c, 'atualizar', 'modulo_tematico', m.id, antes, d);
+  return c.redirect(`/admin/cursos/${c.req.param('id')}/modulos?ok=` + encodeURIComponent(`Módulo ${m.nome} salvo.`));
 });

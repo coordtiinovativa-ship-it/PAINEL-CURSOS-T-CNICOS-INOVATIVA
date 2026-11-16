@@ -12,6 +12,8 @@ import { dimensoesImagem, salvarArquivo, TIPOS_IMAGEM, urlArquivo } from '../lib
 import { montarDadosExemplo, NaoEncontrado } from '../certificado/dados';
 import { DocumentoPrevia, imagensPadrao } from '../certificado/previa';
 import { gerarPdfPrevia } from '../certificado/emissao';
+import { TEXTO_DECLARACAO_PADRAO, VARIAVEIS_DECLARACAO } from '../documentos/montar';
+import { variaveisDoModelo } from '../lib/modelo';
 
 export const rotasModelo = new Hono<Env>();
 rotasModelo.use('*', exigir('instituicao.editar'));
@@ -58,6 +60,10 @@ rotasModelo.get('/', async (c) => {
     await db.prepare(`SELECT id, nome, cargo, funcao, assinatura_r2_key FROM signatarios WHERE ativo = 1 AND funcao IN ('diretor_pedagogico','secretario')`)
       .all<{ id: number; nome: string; cargo: string; funcao: Funcao; assinatura_r2_key: string | null }>()
   ).results;
+
+  const decl = await db
+    .prepare(`SELECT texto, criado_em FROM modelos_texto WHERE documento = 'declaracao_conclusao_modulo' AND ativo = 1 AND curso_id IS NULL ORDER BY id DESC LIMIT 1`)
+    .first<{ texto: string; criado_em: string }>();
 
   const cartaoImagem = (tipo: TipoImagem) => {
     const cfg = IMAGENS[tipo];
@@ -128,6 +134,22 @@ rotasModelo.get('/', async (c) => {
       <h2>Assinaturas</h2>
       <div class="modelo-grade">{cartaoAssinatura('diretor_pedagogico')}{cartaoAssinatura('secretario')}</div>
 
+      <h2>Texto da declaração de conclusão de módulo</h2>
+      <div class="cartao">
+        <p class="muted" style="margin-top:0">
+          A declaração não tem modelo no PPC: este é o texto proposto, editável. Use as variáveis entre chaves; elas são
+          preenchidas com os dados do aluno e do módulo. O texto aprovado da frente do certificado não é editável aqui.
+        </p>
+        <form method="post" action="/admin/modelo/texto-declaracao">
+          <textarea name="texto" rows={8} style="width:100%" required>{decl?.texto ?? TEXTO_DECLARACAO_PADRAO}</textarea>
+          <p class="muted">Variáveis: {VARIAVEIS_DECLARACAO.map((v, i) => <>{i ? ', ' : ''}<code>{`{${v}}`}</code></>)}</p>
+          <div class="acoes">
+            <button>Salvar texto</button>
+            <button class="sec" name="restaurar" value="1" formnovalidate>Restaurar texto padrão</button>
+          </div>
+        </form>
+      </div>
+
       <h2>Prévia com aluno fictício</h2>
       <div class="acoes">
         <a class="botao" href="/admin/modelo/previa.pdf" target="_blank"><Icone nome="certificados" />Abrir PDF de exemplo</a>
@@ -197,6 +219,26 @@ rotasModelo.post('/assinatura/:funcao', exigir('signatarios.editar'), async (c) 
   await c.env.DB.prepare(`UPDATE signatarios SET assinatura_r2_key = ?, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`).bind(chave, s.id).run();
   await auditar(c, 'enviar_assinatura', 'signatario', s.id, { assinatura_r2_key: s.assinatura_r2_key }, { assinatura_r2_key: chave, arquivo: arq.name });
   return voltar(c, 'ok', `Assinatura (${FUNCOES[funcao]}) atualizada.`);
+});
+
+rotasModelo.post('/texto-declaracao', async (c) => {
+  const corpo = await lerCorpo(c);
+  const restaurar = corpo.restaurar === '1';
+  const texto = restaurar ? TEXTO_DECLARACAO_PADRAO : String(corpo.texto ?? '').replace(/\r\n/g, '\n').trim();
+  if (texto.length < 40) return voltar(c, 'erro', 'Texto da declaração muito curto.');
+  const desconhecidas = variaveisDoModelo(texto).filter((v) => !VARIAVEIS_DECLARACAO.includes(v));
+  if (desconhecidas.length) return voltar(c, 'erro', `Variáveis desconhecidas no texto: ${desconhecidas.map((v) => `{${v}}`).join(', ')}.`);
+  if (/\{[^}]*$|^[^{]*\}/.test(texto)) return voltar(c, 'erro', 'Há chaves { } abertas ou fechadas sem par no texto.');
+  const db = c.env.DB;
+  const atual = await db.prepare(`SELECT id, texto FROM modelos_texto WHERE documento = 'declaracao_conclusao_modulo' AND ativo = 1 AND curso_id IS NULL ORDER BY id DESC LIMIT 1`).first<{ id: number; texto: string }>();
+  if (atual?.texto === texto) return voltar(c, 'ok', 'Texto da declaração sem alterações.');
+  // nova versão; a anterior fica guardada (inativa) para histórico
+  await db.batch([
+    db.prepare(`UPDATE modelos_texto SET ativo = 0 WHERE documento = 'declaracao_conclusao_modulo' AND curso_id IS NULL`),
+    db.prepare(`INSERT INTO modelos_texto (documento, curso_id, texto) VALUES ('declaracao_conclusao_modulo', NULL, ?)`).bind(texto),
+  ]);
+  await auditar(c, restaurar ? 'restaurar_texto' : 'atualizar_texto', 'modelo_texto', atual?.id ?? null, { texto: atual?.texto ?? null }, { texto });
+  return voltar(c, 'ok', restaurar ? 'Texto padrão da declaração restaurado.' : 'Texto da declaração salvo.');
 });
 
 rotasModelo.get('/previa', async (c) => {

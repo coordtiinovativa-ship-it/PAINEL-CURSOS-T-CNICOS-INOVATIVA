@@ -20,6 +20,7 @@ import { rotasModelo } from './rotas/modelo';
 import { rotasPendentes } from './rotas/pendentes';
 import { rotasPublico } from './rotas/publico';
 import { limitarPorIP } from './lib/limite';
+import { rotasDocumentos } from './rotas/documentos';
 
 export type { Env } from './tipos';
 
@@ -65,6 +66,7 @@ app.route('/admin/previa', rotasPrevia);
 app.route('/admin/certificados/pendentes', rotasPendentes);
 app.route('/admin/certificados', rotasCertificados);
 app.route('/admin/modelo', rotasModelo);
+app.route('/admin/documentos', rotasDocumentos);
 
 // Arquivos privados do R2 (logos, assinaturas, portarias) — somente usuários logados
 app.get('/admin/arquivos/*', async (c) => {

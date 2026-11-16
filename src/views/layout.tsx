@@ -202,6 +202,7 @@ export const SECOES_MENU: SecaoMenu[] = [
       { separador: true },
       { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
       { href: '/admin/certificados', rotulo: 'Certificados Emitidos', perm: 'relatorios.emitir' },
+      { href: '/admin/documentos', rotulo: 'Declarações e Históricos', perm: 'relatorios.emitir' },
       { href: '/v', rotulo: 'Validação Pública', perm: 'relatorios.emitir', externo: true },
     ],
   },

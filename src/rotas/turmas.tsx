@@ -326,6 +326,7 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
             ))}
             <th class="c">Módulo</th>
             {podePrevia && <th>Certificado</th>}
+            {podePrevia && <th>Documentos</th>}
           </tr>
           {matriculas.map((m) => {
             const av = componentes.map((cc) => {
@@ -356,6 +357,12 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
                         {podeEmitir && status === 'AP' && <> · <a href={`/admin/certificados/emitir/${m.id}/${modulo.id}`}><b>emitir</b></a></>}
                       </>
                     )}
+                  </td>
+                )}
+                {podePrevia && (
+                  <td style="white-space:nowrap">
+                    {status === 'AP' && <><a href={`/admin/documentos/declaracao_conclusao_modulo/${m.id}/${modulo.id}`}>declaração</a> · </>}
+                    <a href={`/admin/documentos/historico_escolar/${m.id}/${modulo.id}`}>histórico</a>
                   </td>
                 )}
               </tr>

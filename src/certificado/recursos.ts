@@ -7,7 +7,7 @@ type Bindings = Env['Bindings'];
 // Cache por isolate: fontes e imagens padrão não mudam entre requisições.
 const cacheAssets = new Map<string, Promise<Uint8Array>>();
 
-function asset(env: Bindings, caminho: string): Promise<Uint8Array> {
+export function asset(env: Bindings, caminho: string): Promise<Uint8Array> {
   let p = cacheAssets.get(caminho);
   if (!p) {
     p = (async () => {
@@ -22,7 +22,7 @@ function asset(env: Bindings, caminho: string): Promise<Uint8Array> {
   return p;
 }
 
-async function r2(env: Bindings, chave: string | null): Promise<Uint8Array | null> {
+export async function r2(env: Bindings, chave: string | null): Promise<Uint8Array | null> {
   if (!chave) return null;
   const o = await env.ARQUIVOS.get(chave);
   return o ? new Uint8Array(await o.arrayBuffer()) : null;
