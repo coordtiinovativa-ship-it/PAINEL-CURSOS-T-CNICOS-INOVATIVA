@@ -106,7 +106,7 @@ const Bl: FC<{ b: Bloco; url: (k: string | null | undefined) => string | null }>
   }
 };
 
-export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | null | undefined) => string | null; previa?: boolean }> = ({ layout, url, previa }) => {
+export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | null | undefined) => string | null; previa?: boolean; qrSvg?: string }> = ({ layout, url, previa, qrSvg }) => {
   const v = layout.validacao;
   const i = layout.instituicao;
   return (
@@ -129,10 +129,10 @@ export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | n
               {v.codigo ? (
                 <><b>Documento registrado sob o código {v.codigo}.</b><br />Confira a autenticidade em {v.url?.replace(/^https?:\/\//, '').replace(/\?.*$/, '')}<br />ou pelo QR code ao lado.</>
               ) : (
-                <b>PRÉVIA — o código de validação e o QR code são gerados na emissão.</b>
+                <><b>PRÉVIA — o código de validação (INV-AAAA-NNNNN) e o QR code definitivo são gerados na emissão.</b>{qrSvg && <><br />QR code de exemplo ao lado: no documento emitido, ele leva à página de validação.</>}</>
               )}
             </div>
-            <div class="qr">{v.codigo ? 'QR' : 'QR code'}</div>
+            {qrSvg ? <div class="qr" style="border:0" dangerouslySetInnerHTML={{ __html: qrSvg }} /> : <div class="qr">{v.codigo ? 'QR' : 'QR code'}</div>}
           </div>
           )}
           {previa && <div class="marca">PRÉVIA — SEM VALIDADE</div>}
@@ -142,8 +142,8 @@ export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | n
   );
 };
 
-export const DocumentoHtml: FC<{ layout: DocumentoLayout; url: (k: string | null | undefined) => string | null; previa?: boolean; tema?: string; barra?: Child }> = ({
-  layout, url, previa, tema = 'sistema', barra,
+export const DocumentoHtml: FC<{ layout: DocumentoLayout; url: (k: string | null | undefined) => string | null; previa?: boolean; tema?: string; barra?: Child; qrSvg?: string }> = ({
+  layout, url, previa, tema = 'sistema', barra, qrSvg,
 }) => (
   <html lang="pt-BR" data-tema={tema}>
     <head>
@@ -155,7 +155,7 @@ export const DocumentoHtml: FC<{ layout: DocumentoLayout; url: (k: string | null
     </head>
     <body>
       {barra}
-      <PaginasDocumento layout={layout} url={url} previa={previa} />
+      <PaginasDocumento layout={layout} url={url} previa={previa} qrSvg={qrSvg} />
       <script
         dangerouslySetInnerHTML={{
           __html: `(function(){var f=document.getElementById('folhas');function z(){var w=document.documentElement.clientWidth-24;var p=210*96/25.4;f.style.zoom=Math.min(1,w/p)}z();addEventListener('resize',z);matchMedia('print').addEventListener('change',function(e){f.style.zoom=e.matches?1:'';if(!e.matches)z()})})();`,

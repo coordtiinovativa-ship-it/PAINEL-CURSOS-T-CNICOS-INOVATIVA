@@ -145,7 +145,7 @@ export const Frente: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Re
       </div>
     </div>
     <div class="codigo-frente">
-      {reg?.codigoValidacao ? `Validação: ${reg.codigoValidacao}` : 'Validação: INV-AAAA-NNNNN (gerado na emissão)'}
+      {reg?.codigoValidacao ? `Validação: ${reg.codigoValidacao}` : 'Validação: INV-AAAA-NNNNN (exemplo — gerado na emissão)'}
     </div>
   </section>
 );
@@ -191,7 +191,7 @@ export const Verso: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Reg
               {qr ?? <div class="qr">QR code<br />(gerado na emissão)</div>}
               <div>
                 Autenticidade deste certificado:<br />
-                <b>{reg?.codigoValidacao ?? 'INV-AAAA-NNNNN'}</b><br />
+                <b>{reg?.codigoValidacao ?? (qr ? 'INV-AAAA-NNNNN (QR de exemplo)' : 'INV-AAAA-NNNNN')}</b><br />
                 {reg?.urlValidacao ?? 'certificadostecnicos.institutoinovativa.org/v/…'}
               </div>
             </div>
@@ -209,7 +209,9 @@ export const DocumentoPrevia: FC<{
   reg?: RegistroCertificado;
   barra?: Child;
   tema?: string;
-}> = ({ d, img, reg, barra, tema = 'sistema' }) => (
+  /** QR code a mostrar no verso (prévia: QR de exemplo) */
+  qr?: Child;
+}> = ({ d, img, reg, barra, tema = 'sistema', qr }) => (
   <html lang="pt-BR" data-tema={tema}>
     <head>
       <meta charset="utf-8" />
@@ -223,7 +225,7 @@ export const DocumentoPrevia: FC<{
       {barra}
       <div id="folhas">
         <Frente d={d} img={img} reg={reg} />
-        <Verso d={d} img={img} reg={reg} />
+        <Verso d={d} img={img} reg={reg} qr={qr} />
       </div>
       <script
         dangerouslySetInnerHTML={{

@@ -9,6 +9,10 @@ import { DocumentoPrevia, imagensPadrao } from '../certificado/previa';
 import { lerAluno } from './alunos';
 import { gerarPdfPrevia } from '../certificado/emissao';
 import { pode } from '../auth/permissoes';
+import { qrSvg, urlQrExemplo } from '../lib/qr';
+
+/** QR de exemplo no verso da prévia (mesmo tamanho do definitivo). */
+const QrExemplo = ({ url }: { url: string }) => <div class="qr" style="border:0;padding:0" dangerouslySetInnerHTML={{ __html: qrSvg(urlQrExemplo(url)) }} />;
 
 export const rotasPrevia = new Hono<Env>();
 rotasPrevia.use('*', exigir('relatorios.emitir'));
@@ -69,7 +73,9 @@ rotasPrevia.get('/:mat{[0-9]+}/:mod{[0-9]+}', async (c) => {
     ).bind(mat).all<{ modulo_id: number; rotulo: string }>()
   ).results;
   await auditar(c, 'visualizar_previa', 'matricula', mat, null, { modulo_id: mod, aluno: d.nomeExibido, apto: d.faltantes.length === 0 });
-  return c.html('<!doctype html>' + (<DocumentoPrevia d={d} tema={c.get('usuario').tema} img={imagensPadrao(d, urlArquivo)} barra={<Barra d={d} outros={outros} podeEmitir={pode(c.get('usuario').perfil, 'certificados.emitir')} />} />));
+  const embutida = c.req.query('embutida') === '1'; // dentro da tela de emissão: sem a barra
+  return c.html('<!doctype html>' + (<DocumentoPrevia d={d} tema={c.get('usuario').tema} img={imagensPadrao(d, urlArquivo)} qr={<QrExemplo url={c.env.URL_PUBLICA} />}
+    barra={embutida ? undefined : <Barra d={d} outros={outros} podeEmitir={pode(c.get('usuario').perfil, 'certificados.emitir')} />} />));
 });
 
 /** Prévia com os dados do formulário de aluno ainda não salvos (edição ao vivo). */
@@ -78,14 +84,14 @@ rotasPrevia.post('/:mat{[0-9]+}/:mod{[0-9]+}/rascunho', exigir('alunos.editar'),
   const corpo = await lerCorpo(c);
   try {
     const d = await montarDadosCertificado(c.env.DB, mat, mod, lerAluno(corpo, true));
-    return c.html('<!doctype html>' + (<DocumentoPrevia d={d} tema={c.get('usuario').tema} img={imagensPadrao(d, urlArquivo)} />));
+    return c.html('<!doctype html>' + (<DocumentoPrevia d={d} tema={c.get('usuario').tema} img={imagensPadrao(d, urlArquivo)} qr={<QrExemplo url={c.env.URL_PUBLICA} />} />));
   } catch (e) {
     if (e instanceof NaoEncontrado) return c.notFound();
     throw e;
   }
 });
 
-/** PDF de prévia (marca d'água, sem QR). Aceita os dados de registro/SISTEC pela query para conferência. */
+/** PDF de prévia (marca d'água, QR code de exemplo). Aceita os dados de registro/SISTEC pela query para conferência. */
 rotasPrevia.get('/:mat{[0-9]+}/:mod{[0-9]+}/pdf', async (c) => {
   const { mat, mod } = ids(c);
   const q = c.req.query();

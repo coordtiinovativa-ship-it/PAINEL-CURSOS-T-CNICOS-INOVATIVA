@@ -5,6 +5,7 @@ import { exigir } from '../auth/sessao';
 import { auditar } from '../lib/auditoria';
 import { lerCorpo, texto } from '../lib/form';
 import { urlArquivo } from '../lib/arquivos';
+import { qrSvg, urlQrExemplo } from '../lib/qr';
 import { dataBR } from '../lib/datas';
 import { mascararCPF } from '../lib/cpf';
 import { hojeMS, NaoEncontrado } from '../certificado/dados';
@@ -86,6 +87,7 @@ async function tela(c: any, tipo: TipoDocumento, mat: number, mod: number, erros
         <form method="post" class="acoes" style="margin-top:1rem" onsubmit="return confirm('Emitir o documento? Ele recebe código de validação e não pode ser alterado.')">
           <Campo nome="data_emissao" rotulo="Data de emissão" tipo="date" valor={dataEmissao} obrigatorio />
           <button disabled={p.faltantes.length > 0} style="align-self:flex-end">Emitir documento</button>
+          <a class="botao sec" style="align-self:flex-end" href={`${base}/previa`} target="_blank"><Icone nome="documento" />Ver em tela</a>
           <a class="botao sec" style="align-self:flex-end" href={`${base}/previa.pdf`} target="_blank"><Icone nome="certificados" />PDF de prévia</a>
           <a style="align-self:flex-end" href={`/admin/documentos/${outro}/${mat}/${mod}`}>{ROTULO_DOCUMENTO[outro]} →</a>
         </form>
@@ -95,6 +97,8 @@ async function tela(c: any, tipo: TipoDocumento, mat: number, mod: number, erros
           </p>
         )}
       </div>
+      <h2>Como vai ficar</h2>
+      <p class="muted">Exemplo do documento com os dados atuais. O QR code mostrado é de exemplo: o código de validação e o QR code definitivo são gerados na emissão.</p>
       <iframe src={`${base}/previa`} title="Prévia" style="width:100%;height:1300px;border:1px solid var(--borda);border-radius:12px;background:var(--superficie-2)" />
     </Pagina>
   );
@@ -116,7 +120,7 @@ rotasDocumentos.get('/:tipo/:mat{[0-9]+}/:mod{[0-9]+}/previa', async (c) => {
   if (!tipoValido(tipo)) return c.notFound();
   try {
     const p = await prepararDocumento(c.env.DB, tipo, mat, mod, { codigo: null, url: null });
-    return c.html('<!doctype html>' + (<DocumentoHtml layout={p.layout} url={urlArquivo} previa tema={c.get('usuario').tema} />));
+    return c.html('<!doctype html>' + (<DocumentoHtml layout={p.layout} url={urlArquivo} previa tema={c.get('usuario').tema} qrSvg={qrSvg(urlQrExemplo(c.env.URL_PUBLICA))} />));
   } catch (e) {
     if (e instanceof NaoEncontrado) return c.notFound();
     throw e;
@@ -128,7 +132,7 @@ rotasDocumentos.get('/:tipo/:mat{[0-9]+}/:mod{[0-9]+}/previa.pdf', async (c) => 
   if (!tipoValido(tipo)) return c.notFound();
   try {
     const p = await prepararDocumento(c.env.DB, tipo, mat, mod, { codigo: null, url: null });
-    const pdf = await gerarPdfDocumento(p.layout, await recursosDocumento(c.env, p.layout), { previa: true });
+    const pdf = await gerarPdfDocumento(p.layout, await recursosDocumento(c.env, p.layout), { previa: true, qrExemplo: urlQrExemplo(c.env.URL_PUBLICA) });
     await auditar(c, 'visualizar_previa_documento', 'matricula', mat, null, { tipo, modulo_id: mod });
     return pdfResposta(pdf, `previa-${tipo}-${mat}-${mod}`);
   } catch (e) {

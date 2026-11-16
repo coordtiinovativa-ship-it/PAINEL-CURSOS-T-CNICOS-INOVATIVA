@@ -94,3 +94,20 @@ describe('portarias abaixo das assinaturas', () => {
     expect(html).toContain('portaria não cadastrada'); // secretário sem portaria fica destacado
   });
 });
+
+describe('prévias mostram QR code de exemplo', () => {
+  it('certificado (tela de emissão e prévia) e declaração/histórico trazem o QR de exemplo', async () => {
+    const { c } = await pronto();
+    const emissao = await (await c.req('/admin/certificados/emitir/1/1')).text();
+    expect(emissao).toContain('src="/admin/previa/1/1?embutida=1"');
+    expect(emissao).toContain('Como vai ficar');
+    const previa = await (await c.req('/admin/previa/1/1?embutida=1')).text();
+    expect(previa).toContain('aria-label="QR code de exemplo"');
+    expect(previa).toContain('INV-AAAA-NNNNN (QR de exemplo)');
+    expect(previa).not.toContain('class="barra"');
+    const doc = await (await c.req('/admin/documentos/declaracao_conclusao_modulo/1/1/previa')).text();
+    expect(doc).toContain('aria-label="QR code de exemplo"');
+    const tela = await (await c.req('/admin/documentos/historico_escolar/1/1')).text();
+    expect(tela).toContain('Ver em tela');
+  });
+});

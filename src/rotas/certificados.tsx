@@ -117,12 +117,17 @@ async function telaEmissao(c: any, mat: number, mod: number, entrada?: EntradaEm
             <div class="largo acoes">
               <button disabled={d.faltantes.length > 0}>Emitir certificado</button>
               <a class="botao sec" href={`/admin/previa/${mat}/${mod}/pdf?${qsPrevia}`} target="_blank">PDF de prévia</a>
-              <a class="botao sec" href={`/admin/previa/${mat}/${mod}`} target="_blank">Prévia em tela</a>
+              <a class="botao sec" href={`/admin/previa/${mat}/${mod}`} target="_blank">Ver em tela</a>
             </div>
-            <p class="largo muted">O PDF de prévia sai com marca d'água e sem QR code. O código de validação (INV-AAAA-NNNNN) e o QR code são gerados no momento da emissão.</p>
+            <p class="largo muted">A prévia (em tela e PDF) sai com marca d'água e um QR code de exemplo. O código de validação (INV-AAAA-NNNNN) e o QR code definitivo são gerados no momento da emissão.</p>
           </form>
         </div>
       )}
+
+      <h2>Como vai ficar</h2>
+      <p class="muted">Frente e verso com os dados atuais do aluno. O QR code do verso é de exemplo; registro e SISTEC aparecem preenchidos no PDF de prévia e no certificado emitido.</p>
+      <iframe src={`/admin/previa/${mat}/${mod}?embutida=1`} title="Prévia do certificado"
+        style="width:100%;height:1500px;border:1px solid var(--borda);border-radius:12px;background:var(--superficie-2)" />
     </Pagina>
   );
 }

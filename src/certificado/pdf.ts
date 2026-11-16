@@ -241,7 +241,7 @@ const localData = (local: string, iso: string | null) => (iso ? `${local}, ${dat
 export async function gerarPdfCertificado(
   s: SnapshotCertificado,
   rec: RecursosPdf,
-  opcoes: { previa?: boolean } = {},
+  opcoes: { previa?: boolean; qrExemplo?: string } = {},
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
@@ -301,7 +301,7 @@ export async function gerarPdfCertificado(
       }
     });
 
-    const cod = s.validacao.codigo ? `Validação: ${s.validacao.codigo}` : 'Validação: INV-AAAA-NNNNN (gerado na emissão)';
+    const cod = s.validacao.codigo ? `Validação: ${s.validacao.codigo}` : 'Validação: INV-AAAA-NNNNN (exemplo — gerado na emissão)';
     fo.texto(cod, MARGEM.esq, H - 6 * MM - 7 * LH_NORMAL, 7, f.r, 7 * LH_NORMAL, CINZA);
     if (opcoes.previa) marcaPrevia(fo);
   }
@@ -388,13 +388,15 @@ export async function gerarPdfCertificado(
     yd += lh + 6;
     const ladoQr = 22 * MM;
     if (s.validacao.url) desenharQr(fo, s.validacao.url, xd, yd, ladoQr);
+    else if (opcoes.qrExemplo) desenharQr(fo, opcoes.qrExemplo, xd, yd, ladoQr);
     else fo.p.drawRectangle({ x: xd, y: H - yd - ladoQr, width: ladoQr, height: ladoQr, borderColor: CINZA, borderWidth: 0.5, borderDashArray: [2, 2] });
     const xt = xd + ladoQr + 3 * MM;
     const lh7 = 7.5 * LH_NORMAL;
     const urlVisivel = s.validacao.url ? s.validacao.url.replace(/^https?:\/\//, '').replace(/\?.*$/, '') : 'certificadostecnicos.institutoinovativa.org/v/…';
+    const codVerso = s.validacao.codigo ?? (opcoes.qrExemplo ? 'INV-AAAA-NNNNN (QR de exemplo)' : 'INV-AAAA-NNNNN');
     const yt = yd + (ladoQr - 3 * lh7) / 2;
     fo.texto('Autenticidade deste certificado:', xt, yt, 7.5, f.r, lh7, CINZA);
-    fo.texto(s.validacao.codigo ?? 'INV-AAAA-NNNNN', xt, yt + lh7, 7.5, f.b, lh7, CINZA);
+    fo.texto(codVerso, xt, yt + lh7, 7.5, f.b, lh7, CINZA);
     fo.texto(urlVisivel, xt, yt + 2 * lh7, 7.5, f.r, lh7, CINZA);
     yd += ladoQr;
 

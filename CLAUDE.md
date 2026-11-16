@@ -371,3 +371,9 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - Confirmação digitando o código da turma. Apaga, em lote atômico, matrículas, resultados, períodos dos módulos,
   professores/horários das disciplinas e importações da turma; cadastros de alunos ficam. Auditoria guarda tudo no "antes".
 - **Bloqueada** se houver qualquer certificado ou documento emitido para alunos da turma (esses nunca são apagados).
+
+### Prévia em tela com QR code de exemplo (16/11/2026)
+- Tela de emissão do certificado mostra a prévia (frente e verso) embutida ("Como vai ficar", `/admin/previa/{mat}/{mod}?embutida=1`)
+  e botão "Ver em tela"; declaração e histórico idem (prévia embutida + "Ver em tela" + PDF de prévia).
+- Todas as prévias (tela e PDF) trazem um **QR code de exemplo** no mesmo lugar e tamanho do definitivo (`src/lib/qr.ts`), apontando
+  para a página pública de consulta (`/v`), com o texto "INV-AAAA-NNNNN (exemplo)". Código INV e QR definitivo só na emissão.

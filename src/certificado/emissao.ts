@@ -9,6 +9,7 @@ import { hashSnapshot, montarSnapshot, type SnapshotCertificado } from './snapsh
 import { gerarPdfCertificado } from './pdf';
 import { carregarRecursos } from './recursos';
 import { gerarToken, reservarProximoCodigo } from '../lib/codigo';
+import { urlQrExemplo } from '../lib/qr';
 
 type Bindings = Env['Bindings'];
 
@@ -160,5 +161,5 @@ export async function gerarPdfPrevia(env: Bindings, d: DadosCertificado, extra: 
     sistecCodigo: extra.sistecCodigo ?? null,
     sistecData: extra.sistecData ?? null,
   });
-  return gerarPdfCertificado(snapshot, await carregarRecursos(env, snapshot), { previa: true });
+  return gerarPdfCertificado(snapshot, await carregarRecursos(env, snapshot), { previa: true, qrExemplo: urlQrExemplo(env.URL_PUBLICA) });
 }
