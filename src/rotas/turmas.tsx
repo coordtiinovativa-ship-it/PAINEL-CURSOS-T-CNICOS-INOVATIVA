@@ -180,13 +180,19 @@ details.dados-turma{margin-top:1.6rem}
 details.dados-turma > summary{cursor:pointer;font-weight:650;color:var(--titulo);font-size:1.05rem;list-style:none;display:flex;align-items:center;gap:.4rem}
 details.dados-turma > summary::-webkit-details-marker{display:none}
 details.dados-turma[open] > summary{margin-bottom:.7rem}
-details.excluir-turma{margin-top:1.2rem;border:1px solid var(--erro);border-radius:14px;padding:.8rem 1rem;background:var(--superficie)}
-details.excluir-turma > summary{cursor:pointer;font-weight:650;color:var(--erro);list-style:none;display:flex;align-items:center;gap:.4rem}
+details.dados-turma > summary svg{width:18px;height:18px;flex:none}
+details.excluir-turma{margin-top:1.4rem;border:1px solid var(--borda);border-left:3px solid var(--erro);border-radius:10px;padding:.65rem .9rem;background:var(--superficie)}
+details.excluir-turma > summary{cursor:pointer;font-size:.9rem;font-weight:600;color:var(--erro);list-style:none;display:flex;align-items:center;gap:.4rem;width:fit-content}
+details.excluir-turma > summary:hover{text-decoration:underline}
+details.excluir-turma > summary svg{width:16px;height:16px;flex:none}
 details.excluir-turma > summary::-webkit-details-marker{display:none}
-details.excluir-turma p{margin:.6rem 0;font-size:.9rem}
-details.excluir-turma form{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
-details.excluir-turma input{max-width:240px}
-details.excluir-turma button{background:var(--erro);border-color:var(--erro);color:#fff}
+details.excluir-turma[open]{background:var(--erro-bg)}
+details.excluir-turma p{margin:.6rem 0;font-size:.86rem;line-height:1.45;max-width:72ch}
+details.excluir-turma form{display:flex;gap:.6rem;flex-wrap:wrap;align-items:flex-end;margin:0}
+details.excluir-turma label{font-size:.8rem}
+details.excluir-turma input{max-width:220px;padding:.35rem .5rem;font-size:.88rem}
+details.excluir-turma button{background:var(--erro);border-color:var(--erro);color:#fff;padding:.4rem .8rem;font-size:.86rem}
+details.excluir-turma button svg{width:15px;height:15px}
 `;
 
 const iniciais = (nome: string) => nome.split(/\s+/).filter((p) => p.length > 2 || p === nome).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
