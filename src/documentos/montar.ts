@@ -83,7 +83,10 @@ export async function prepararDocumento(
   const mod = d.modulo as DadosCertificado['modulo'] & { perfil_profissional?: string | null; competencias?: string | null };
   const ato = d.atoAutorizacao;
   const freq = frequenciaModulo(d);
-  const periodo = d.turma.data_inicio && d.turma.data_fim ? `${dataBR(d.turma.data_inicio)} a ${dataBR(d.turma.data_fim)}` : null;
+  // período do módulo na turma (módulos em sequência); sem ele, o da turma
+  const pIni = d.moduloTurma?.data_inicio ?? d.turma.data_inicio ?? null;
+  const pFim = d.moduloTurma?.data_inicio ? d.moduloTurma.data_fim : d.turma.data_fim ?? null;
+  const periodo = pIni && pFim ? `${dataBR(pIni)} a ${dataBR(pFim)}` : null;
   const situacao: ResumoDocumento['situacaoModulo'] = d.avaliacao.aprovado ? 'aprovado' : d.avaliacao.pendente && !d.disciplinas.some((x) => x.resultado === 'RP') ? 'em andamento' : 'reprovado';
 
   const faltantes: string[] = [];
@@ -92,6 +95,11 @@ export async function prepararDocumento(
     if (!s || s.nome.includes('A DEFINIR')) faltantes.push(`Signatário: ${rotulo} não cadastrado`);
   }
   if (!ato) faltantes.push('Curso: ato de aprovação do PPC / autorização');
+  // módulos em sequência: só de módulo concluído na turma; a declaração também exige os módulos anteriores aprovados
+  for (const f of d.faltantes) {
+    if (f.startsWith('Módulo ainda não concluído')) faltantes.push(f);
+    if (tipo === 'declaracao_conclusao_modulo' && f.startsWith('Os módulos são feitos em ordem')) faltantes.push(f);
+  }
 
   const assinaturas: Bloco = {
     tipo: 'assinaturas',
@@ -181,7 +189,7 @@ export async function prepararDocumento(
               { rotulo: 'Nível', valor: d.curso.nivel ?? null, span: 2 },
               { rotulo: 'Ato de autorização', valor: atoTexto, span: 2 },
               { rotulo: 'Turma', valor: d.turma.turma_codigo },
-              { rotulo: 'Período', valor: periodo, span: 2 },
+              { rotulo: 'Período do módulo', valor: periodo, span: 2 },
               { rotulo: 'Carga horária do módulo', valor: `${mod.carga_horaria} horas` },
             ],
           },
@@ -270,7 +278,7 @@ export async function prepararDocumento(
     eixo: d.curso.eixo,
     modulo: { ordem: mod.ordem, nome: mod.nome, qualificacao: qualif, cargaHoraria: mod.carga_horaria },
     rotuloQualificacao: rotulo,
-    periodo: { inicio: d.turma.data_inicio ?? null, fim: d.turma.data_fim ?? null },
+    periodo: { inicio: pIni, fim: pFim },
     dataEmissao,
     situacaoModulo: situacao,
   };

@@ -134,7 +134,8 @@ rotasPublico.get('/:codigo', async (c) => {
     substituto = r?.codigo_validacao ?? null;
   }
   const ato = s.curso.atoAutorizacao;
-  const periodo = s.turma.dataInicio && s.turma.dataFim ? `${dataBR(s.turma.dataInicio)} a ${dataBR(s.turma.dataFim)}` : '—';
+  const p = s.modulo.periodo?.inicio ? { i: s.modulo.periodo.inicio, f: s.modulo.periodo.fim } : { i: s.turma.dataInicio, f: s.turma.dataFim };
+  const periodo = p.i && p.f ? `${dataBR(p.i)} a ${dataBR(p.f)}` : '—';
 
   return c.html(
     <PaginaPublica titulo={`Certificado ${ce.codigo_validacao}`} tema={tema} rodape={<Rodape s={s} />}>

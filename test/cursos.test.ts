@@ -37,7 +37,8 @@ async function cursoB(c: any, sqlite: any) {
 /** Turma do curso B com a aluna fictícia Ana aprovada no módulo. */
 function turmaB(sqlite: any, cursoId: number, mid: number, mod: number) {
   sqlite.exec(`INSERT INTO turmas (id, curso_id, matriz_id, codigo, data_inicio, data_fim, ano_letivo) VALUES (10, ${cursoId}, ${mid}, 'LOG-2026-1', '2026-03-01', '2026-11-30', 2026);
-               INSERT INTO matriculas (id, aluno_id, turma_id) VALUES (10, 1, 10);`);
+               INSERT INTO matriculas (id, aluno_id, turma_id) VALUES (10, 1, 10);
+               INSERT INTO turma_modulos (turma_id, modulo_id, data_inicio, data_fim, situacao) VALUES (10, ${mod}, '2026-03-01', '2026-11-30', 'concluido');`);
   for (const comp of sqlite.prepare('SELECT id FROM componentes_curriculares WHERE modulo_id = ?').all(mod) as any[]) {
     sqlite.prepare('INSERT INTO resultados (matricula_id, componente_id, nota, frequencia) VALUES (10, ?, 9, 100)').run(comp.id);
   }

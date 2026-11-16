@@ -7,6 +7,12 @@
 INSERT INTO turmas (id, curso_id, matriz_id, codigo, polo, data_inicio, data_fim, turno, ano_letivo)
 VALUES (1, 1, 1, 'TIDC-2026-1', 'Sede — Campo Grande/MS', '2026-02-09', '2026-11-27', 'noturno', 2026);
 
+-- Módulos da turma em sequência: 1 concluído, 2 em andamento, 3 planejado
+INSERT INTO turma_modulos (turma_id, modulo_id, data_inicio, data_fim, situacao) VALUES
+  (1, 1, '2026-02-09', '2026-06-26', 'concluido'),
+  (1, 2, '2026-08-03', NULL, 'em_andamento'),
+  (1, 3, NULL, NULL, 'planejado');
+
 INSERT INTO alunos (id, ra, nome_civil, nome_social, cpf, rg, rg_orgao_expedidor, rg_uf, data_nascimento, sexo,
   naturalidade_municipio, naturalidade_uf, nacionalidade, nome_pai, nome_mae,
   ensino_medio_instituicao, ensino_medio_municipio, ensino_medio_uf, ensino_medio_ano_conclusao, email)

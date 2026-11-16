@@ -7,6 +7,7 @@ import { avaliarDisciplina, avaliarModulo, criteriosDoCurso, type AvaliacaoModul
 import { formatarCPF } from '../lib/cpf';
 import { ErroValidacao, numBR } from '../lib/form';
 import { nomeDoAluno } from '../certificado/dados';
+import { exigirModuloIniciado } from '../lib/turmaModulos';
 import { chave, gerarCSV, normalizarCPF, normalizarNumero, type Tabela } from './planilha';
 
 type Campo = 'nota' | 'exame' | 'freq';
@@ -89,7 +90,9 @@ function localizarMatricula(mats: Matricula[], cpf: string | null, ra: string | 
 
 export async function analisarNotas(db: D1Database, tabela: Tabela, turmaId: number, moduloId: number): Promise<AnaliseNotas> {
   if (tabela.length < 2) throw new ErroValidacao('A planilha está vazia ou só tem o cabeçalho.');
-  const { criterios, comps, mats, atuais } = await contexto(db, turmaId, moduloId);
+  const { turma, criterios, comps, mats, atuais } = await contexto(db, turmaId, moduloId);
+  const nomeModulo = (await db.prepare('SELECT nome FROM modulos_tematicos WHERE id = ?').bind(moduloId).first<{ nome: string }>())?.nome ?? '';
+  await exigirModuloIniciado(db, turmaId, moduloId, `${nomeModulo} (turma ${turma.codigo})`);
   const cab = tabela[0].map(chave);
   const col = (...nomes: string[]) => cab.findIndex((h) => nomes.includes(h));
   const iCpf = col('cpf', 'cpf_do_aluno');

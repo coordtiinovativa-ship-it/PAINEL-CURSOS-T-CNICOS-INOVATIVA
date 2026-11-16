@@ -5,6 +5,7 @@
 import { avaliarModulo, criteriosDoCurso, type AvaliacaoModulo, type CriteriosAprovacao } from '../lib/aprovacao';
 import { dataExtenso } from '../lib/datas';
 import { segmentarModelo, type Segmento } from '../lib/modelo';
+import { moduloNaTurma, ROTULO_SITUACAO, type SituacaoModulo } from '../lib/turmaModulos';
 
 export const CAMPOS_ALUNO = [
   'ra', 'nome_civil', 'nome_social', 'cpf', 'rg', 'rg_orgao_expedidor', 'rg_uf', 'data_nascimento', 'sexo',
@@ -67,6 +68,8 @@ export interface DadosCertificado {
   atoAutorizacao: Record<string, any> | null;
   /** "Qualificação Profissional Técnica" etc., conforme o tipo do curso da turma */
   rotuloQualificacao: string;
+  /** Período e situação do módulo na turma (null na prévia de exemplo) */
+  moduloTurma: { data_inicio: string | null; data_fim: string | null; situacao: SituacaoModulo } | null;
   curso: Record<string, any>;
   criterios: CriteriosAprovacao;
   modulo: { id: number; nome: string; ordem: number; carga_horaria: number; qualificacao_conferida: string | null };
@@ -206,6 +209,8 @@ async function comporDados(
     db.prepare(`SELECT nome, cargo, funcao, assinatura_r2_key FROM signatarios WHERE ativo = 1 AND funcao IN ('diretor_pedagogico','secretario')`).all<Signatario & { funcao: string }>(),
     db.prepare(`SELECT * FROM atos_regulatorios WHERE curso_id = ? AND ativo = 1 ORDER BY data DESC`).bind(base.curso_id).all<Record<string, any>>(),
   ]);
+  const exemplo = !!opcoes.todosAprovados;
+  const moduloTurma = exemplo ? null : await moduloNaTurma(db, base.turma_id, moduloId);
   const atoDo = (...finalidades: string[]) => atosCurso.results.find((a) => finalidades.includes(a.finalidade)) ?? null;
   if (!modulo) throw new NaoEncontrado('Módulo não pertence à matriz da turma');
   if (!alunoDb || !instituicao || !curso) throw new NaoEncontrado('Dados incompletos');
@@ -263,6 +268,28 @@ async function comporDados(
   }
   if (!avaliacao.aprovado) {
     faltantes.push(avaliacao.pendente ? 'Resultados do módulo incompletos' : 'Aluno não aprovado no módulo');
+  }
+  if (moduloTurma && moduloTurma.situacao !== 'concluido') {
+    faltantes.push(`Módulo ainda não concluído na turma (situação: ${ROTULO_SITUACAO[moduloTurma.situacao]}) — conclua em Turma → Módulos da turma`);
+  }
+  // Módulos em ordem: o aluno precisa estar aprovado em todos os módulos anteriores
+  if (!exemplo) {
+    const anteriores = (
+      await db.prepare(
+        `SELECT mt.id, mt.ordem, mt.nome, cc.id AS comp_id, cc.nome AS comp_nome FROM modulos_tematicos mt
+           JOIN componentes_curriculares cc ON cc.modulo_id = mt.id
+          WHERE mt.matriz_id = ? AND mt.ordem < ? ORDER BY mt.ordem, cc.ordem`,
+      ).bind(base.matriz_id, modulo.ordem).all<{ id: number; ordem: number; nome: string; comp_id: number; comp_nome: string }>()
+    ).results;
+    const resPorComp = new Map(resultados.results.map((r) => [r.componente_id, r]));
+    for (const modId of [...new Set(anteriores.map((x) => x.id))]) {
+      const comps = anteriores.filter((x) => x.id === modId);
+      const av = avaliarModulo(comps.map((x) => x.comp_nome), comps.map((x) => {
+        const r = resPorComp.get(x.comp_id);
+        return { componente: x.comp_nome, nota: r?.nota ?? null, notaExameFinal: r?.nota_exame_final ?? null, frequencia: r?.frequencia ?? null, aproveitada: !!r?.aproveitado_de_resultado_id };
+      }), criterios);
+      if (!av.aprovado) faltantes.push(`Os módulos são feitos em ordem: aluno ainda não aprovado no Módulo ${comps[0].ordem} — ${comps[0].nome}`);
+    }
   }
   if (!atoPpc?.publicacao_doe_numero) avisos.push('Publicação do ato do curso no DOE/MS ainda não informada.');
 
@@ -325,6 +352,7 @@ async function comporDados(
     credenciamentoTexto,
     atoAutorizacao: atoPpc ?? null,
     rotuloQualificacao: rotuloQualificacao(curso.tipo),
+    moduloTurma,
     curso,
     criterios,
     modulo,

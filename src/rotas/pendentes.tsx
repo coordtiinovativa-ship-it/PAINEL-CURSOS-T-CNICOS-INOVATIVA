@@ -23,7 +23,7 @@ interface Linha {
   modulo: string;
   qualificacao: string;
   aluno: Aluno;
-  situacao: 'apto' | 'dados' | 'reprovado' | 'pendente';
+  situacao: 'apto' | 'dados' | 'reprovado' | 'pendente' | 'andamento' | 'ordem';
   detalhes: string[];
 }
 
@@ -33,11 +33,12 @@ export async function listarPendentes(db: D1Database, turmaId?: number): Promise
   const [base, comps, res, emitidos, sigs] = await Promise.all([
     db.prepare(
       `SELECT m.id AS matricula_id, t.id AS turma_id, t.codigo AS turma, mt.id AS modulo_id, mt.ordem AS modulo_ordem,
-              mt.nome AS modulo, mt.qualificacao_conferida AS qualificacao, cu.frequencia_minima, cu.nota_minima,
+              mt.nome AS modulo, mt.qualificacao_conferida AS qualificacao, tm.situacao AS situacao_modulo, cu.frequencia_minima, cu.nota_minima,
               cu.nota_minima_exame, cu.metodo_exame, cu.peso_media, cu.peso_exame, a.*
          FROM matriculas m JOIN turmas t ON t.id = m.turma_id JOIN cursos cu ON cu.id = t.curso_id
          JOIN alunos a ON a.id = m.aluno_id
          JOIN modulos_tematicos mt ON mt.matriz_id = t.matriz_id AND mt.tem_terminalidade = 1
+         JOIN turma_modulos tm ON tm.turma_id = t.id AND tm.modulo_id = mt.id AND tm.situacao <> 'planejado'
         WHERE m.situacao <> 'desistente' ${filtroTurma}
         ORDER BY t.codigo, mt.ordem, CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`,
     ).bind(...binds).all<Record<string, any>>(),
@@ -54,6 +55,21 @@ export async function listarPendentes(db: D1Database, turmaId?: number): Promise
   const resPorChave = new Map(res.results.map((r) => [`${r.matricula_id}:${r.componente_id}`, r]));
   const jaEmitido = new Set(emitidos.results.map((e) => `${e.matricula_id}:${e.modulo_id}`));
   const signatariosOk = sigs.results.length >= 2 && sigs.results.every((s) => !s.nome.includes('A DEFINIR'));
+
+  // aprovação de cada matrícula em cada módulo (para a regra de ordem)
+  const aprovadoEm = new Map<string, boolean>();
+  const avaliar = (b: Record<string, any>) => {
+    const cs = compsPorModulo.get(b.modulo_id) ?? [];
+    return avaliarModulo(
+      cs.map((c) => c.nome),
+      cs.map((c) => {
+        const r = resPorChave.get(`${b.matricula_id}:${c.id}`);
+        return { componente: c.nome, nota: r?.nota ?? null, notaExameFinal: r?.nota_exame_final ?? null, frequencia: r?.frequencia ?? null, aproveitada: !!r?.aproveitado_de_resultado_id };
+      }),
+      criteriosDoCurso(b as any),
+    );
+  };
+  for (const b of base.results) aprovadoEm.set(`${b.matricula_id}:${b.modulo_ordem}`, avaliar(b).aprovado);
 
   const linhas: Linha[] = [];
   for (const b of base.results) {
@@ -72,7 +88,10 @@ export async function listarPendentes(db: D1Database, turmaId?: number): Promise
     if (!signatariosOk) faltam.push('signatários não cadastrados');
     let situacao: Linha['situacao'];
     let detalhes: string[];
-    if (av.aprovado) [situacao, detalhes] = faltam.length ? ['dados', faltam] : ['apto', []];
+    const anteriorPendente = base.results.find((x) => x.matricula_id === b.matricula_id && x.modulo_ordem < b.modulo_ordem && !aprovadoEm.get(`${x.matricula_id}:${x.modulo_ordem}`));
+    if (b.situacao_modulo !== 'concluido') [situacao, detalhes] = ['andamento', ['O módulo ainda não foi concluído na turma']];
+    else if (av.aprovado && anteriorPendente) [situacao, detalhes] = ['ordem', [`Precisa estar aprovado no Módulo ${anteriorPendente.modulo_ordem} — ${anteriorPendente.modulo}`]];
+    else if (av.aprovado) [situacao, detalhes] = faltam.length ? ['dados', faltam] : ['apto', []];
     else if (av.pendente && !av.disciplinas.some((d) => d.resultado === 'RP')) [situacao, detalhes] = ['pendente', av.motivos];
     else [situacao, detalhes] = ['reprovado', av.motivos];
     linhas.push({
@@ -88,6 +107,8 @@ const ROTULO: Record<Linha['situacao'], [string, string]> = {
   dados: ['Aprovado — faltam dados', 'aviso'],
   pendente: ['Notas incompletas', ''],
   reprovado: ['Não aprovado', 'erro'],
+  andamento: ['Módulo em andamento', ''],
+  ordem: ['Aguardando aprovação no módulo anterior', 'aviso'],
 };
 
 rotasPendentes.get('/', async (c) => {
@@ -96,7 +117,7 @@ rotasPendentes.get('/', async (c) => {
   const db = c.env.DB;
   const turmas = (await db.prepare('SELECT id, codigo FROM turmas ORDER BY data_inicio DESC, codigo').all<{ id: number; codigo: string }>()).results;
   const linhas = await listarPendentes(db, turmaId);
-  const visiveis = todos ? linhas : linhas.filter((l) => l.situacao === 'apto' || l.situacao === 'dados');
+  const visiveis = todos ? linhas : linhas.filter((l) => l.situacao === 'apto' || l.situacao === 'dados' || l.situacao === 'ordem');
   const n = (s: Linha['situacao']) => linhas.filter((l) => l.situacao === s).length;
 
   return c.html(
@@ -106,13 +127,14 @@ rotasPendentes.get('/', async (c) => {
         <div class="cartao"><b>{n('apto')}</b>prontos para emitir</div>
         <div class="cartao"><b>{n('dados')}</b>aprovados com dados faltando</div>
         <div class="cartao"><b>{n('pendente')}</b>com notas incompletas</div>
+        <div class="cartao"><b>{n('andamento')}</b>em módulos ainda em andamento</div>
       </div>
       <form method="get" class="acoes">
         <select name="turma">
           <option value="">Todas as turmas</option>
           {turmas.map((t) => <option value={t.id} selected={t.id === turmaId}>{t.codigo}</option>)}
         </select>
-        <label class="check"><input type="checkbox" name="todos" value="1" checked={todos} /> mostrar também não aprovados e notas incompletas</label>
+        <label class="check"><input type="checkbox" name="todos" value="1" checked={todos} /> mostrar também módulos em andamento, não aprovados e notas incompletas</label>
         <button class="sec">Filtrar</button>
       </form>
       <table>

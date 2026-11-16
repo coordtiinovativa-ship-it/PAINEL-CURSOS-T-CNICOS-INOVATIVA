@@ -35,7 +35,7 @@ describe('página pública de validação', () => {
     expect(html).toContain('Inspetor de Qualidade');
     expect(html).toContain('Gestão e Negócios');
     expect(html).toContain('400 horas');
-    expect(html).toContain('09/02/2026 a 27/11/2026'); // período da turma
+    expect(html).toContain('09/02/2026 a 26/06/2026'); // período do módulo 1 na turma (não o da turma inteira)
     expect(html).toContain('5 de dezembro de 2026');
     expect(html).toContain('Nº 1 · Folha 1 · Livro 1');
     expect(html).toContain('Deliberação CEE/MS nº 13.111, de 18 de dezembro de 2024');
@@ -123,7 +123,7 @@ describe('emissão de certificados (lista de pendentes)', () => {
     html = await (await c.req('/admin/certificados/pendentes?todos=1')).text();
     expect(html).toContain('Renata Fictícia Alves');
     expect(html).toContain('Não aprovado');
-    expect(html).toContain('Notas incompletas');
+    expect(html).toContain('Módulo em andamento'); // módulo 2 ainda em andamento na turma
     await c.post('/admin/certificados/emitir/1/1', EMISSAO);
     html = await (await c.req('/admin/certificados/pendentes')).text();
     expect(html).not.toContain('/admin/certificados/emitir/1/1');

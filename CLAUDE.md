@@ -314,6 +314,16 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - Matriz em uso por turma fica travada (crie nova versão, que copia a anterior). Módulo cuja soma das disciplinas
   difere da CH do módulo bloqueia a emissão.
 
+### Módulos em sequência (decisão da direção, 16/11/2026)
+- **Uma turma faz o curso inteiro, com os módulos em ordem.** Tabela `turma_modulos` (migração 0010): período
+  (início/término) e situação (planejado → em andamento → concluído) de cada módulo na turma. Regras em
+  `src/lib/turmaModulos.ts`: módulo só inicia/conclui com o anterior concluído; notas só em módulo iniciado
+  (tela e importação); certificado, declaração e histórico só de módulo concluído; o aluno precisa estar
+  aprovado nos módulos anteriores (certificado e declaração); módulo com certificado emitido não reabre;
+  módulo com notas não volta a "planejado". Turma nova nasce com o módulo 1 em andamento.
+- Documentos e validação usam o **período do módulo** (snapshot `modulo.periodo`), não o da turma inteira.
+- Pendente para depois: rematrícula em módulo com aproveitamento de disciplinas aprovadas (PPC).
+
 ### Produção (fase 7 — 16/11/2026)
 - No ar em https://certificadostecnicos.institutoinovativa.org, conta Cloudflare **Admin@institutoinovativa.org's
   Account** (`account_id` 43c07b1a… no `wrangler.toml`), onde está a zona institutoinovativa.org.

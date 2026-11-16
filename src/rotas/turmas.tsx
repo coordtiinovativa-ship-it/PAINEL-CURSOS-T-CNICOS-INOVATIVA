@@ -9,6 +9,7 @@ import { dataBR } from '../lib/datas';
 import { formatarCPF } from '../lib/cpf';
 import { avaliarDisciplina, criteriosDoCurso, ROTULO_METODO } from '../lib/aprovacao';
 import { nomeDoAluno } from '../certificado/dados';
+import { exigirModuloIniciado, garantirModulosDaTurma, modulosDaTurma, moduloNaTurma, ROTULO_SITUACAO, validarMudanca, type SituacaoModulo } from '../lib/turmaModulos';
 
 export const rotasTurmas = new Hono<Env>();
 rotasTurmas.use('*', exigir('turmas.editar'));
@@ -100,6 +101,7 @@ rotasTurmas.post('/nova', async (c) => {
     const r = await c.env.DB.prepare(
       `INSERT INTO turmas (curso_id, matriz_id, ${cols.join(', ')}) VALUES (?, ?, ${cols.map(() => '?').join(', ')}) RETURNING id`,
     ).bind(matriz.curso_id, matriz.id, ...cols.map((k) => d[k])).first<{ id: number }>();
+    await garantirModulosDaTurma(c.env.DB, r!.id);
     await auditar(c, 'criar', 'turma', r!.id, null, { ...d, matriz_id: matriz.id });
     return c.redirect(`/admin/turmas/${r!.id}?ok=` + encodeURIComponent('Turma criada.'));
   } catch (e) {
@@ -137,12 +139,7 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
         WHERE id NOT IN (SELECT aluno_id FROM matriculas WHERE turma_id = ?) ORDER BY 2`,
     ).bind(t.id).all<{ id: number; nome: string; cpf: string }>()
   ).results;
-  const modulos = (
-    await db.prepare(
-      `SELECT mt.*, (SELECT count(*) FROM componentes_curriculares cc WHERE cc.modulo_id = mt.id) AS disciplinas
-         FROM modulos_tematicos mt WHERE mt.matriz_id = ? ORDER BY mt.ordem`,
-    ).bind(t.matriz_id).all<Record<string, any>>()
-  ).results;
+  const modulos = await modulosDaTurma(db, t.id);
   const u = c.get('usuario');
 
   return c.html(
@@ -150,18 +147,36 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
       <h1>Turma {t.codigo}</h1>
       <p>{t.curso} · matriz v{t.versao}</p>
 
-      <h2>Módulos temáticos</h2>
+      <h2>Módulos da turma</h2>
+      <p class="muted" style="margin-top:-.4rem">Os módulos são feitos em ordem: um módulo só começa quando o anterior for concluído.
+        Notas só podem ser lançadas em módulo em andamento ou concluído; certificados, declarações e históricos só de módulo concluído.
+        O período do módulo é o que sai nos documentos.</p>
       <table>
-        <tr><th>Módulo</th><th>Qualificação</th><th class="n">CH</th><th class="n">Disciplinas</th><th></th></tr>
-        {modulos.map((m) => (
-          <tr>
-            <td>{m.ordem}. {m.nome}</td>
-            <td>{m.qualificacao_conferida}</td>
-            <td class="n">{m.carga_horaria} h</td>
-            <td class="n">{m.disciplinas}</td>
-            <td><a href={`/admin/turmas/${t.id}/modulos/${m.id}`}>resultados e prévias</a></td>
-          </tr>
-        ))}
+        <tr><th>Módulo</th><th>Qualificação</th><th class="n">CH</th><th>Início</th><th>Término</th><th>Situação</th><th></th><th></th></tr>
+        {modulos.map((m) => {
+          const f = `tm-${m.id}`;
+          const editar = pode(u.perfil, 'turmas.editar');
+          return (
+            <tr>
+              <td>{m.ordem}. {m.nome}</td>
+              <td>{m.qualificacao_conferida}</td>
+              <td class="n" style="white-space:nowrap">{m.carga_horaria} h</td>
+              <td><input form={f} type="date" name="data_inicio" value={m.data_inicio ?? ''} disabled={!editar} /></td>
+              <td><input form={f} type="date" name="data_fim" value={m.data_fim ?? ''} disabled={!editar} /></td>
+              <td>
+                <select form={f} name="situacao" disabled={!editar}>
+                  {(Object.keys(ROTULO_SITUACAO) as SituacaoModulo[]).map((sit) => <option value={sit} selected={m.situacao === sit}>{ROTULO_SITUACAO[sit]}</option>)}
+                </select>
+              </td>
+              <td>{editar && <form id={f} method="post" action={`/admin/turmas/${t.id}/modulos-turma/${m.id}`} style="margin:0"><button class="sec">salvar</button></form>}</td>
+              <td style="white-space:nowrap">
+                {m.situacao === 'planejado'
+                  ? <span class="muted">aguardando início</span>
+                  : <a href={`/admin/turmas/${t.id}/modulos/${m.modulo_id}`}>{m.situacao === 'concluido' ? 'resultados e certificados' : 'lançar resultados'}</a>}
+              </td>
+            </tr>
+          );
+        })}
       </table>
 
       <h2>Alunos matriculados ({matriculas.length})</h2>
@@ -223,6 +238,32 @@ rotasTurmas.post('/:id{[0-9]+}', async (c) => {
   return c.redirect(`/admin/turmas/${t.id}?ok=` + encodeURIComponent('Turma salva.'));
 });
 
+rotasTurmas.post('/:id{[0-9]+}/modulos-turma/:tm{[0-9]+}', async (c) => {
+  const t = await carregarTurma(c);
+  if (!t) return c.notFound();
+  const db = c.env.DB as D1Database;
+  const modulos = await modulosDaTurma(db, t.id);
+  const alvo = modulos.find((m) => m.id === Number(c.req.param('tm')));
+  if (!alvo) return c.notFound();
+  const corpo = await lerCorpo(c);
+  let novo;
+  try {
+    novo = await validarMudanca(db, modulos, alvo, {
+      data_inicio: texto(corpo, 'data_inicio'),
+      data_fim: texto(corpo, 'data_fim'),
+      situacao: (texto(corpo, 'situacao') ?? 'planejado') as SituacaoModulo,
+    });
+  } catch (e) {
+    if (e instanceof ErroValidacao) return c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(e.message));
+    throw e;
+  }
+  await db.prepare(`UPDATE turma_modulos SET data_inicio = ?, data_fim = ?, situacao = ?, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`)
+    .bind(novo.data_inicio, novo.data_fim, novo.situacao, alvo.id).run();
+  await auditar(c, 'atualizar_modulo_turma', 'turma', t.id,
+    { modulo: alvo.nome, data_inicio: alvo.data_inicio, data_fim: alvo.data_fim, situacao: alvo.situacao }, { modulo: alvo.nome, ...novo });
+  return c.redirect(`/admin/turmas/${t.id}?ok=` + encodeURIComponent(`Módulo ${alvo.ordem} — ${alvo.nome}: ${ROTULO_SITUACAO[novo.situacao].toLowerCase()}.`));
+});
+
 rotasTurmas.post('/:id{[0-9]+}/matriculas', async (c) => {
   const t = await carregarTurma(c);
   if (!t) return c.notFound();
@@ -275,6 +316,7 @@ async function contextoModulo(c: any) {
     .bind(Number(c.req.param('mod')), t.matriz_id).first<Record<string, any>>();
   if (!modulo) return null;
   const curso = await db.prepare('SELECT * FROM cursos WHERE id = ?').bind(t.curso_id).first<any>();
+  const mt = await moduloNaTurma(db, t.id, modulo.id);
   const componentes = (await db.prepare('SELECT * FROM componentes_curriculares WHERE modulo_id = ? ORDER BY ordem').bind(modulo.id).all<Record<string, any>>()).results;
   const matriculas = (
     await db.prepare(
@@ -290,13 +332,13 @@ async function contextoModulo(c: any) {
   ).results;
   const chave = (m: number, cc: number) => `${m}:${cc}`;
   const porChave = new Map(resultados.map((r) => [chave(r.matricula_id, r.componente_id), r]));
-  return { t, modulo, curso, criterios: criteriosDoCurso(curso), componentes, matriculas, porChave, chave };
+  return { t, modulo, mt, curso, criterios: criteriosDoCurso(curso), componentes, matriculas, porChave, chave };
 }
 
 rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
   const ctx = await contextoModulo(c);
   if (!ctx) return c.notFound();
-  const { t, modulo, componentes, matriculas, porChave, chave, criterios } = ctx;
+  const { t, modulo, mt, componentes, matriculas, porChave, chave, criterios } = ctx;
   const u = c.get('usuario');
   const podePrevia = pode(u.perfil, 'relatorios.emitir');
   const podeEmitir = pode(u.perfil, 'certificados.emitir');
@@ -309,7 +351,9 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
   return c.html(
     <Pagina titulo={`${t.codigo} — ${modulo.nome}`} usuario={u} caminho={c.req.path} ok={c.req.query('ok')}>
       <p><a href={`/admin/turmas/${t.id}`}>← Turma {t.codigo}</a></p>
-      <h1>Módulo {modulo.ordem}: {modulo.nome}</h1>
+      <h1>Módulo {modulo.ordem}: {modulo.nome} <span class={`tag ${mt.situacao === 'concluido' ? 'ok' : mt.situacao === 'em_andamento' ? 'aviso' : ''}`}>{ROTULO_SITUACAO[mt.situacao]}</span></h1>
+      <p class="muted" style="margin-top:-.6rem">Período no módulo: {mt.data_inicio ? dataBR(mt.data_inicio) : '—'} a {mt.data_fim ? dataBR(mt.data_fim) : '—'}
+        {mt.situacao !== 'concluido' && <> · <b>certificados e documentos ficam disponíveis quando o módulo for concluído</b> (em <a href={`/admin/turmas/${t.id}`}>Módulos da turma</a>)</>}</p>
       <p class="muted">
         Qualificação: <b>{modulo.qualificacao_conferida}</b> · {modulo.carga_horaria} h ·
         Aprovação: freq. ≥ {numBR(criterios.frequenciaMinima)}% e média ≥ {numBR(criterios.notaMinima)}
@@ -355,15 +399,16 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
                     ) : (
                       <>
                         <a href={`/admin/previa/${m.id}/${modulo.id}`} target="_blank">prévia</a>
-                        {podeEmitir && status === 'AP' && <> · <a href={`/admin/certificados/emitir/${m.id}/${modulo.id}`}><b>emitir</b></a></>}
+                        {podeEmitir && status === 'AP' && mt.situacao === 'concluido' && <> · <a href={`/admin/certificados/emitir/${m.id}/${modulo.id}`}><b>emitir</b></a></>}
                       </>
                     )}
                   </td>
                 )}
                 {podePrevia && (
                   <td style="white-space:nowrap">
-                    {status === 'AP' && <><a href={`/admin/documentos/declaracao_conclusao_modulo/${m.id}/${modulo.id}`}>declaração</a> · </>}
-                    <a href={`/admin/documentos/historico_escolar/${m.id}/${modulo.id}`}>histórico</a>
+                    {mt.situacao !== 'concluido' ? <span class="muted">após concluir o módulo</span> : <>
+                      {status === 'AP' && <><a href={`/admin/documentos/declaracao_conclusao_modulo/${m.id}/${modulo.id}`}>declaração</a> · </>}
+                      <a href={`/admin/documentos/historico_escolar/${m.id}/${modulo.id}`}>histórico</a></>}
                   </td>
                 )}
               </tr>
@@ -382,6 +427,9 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}/disciplinas/:comp{[0-9]+}', e
   const { t, modulo, componentes, matriculas, porChave, chave, criterios } = ctx;
   const cc = componentes.find((x) => x.id === Number(c.req.param('comp')));
   if (!cc) return c.notFound();
+  if (ctx.mt.situacao === 'planejado') {
+    return c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(`O módulo ${modulo.nome} ainda está "planejado": inicie-o em Módulos da turma antes de lançar notas.`));
+  }
   return c.html(
     <Pagina titulo={`${cc.nome} — ${t.codigo}`} usuario={c.get('usuario')} caminho={c.req.path} erro={c.req.query('erro')}>
       <p><a href={`/admin/turmas/${t.id}/modulos/${modulo.id}`}>← Módulo {modulo.nome}</a></p>
@@ -416,6 +464,12 @@ rotasTurmas.post('/:id{[0-9]+}/modulos/:mod{[0-9]+}/disciplinas/:comp{[0-9]+}', 
   const { t, modulo, componentes, matriculas, porChave, chave, criterios } = ctx;
   const cc = componentes.find((x) => x.id === Number(c.req.param('comp')));
   if (!cc) return c.notFound();
+  try {
+    await exigirModuloIniciado(c.env.DB, t.id, modulo.id, modulo.nome);
+  } catch (e) {
+    if (e instanceof ErroValidacao) return c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(e.message));
+    throw e;
+  }
   const corpo = await lerCorpo(c);
   const url = `/admin/turmas/${t.id}/modulos/${modulo.id}/disciplinas/${cc.id}`;
   const comandos: D1PreparedStatement[] = [];
