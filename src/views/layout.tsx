@@ -113,6 +113,7 @@ button.sec,.botao.sec{background:transparent;color:var(--link);border-color:var(
 button.sec:hover,.botao.sec:hover{background:var(--superficie-2);border-color:var(--link)}
 button.perigo{background:var(--erro);color:#fff}
 .acoes{display:flex;gap:.55rem;flex-wrap:wrap;align-items:center;margin:.7rem 0}
+.acoes form{margin:0}
 .msg{padding:.7rem 1rem;border-radius:10px;margin-bottom:1rem;border:1px solid}
 .msg ul{margin:.3rem 0 0 1.1rem;padding:0}
 .msg.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-borda)}
@@ -199,6 +200,7 @@ export const SECOES_MENU: SecaoMenu[] = [
     itens: [
       { href: '/admin/alunos', rotulo: 'Alunos', perm: 'alunos.editar' },
       { href: '/admin/turmas', rotulo: 'Turmas e resultados', perm: 'turmas.editar' },
+      { href: '/admin/importacao', rotulo: 'Importar Planilhas', perm: 'alunos.editar' },
       { separador: true },
       { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
       { href: '/admin/certificados', rotulo: 'Certificados Emitidos', perm: 'relatorios.emitir' },

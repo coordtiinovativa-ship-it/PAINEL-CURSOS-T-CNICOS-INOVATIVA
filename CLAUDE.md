@@ -287,6 +287,19 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   verso com perfil profissional e competências do módulo (cadastrar em Cursos → perfil e competências, a partir
   do PPC). Exige notas completas; aluno reprovado também pode receber (mostra RP).
 
+### Importação de planilhas (fase 6)
+- `/admin/importacao` (Secretaria → Importar Planilhas). Aceita **.xlsx** e **.csv** (UTF-8 ou Windows-1252,
+  separador ; , ou tab). Cabeçalhos flexíveis (apelidos em `src/importacao/alunos.ts`), CPF sem zero à esquerda,
+  datas do Excel (série), "7,5", "95%".
+- Fluxo: enviar → **conferência** (nada gravado) → aplicar em lote atômico; linhas com erro são ignoradas.
+  Arquivo guardado no R2 e registro em `importacoes`; auditoria do envio e da aplicação com os detalhes.
+- **Alunos**: chave CPF; matrícula opcional na turma; existentes: "só preencher vazios" (padrão) ou "substituir".
+  Relatório de campos faltantes para o certificado.
+- **Notas e frequência** por turma + módulo: modelo baixado já preenchido (formato "Disciplina | Média/Exame/
+  Frequência (%)") ou formato uma linha por disciplina; células vazias não alteram; conferência mostra quem ficará
+  aprovado/reprovado (PPC 11.1.1). Aluno precisa estar matriculado na turma.
+- Aguardando a planilha real da secretaria para ajustar apelidos de cabeçalho, se necessário.
+
 ### Emissão (fase 3)
 - Código SISTEC e data do SISTEC são **obrigatórios no momento da emissão** (bloqueado também por trigger no banco).
 - Registro (nº/folha/livro) sugerido automaticamente a partir de "registros por folha" e "folhas por livro"
