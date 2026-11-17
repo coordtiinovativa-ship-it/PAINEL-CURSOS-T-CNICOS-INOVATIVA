@@ -390,9 +390,12 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   2º as DINÂMICAS do curso da turma (`cursos.texto_autorizacao`, Cursos e Matrizes → Dados do curso → Autorização:
   "Curso Técnico em ...: Deliberação CEE/MS n. 13111, de 18/12/2024"). Migração 0013 preenche os dois a partir dos atos.
   Texto livre, impresso como digitado (uma linha por linha). Vazio → só aviso. Snapshot: `instituicao.atos`; certificados sem
-  esse campo continuam com "Atos autorizativos vigentes". No certificado a linha "Credenciamento Deliberação..." do modelo
-  aprovado continua; na declaração/histórico ela sai quando há atos (já está nas linhas fixas), com atos em 7 pt agrupados
-  ("a · b") para o histórico caber em 2 páginas. Linhas além de 1 são compensadas nos respiros do certificado (`espacosCabecalho`).
+  esse campo continuam com "Credenciamento..." + "Atos autorizativos vigentes". **A linha "Credenciamento Deliberação..." foi
+  retirada** do cabeçalho de todos os documentos quando há atos (decisão da direção, 17/11/2026 — já está nas linhas fixas;
+  substitui as linhas 185 e 205 acima). Na declaração/histórico os atos saem em 7 pt agrupados ("a · b") para o histórico
+  caber em 2 páginas. Linhas além de 2 são compensadas nos respiros do certificado (`espacosCabecalho`, `linhasCabecalho`).
+- **Telefone e e-mail** da instituição saem na linha do endereço de todos os documentos (`linhaEndereco` em
+  `src/certificado/dados.ts`); linha do cabeçalho que não couber na largura diminui a fonte (`tamanhoQueCabe`), nunca ultrapassa a margem.
 
 ### Prévia em tela com QR code de exemplo (16/11/2026)
 - Tela de emissão do certificado mostra a prévia (frente e verso) embutida ("Como vai ficar", `/admin/previa/{mat}/{mod}?embutida=1`)
