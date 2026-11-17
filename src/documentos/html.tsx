@@ -117,8 +117,8 @@ export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | n
             <img src={url(i.logo_r2_key) ?? '/modelo/logo.png'} alt="Logo" />
             <div class="n">{i.nome}</div>
             <div class="s">{i.enderecoLinha}</div>
-            <div class="s">{i.credenciamento}</div>
-            {(i.autorizacao ?? []).map((l) => <div class="s">{l}</div>)}
+            {/* com linhas de atos (que já trazem o credenciamento), a linha de credenciamento não se repete — igual ao PDF */}
+            {i.atos?.length ? i.atos.map((l) => <div class="s">{l}</div>) : <div class="s">{i.credenciamento}</div>}
           </div>
           <div class="faixa" />
           {pg.blocos.map((b) => <Bl b={b} url={url} />)}

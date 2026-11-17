@@ -33,8 +33,8 @@ export interface DocumentoLayout {
   versao: 1;
   titulo: string;
   instituicao: { nome: string; enderecoLinha: string; credenciamento: string; logo_r2_key: string | null;
-    /** texto "Autorização" do curso, linha a linha (ausente em documentos anteriores à migração 0013 e em relatórios) */
-    autorizacao?: string[] };
+    /** linhas de atos: fixas da instituição + do curso (ausente em documentos anteriores à migração 0013 e em relatórios) */
+    atos?: string[] };
   paginas: PaginaDoc[];
   validacao: { codigo: string | null; url: string | null };
   /** Rodapé próprio (relatórios): substitui o rodapé de validação/QR e numera as páginas */

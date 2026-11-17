@@ -78,8 +78,11 @@ export interface DadosCertificado {
   matriculaId: number;
   instituicao: Record<string, any>;
   credenciamentoTexto: string | null;
-  /** Linhas do texto "Autorização" do curso (cabeçalho, abaixo de "Atos autorizativos vigentes"). */
-  autorizacaoLinhas: string[];
+  /**
+   * Linhas de atos do cabeçalho (no lugar de "Atos autorizativos vigentes"): primeiro as fixas da instituição
+   * (instituicoes.texto_atos), depois as do curso da turma (cursos.texto_autorizacao).
+   */
+  atosCabecalho: string[];
   atoAutorizacao: Record<string, any> | null;
   /** "Qualificação Profissional Técnica" etc., conforme o tipo do curso da turma */
   rotuloQualificacao: string;
@@ -146,11 +149,12 @@ export function hojeMS(): string {
 const vazio = (v: unknown) => v == null || String(v).trim() === '';
 
 /**
- * A folha do certificado tem altura fixa: cada linha de autorização no cabeçalho (9 pt ≈ 11,4 pt com o
- * espaçamento) é compensada tirando dos respiros em volta do título e do topo do verso (em pt).
+ * A folha do certificado tem altura fixa e o modelo aprovado reservava 1 linha de atos ("Atos autorizativos vigentes").
+ * Cada linha de atos além dessa (9 pt ≈ 11,4 pt com o espaçamento) é compensada tirando dos respiros em volta do
+ * título e do topo do verso (em pt).
  */
-export function espacosCabecalho(linhasAutorizacao: number): { antesTitulo: number; depoisTitulo: number; topoVerso: number } {
-  const extra = linhasAutorizacao * 11.4;
+export function espacosCabecalho(linhasAtos: number): { antesTitulo: number; depoisTitulo: number; topoVerso: number } {
+  const extra = Math.max(0, linhasAtos - 1) * 11.4;
   return {
     antesTitulo: Math.max(4, 14 - extra / 2),
     depoisTitulo: Math.max(8, 16 - extra / 2),
@@ -291,10 +295,15 @@ async function comporDados(
   if (vazio(aluno.nome_pai)) avisos.push('Nome do pai não informado: a filiação sairá só com o nome da mãe.');
   if (aluno.nome_social && nomeExibido !== aluno.nome_civil) avisos.push('O certificado usará o nome social do(a) estudante.');
   if (!credenciamento) faltantes.push('Instituição: ato de credenciamento');
-  const autorizacaoLinhas = linhasAutorizacao(curso.texto_autorizacao);
-  if (!autorizacaoLinhas.length) {
-    avisos.push('Texto de autorização do curso não preenchido (Cadastros → Cursos e Matrizes → Dados do curso → Autorização): o cabeçalho sairá só com "Atos autorizativos vigentes".');
+  const atosInstituicao = linhasAutorizacao(instituicao.texto_atos);
+  const autorizacaoCurso = linhasAutorizacao(curso.texto_autorizacao);
+  if (!atosInstituicao.length) {
+    avisos.push('Atos da instituição não preenchidos (Cadastros → Instituição e Atos → Atos da instituição): o cabeçalho sairá sem a criação e o credenciamento.');
   }
+  if (!autorizacaoCurso.length) {
+    avisos.push('Texto de autorização do curso não preenchido (Cadastros → Cursos e Matrizes → Dados do curso → Autorização): o cabeçalho sairá sem a autorização do curso.');
+  }
+  const atosCabecalho = [...atosInstituicao, ...autorizacaoCurso];
   if (!atoPpc) faltantes.push('Curso: ato de aprovação do PPC / autorização');
   if (!modulo.qualificacao_conferida) faltantes.push('Módulo: qualificação conferida');
   const chComponentes = componentes.results.reduce((soma, cc) => soma + cc.ch, 0);
@@ -392,7 +401,7 @@ async function comporDados(
     matriculaId,
     instituicao,
     credenciamentoTexto,
-    autorizacaoLinhas,
+    atosCabecalho,
     atoAutorizacao: atoPpc ?? null,
     rotuloQualificacao: rotuloQualificacao(curso.tipo),
     moduloTurma,

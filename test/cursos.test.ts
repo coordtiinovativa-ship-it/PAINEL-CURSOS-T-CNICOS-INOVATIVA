@@ -191,7 +191,9 @@ describe('vários cursos', () => {
 });
 
 describe('texto "Autorização" do curso (cabeçalho dos documentos)', () => {
-  const PADRAO = 'Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE/MS nº 13.111, de 18/12/2024';
+  const PADRAO = 'Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE/MS n. 13111, de 18/12/2024';
+  const CRIACAO = 'Criação: ata n. 01, de 23/02/2010.';
+  const CREDENCIAMENTO = 'Educação Profissional Técnica de Nível Médio credenciamento: Deliberação CEE/MS n. 10994, de 06/02/2017.';
 
   /** Reenvia o formulário completo do curso 1, como o navegador faz. */
   function formCurso(sqlite: any, mudancas: Record<string, string>) {
@@ -206,13 +208,31 @@ describe('texto "Autorização" do curso (cabeçalho dos documentos)', () => {
     return { ...f, ...mudancas };
   }
 
-  it('migração preenche a partir do ato de autorização; sai na prévia do certificado e na declaração', async () => {
+  it('migração preenche a partir dos atos; cabeçalho: fixos da instituição e, abaixo, os do curso (no lugar de "Atos autorizativos vigentes")', async () => {
     const { c, sqlite } = await admin();
+    expect((sqlite.prepare('SELECT texto_atos FROM instituicoes WHERE id = 1').get() as any).texto_atos).toBe(`${CRIACAO}\n${CREDENCIAMENTO}`);
     expect((sqlite.prepare('SELECT texto_autorizacao FROM cursos WHERE id = 1').get() as any).texto_autorizacao).toBe(PADRAO);
     const cert = await (await c.req('/admin/previa/1/1')).text();
-    expect(cert).toMatch(/Atos autorizativos vigentes<\/p><p class="cab2">Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE\/MS nº 13.111, de 18\/12\/2024<\/p>/);
+    expect(cert).toContain(`<p class="cab2">${CRIACAO}</p><p class="cab2">${CREDENCIAMENTO}</p><p class="cab2">${PADRAO}</p>`);
+    expect(cert).not.toContain('Atos autorizativos vigentes');
     const decl = await (await c.req('/admin/documentos/declaracao_conclusao_modulo/1/1/previa')).text();
-    expect(decl).toContain(PADRAO);
+    for (const l of [CRIACAO, CREDENCIAMENTO, PADRAO]) expect(decl).toContain(l);
+    // PDF de prévia continua sendo gerado com as linhas novas
+    const pdf = await c.req('/admin/previa/1/1/pdf');
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers.get('Content-Type')).toContain('pdf');
+  });
+
+  it('atos da instituição são editados na tela da Instituição e valem para todos os cursos', async () => {
+    const { c, sqlite } = await admin();
+    const inst = sqlite.prepare('SELECT * FROM instituicoes WHERE id = 1').get() as Record<string, any>;
+    const form: Record<string, string> = {};
+    for (const [k, v] of Object.entries(inst)) if (v != null && !['id', 'criado_em', 'atualizado_em'].includes(k)) form[k] = String(v);
+    expect(await (await c.req('/admin/instituicao')).text()).toContain('name="texto_atos"');
+    await c.post('/admin/instituicao', { ...form, texto_atos: 'Criação: ata n. 02, de 01/01/2011.' });
+    const cert = await (await c.req('/admin/previa/1/1')).text();
+    expect(cert).toContain(`<p class="cab2">Criação: ata n. 02, de 01/01/2011.</p><p class="cab2">${PADRAO}</p>`);
+    expect(cert).not.toContain(CREDENCIAMENTO);
   });
 
   it('o que for digitado na tela é o que sai (uma linha por linha); vazio só gera aviso', async () => {

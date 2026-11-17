@@ -134,7 +134,7 @@ const FormCurso = ({ cu, eixosLista, cbos, acao }: { cu: Record<string, any>; ei
     <Campo nome="escolaridade_minima" rotulo="Escolaridade mínima" valor={cu.escolaridade_minima} />
     <label class="check"><input type="checkbox" name="oferta_experimental" value="1" checked={!!cu.oferta_experimental} /> Oferta experimental</label>
     <label class="check"><input type="checkbox" name="ativo" value="1" checked={cu.ativo == null ? true : !!cu.ativo} /> Curso ativo (disponível para novas turmas)</label>
-    <label class="largo">Autorização — impressa no cabeçalho dos documentos, abaixo de "Atos autorizativos vigentes"
+    <label class="largo">Autorização — impressa no cabeçalho dos documentos, logo abaixo dos atos fixos da instituição
       <textarea name="texto_autorizacao" rows={3} placeholder="Ex.: Curso Técnico em Informática para Internet: Deliberação CEE/MS nº 13.253, de 03/11/2025">{cu.texto_autorizacao ?? ''}</textarea>
       <span class="muted">O que for digitado aqui sai exatamente assim no certificado, na declaração e no histórico. Cada linha vira uma linha no cabeçalho
         (ex.: autorização e, depois, reconhecimento). Vale para os documentos emitidos a partir de agora; os já emitidos não mudam.</span>

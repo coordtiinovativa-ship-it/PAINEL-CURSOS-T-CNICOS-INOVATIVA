@@ -88,6 +88,17 @@ describe('declaração de conclusão de módulo', () => {
 });
 
 describe('histórico escolar', () => {
+  it('continua em 2 páginas com várias linhas de atos no cabeçalho (instituição + 3 do curso)', async () => {
+    const tres = `UPDATE cursos SET texto_autorizacao = 'Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE/MS n. 13111, de 18/12/2024'
+      || char(10) || 'Reconhecimento: Deliberação CEE/MS n. 99999, de 01/12/2026' || char(10) || 'Renovação de reconhecimento: Deliberação CEE/MS n. 99998, de 01/12/2029';`;
+    const { c, sqlite, env } = await pronto('coordenador', PERFIL + tres);
+    expect((await c.post(`${HIST}/1/1`, { data_emissao: '2026-12-05' })).status).toBe(302);
+    const [d] = docs(sqlite);
+    expect(JSON.parse(d.snapshot_json).layout.instituicao.atos).toHaveLength(5);
+    const pdf = await PDFDocument.load(new Uint8Array(await (await env.ARQUIVOS.get(d.pdf_r2_key))!.arrayBuffer()));
+    expect(pdf.getPageCount()).toBe(2);
+  }, 30_000);
+
   it('bloqueia enquanto o módulo não tem perfil e competências', async () => {
     const { c } = await pronto();
     const tela = await (await c.req(`${HIST}/1/1`)).text();

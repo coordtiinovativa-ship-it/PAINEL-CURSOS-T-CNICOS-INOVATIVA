@@ -208,13 +208,16 @@ function desenharQr(fo: Folha, texto: string, x: number, topo: number, lado: num
   }
 }
 
+/** Atos do cabeçalho; certificados emitidos antes da migração 0013 traziam a linha fixa do modelo. */
+const linhasAtos = (s: SnapshotCertificado) => s.instituicao.atos ?? ['Atos autorizativos vigentes'];
+
 function cabecalho(fo: Folha, s: SnapshotCertificado, logo: PDFImage): number {
   let y = MARGEM.topo;
   fo.imagem(logo, MARGEM.esq + (LARG - 59.7 * MM) / 2, y, 59.7 * MM, 15.6 * MM);
   y += 15.6 * MM + 1.4 * MM;
   fo.centro(s.instituicao.nome, y, 10.5, fo.f.b);
   y += 10.5 * LH_NORMAL + 1;
-  for (const t of [s.instituicao.enderecoLinha, s.instituicao.credenciamento, 'Atos autorizativos vigentes', ...(s.instituicao.autorizacao ?? [])]) {
+  for (const t of [s.instituicao.enderecoLinha, s.instituicao.credenciamento, ...linhasAtos(s)]) {
     fo.centro(t, y, 9, fo.f.r);
     y += 9 * LH_NORMAL + 1;
   }
@@ -269,7 +272,7 @@ export async function gerarPdfCertificado(
     const fo = new Folha(doc.addPage([W, H]), f);
     fo.p.drawImage(fundoFrente, { x: 0, y: 0, width: W, height: H });
     let y = cabecalho(fo, s, logo);
-    const esp = espacosCabecalho(s.instituicao.autorizacao?.length ?? 0);
+    const esp = espacosCabecalho(linhasAtos(s).length);
     y += esp.antesTitulo;
     fo.centro('C  E  R  T  I  F  I  C  A  D  O', y, 21, f.b);
     y += 21 * LH_NORMAL + esp.depoisTitulo;
@@ -313,7 +316,7 @@ export async function gerarPdfCertificado(
     const fo = new Folha(doc.addPage([W, H]), f);
     fo.p.drawImage(fundoVerso, { x: 0, y: 0, width: W, height: H });
     let y = cabecalho(fo, s, logo);
-    y += espacosCabecalho(s.instituicao.autorizacao?.length ?? 0).topoVerso; // o modelo atualizado não tem a linha "(Verso do Certificado da ...)"
+    y += espacosCabecalho(linhasAtos(s).length).topoVerso; // o modelo atualizado não tem a linha "(Verso do Certificado da ...)"
     const qualif = s.modulo.qualificacao.toUpperCase();
 
     const xEm = MARGEM.esq + 3.8 * MM;

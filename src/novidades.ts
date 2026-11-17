@@ -47,12 +47,13 @@ export const VERSOES: Versao[] = [
         perm: 'alunos.editar',
       },
       {
-        titulo: 'Texto de autorização do curso',
-        texto: 'em Cursos e Matrizes → Dados do curso, o novo campo "Autorização" guarda o texto que sai no cabeçalho do certificado, ' +
-          'logo abaixo de "Atos autorizativos vigentes", e também na declaração e no histórico. O que for digitado é o que sai, ' +
-          'uma linha por linha (ex.: autorização e, depois, reconhecimento). O curso atual já veio preenchido com a Deliberação CEE/MS nº 13.111.',
-        href: '/admin/cursos',
-        perm: 'cursos.editar',
+        titulo: 'Atos no cabeçalho dos documentos',
+        texto: 'no lugar de "Atos autorizativos vigentes", o cabeçalho do certificado, da declaração e do histórico traz primeiro os atos fixos da instituição ' +
+          '(criação e credenciamento da Educação Profissional Técnica, editáveis em Instituição e Atos) e, logo abaixo, os atos do curso da turma ' +
+          '(campo "Autorização" em Cursos e Matrizes → Dados do curso). O que for digitado é o que sai, uma linha por linha. ' +
+          'Os campos já vieram preenchidos com a ata de criação, a Deliberação CEE/MS n. 10994 e a Deliberação CEE/MS n. 13111.',
+        href: '/admin/instituicao',
+        perm: 'instituicao.editar',
       },
     ],
     melhorias: [

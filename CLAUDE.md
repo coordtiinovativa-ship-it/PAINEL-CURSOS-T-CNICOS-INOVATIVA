@@ -384,10 +384,15 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - **RG unificado ao CPF (CIN)**: chave no cadastro do aluno (`alunos.rg_unificado_cpf`, migração 0012). Ligada → RG = CPF
   formatado (sincronizado ao salvar, `ajustarRgUnificado` em `src/lib/cpf.ts`); RG digitado/importado igual ao CPF liga a chave.
   Órgão expedidor e UF continuam obrigatórios.
-- **Autorização do curso** (`cursos.texto_autorizacao`, migração 0013, Cursos e Matrizes → Dados do curso): texto livre, impresso
-  como digitado (uma linha por linha) no cabeçalho do certificado, abaixo de "Atos autorizativos vigentes", e no cabeçalho da
-  declaração/histórico. Vazio → só aviso. Guardado no snapshot (`instituicao.autorizacao`). Linhas extras são compensadas nos
-  respiros do título/verso (`espacosCabecalho` em `src/certificado/dados.ts`) para a folha A4 não transbordar.
+- **Atos no cabeçalho (padrão sysGEP, decisão de 17/11/2026)**: a linha "Atos autorizativos vigentes" foi **substituída** por
+  1º as linhas FIXAS da instituição (`instituicoes.texto_atos`, tela Instituição: "Criação: ata n. 01, de 23/02/2010." e
+  "Educação Profissional Técnica de Nível Médio credenciamento: Deliberação CEE/MS n. 10994, de 06/02/2017.") e, logo abaixo,
+  2º as DINÂMICAS do curso da turma (`cursos.texto_autorizacao`, Cursos e Matrizes → Dados do curso → Autorização:
+  "Curso Técnico em ...: Deliberação CEE/MS n. 13111, de 18/12/2024"). Migração 0013 preenche os dois a partir dos atos.
+  Texto livre, impresso como digitado (uma linha por linha). Vazio → só aviso. Snapshot: `instituicao.atos`; certificados sem
+  esse campo continuam com "Atos autorizativos vigentes". No certificado a linha "Credenciamento Deliberação..." do modelo
+  aprovado continua; na declaração/histórico ela sai quando há atos (já está nas linhas fixas), com atos em 7 pt agrupados
+  ("a · b") para o histórico caber em 2 páginas. Linhas além de 1 são compensadas nos respiros do certificado (`espacosCabecalho`).
 
 ### Prévia em tela com QR code de exemplo (16/11/2026)
 - Tela de emissão do certificado mostra a prévia (frente e verso) embutida ("Como vai ficar", `/admin/previa/{mat}/{mod}?embutida=1`)

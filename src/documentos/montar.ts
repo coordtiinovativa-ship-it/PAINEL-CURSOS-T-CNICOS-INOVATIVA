@@ -265,7 +265,7 @@ export async function prepararDocumento(
       nome: String(d.instituicao.razao_social).toUpperCase(),
       enderecoLinha: `${d.instituicao.endereco} – ${d.instituicao.bairro}, ${d.instituicao.municipio} - ${d.instituicao.uf}, ${d.instituicao.cep}`,
       credenciamento: d.credenciamentoTexto ?? '',
-      autorizacao: d.autorizacaoLinhas,
+      atos: d.atosCabecalho,
       logo_r2_key: d.instituicao.logo_r2_key ?? null,
     },
     paginas,

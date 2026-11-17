@@ -12,6 +12,7 @@ rotasInstituicao.use('*', exigir('instituicao.editar'));
 const CAMPOS = [
   'razao_social', 'nome_fantasia', 'sigla', 'cnpj', 'mantenedora_razao_social', 'mantenedora_cnpj',
   'endereco', 'bairro', 'municipio', 'uf', 'cep', 'telefone', 'email', 'site', 'validade_credenciamento', 'cor_principal',
+  'texto_atos',
 ] as const;
 
 const FINALIDADES: [string, string][] = [
@@ -56,6 +57,11 @@ rotasInstituicao.get('/', async (c) => {
           <Campo nome="cor_principal" rotulo="Cor principal" tipo="color" valor={inst?.cor_principal} />
           <Campo nome="registros_por_folha" rotulo="Livro de registro: registros por folha" tipo="number" valor={inst?.registros_por_folha} obrigatorio extra={{ min: 1 }} />
           <Campo nome="folhas_por_livro" rotulo="Livro de registro: folhas por livro" tipo="number" valor={inst?.folhas_por_livro} obrigatorio extra={{ min: 1 }} />
+          <label class="largo">Atos da instituição — impressos no cabeçalho dos documentos de todos os cursos
+            <textarea name="texto_atos" rows={3} placeholder={'Criação: ata n. 01, de 23/02/2010.\nEducação Profissional Técnica de Nível Médio credenciamento: Deliberação CEE/MS n. 10994, de 06/02/2017.'}>{inst?.texto_atos ?? ''}</textarea>
+            <span class="muted">Linhas fixas, iguais para todos os cursos. Logo abaixo delas saem as linhas do curso da turma
+              (Cursos e Matrizes → Dados do curso → Autorização). O que for digitado sai exatamente assim, uma linha por linha.</span>
+          </label>
           <div class="largo acoes"><button>Salvar dados</button></div>
         </form>
       </div>

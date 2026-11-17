@@ -93,20 +93,39 @@ function linhaJustificada(ctx: Ctx, t: string, x: number, topo: number, size: nu
   });
 }
 
+/** Junta linhas curtas seguidas ("a · b") enquanto couberem na largura; nenhuma linha é cortada. */
+export function agruparLinhas(linhas: string[], font: PDFFont, size: number, largura: number): string[] {
+  const out: string[] = [];
+  for (const l of linhas) {
+    const junto = out.length ? `${out.at(-1)}  ·  ${l}` : '';
+    if (junto && font.widthOfTextAtSize(junto, size) <= largura) out[out.length - 1] = junto;
+    else out.push(l);
+  }
+  return out;
+}
+
 // ------------------------------- página -------------------------------
 function novaPagina(ctx: Ctx) {
   ctx.pagina = ctx.doc.addPage([W, H]);
   const inst = ctx.layout.instituicao;
+  const atos = agruparLinhas(inst.atos ?? [], ctx.r, 7, LARG);
+  // Com as linhas de atos (que já trazem o credenciamento), o cabeçalho fica compacto: logo menor, sem a linha
+  // "Credenciamento ..." repetida e atos em 7 pt — o histórico precisa caber em anverso e verso.
+  const altLogo = (atos.length ? 10.5 : 13) * MM;
   let y = A4.margem.topo * MM;
-  imagem(ctx, ctx.logo, X0 + (LARG - 50 * MM) / 2, y, 50 * MM, 13 * MM);
-  y += 13 * MM + 2.5;
+  imagem(ctx, ctx.logo, X0 + (LARG - 50 * MM) / 2, y, 50 * MM, altLogo);
+  y += altLogo + 2.5;
   centro(ctx, inst.nome, y, 10, ctx.b, MARINHO);
   y += 10 * LH + 1;
-  for (const t of [inst.enderecoLinha, inst.credenciamento, ...(inst.autorizacao ?? [])]) {
+  for (const t of atos.length ? [inst.enderecoLinha] : [inst.enderecoLinha, inst.credenciamento]) {
     centro(ctx, t, y, 8, ctx.r, CINZA);
     y += 8 * LH;
   }
-  y += 4;
+  for (const t of atos) {
+    centro(ctx, t, y, 7, ctx.r, CINZA);
+    y += 7 * 1.12;
+  }
+  y += atos.length ? 2.5 : 4;
   // faixa com as cores da marca
   const seg = LARG / CORES.faixa.length;
   CORES.faixa.forEach((c, i) => retangulo(ctx, X0 + i * seg, y, seg + 0.3, 2.2, { fundo: cor(c) }));
