@@ -2,6 +2,7 @@ import type { Child, FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import { pode, ROTULO_PERFIL, type Permissao } from '../auth/permissoes';
 import type { UsuarioSessao } from '../tipos';
+import { VERSAO_ATUAL } from '../novidades';
 
 export type Tema = 'sistema' | 'claro' | 'escuro';
 export const TEMAS: Tema[] = ['claro', 'sistema', 'escuro'];
@@ -80,6 +81,12 @@ a{color:var(--link)}
 .usuario .links{display:flex;gap:12px;margin-top:8px}
 .usuario .links a{color:#CFE0F5;text-decoration:none;display:flex;align-items:center;gap:5px;font-size:.82rem}
 .usuario .links a:hover{color:#fff} .usuario .links svg{width:15px;height:15px}
+.usuario a.versao{display:flex;align-items:center;gap:6px;margin-top:9px;color:#8FB3D9;text-decoration:none;font-size:.76rem}
+.usuario a.versao:hover{color:#fff}
+.selo-novo{background:var(--verde-agua);color:#fff;border-radius:999px;padding:0 .45rem;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.msg.novidade{display:flex;align-items:center;gap:.4rem .8rem;flex-wrap:wrap;background:var(--superficie);color:var(--texto);border-color:var(--ciano);border-left-width:4px}
+.msg.novidade b{color:var(--titulo)} .msg.novidade .acoes{margin:0 0 0 auto}
+[hidden]{display:none!important}
 .tema{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-top:10px;background:rgba(0,0,0,.25);border-radius:8px;padding:3px}
 .tema button{background:transparent;color:#A9C2DE;border:0;border-radius:6px;padding:5px 2px;font-size:.74rem;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
 .tema button svg{width:15px;height:15px}
@@ -249,6 +256,7 @@ export const SECOES_MENU: SecaoMenu[] = [
       { href: '/admin/usuarios', rotulo: 'Usuários e Perfis', perm: 'usuarios.gerenciar' },
       { href: '/admin/auditoria', rotulo: 'Auditoria', perm: 'auditoria.ver' },
       { separador: true },
+      { href: '/admin/novidades', rotulo: 'Novidades do Sistema' },
       { href: '/admin/conta/senha', rotulo: 'Alterar Minha Senha' },
     ],
   },
@@ -321,6 +329,20 @@ document.addEventListener('DOMContentLoaded',function(){
   });
 });`;
 
+/**
+ * Versão vista (por navegador): enquanto a versão atual não foi vista, mostra o selo "novo" no menu
+ * e o aviso no Início. Abrir Novidades do Sistema ou dispensar o aviso marca como vista.
+ */
+const JS_VERSAO = `
+document.addEventListener('DOMContentLoaded',function(){
+  var k='versao-vista',v=${JSON.stringify(VERSAO_ATUAL.versao)},visto=null;
+  try{visto=localStorage.getItem(k)}catch(e){}
+  function marcar(){try{localStorage.setItem(k,v)}catch(e){} document.querySelectorAll('[data-aviso-versao]').forEach(function(x){x.hidden=true})}
+  if(document.querySelector('[data-marcar-versao]')){marcar();return}
+  if(visto!==v) document.querySelectorAll('[data-aviso-versao]').forEach(function(x){x.hidden=false});
+  document.querySelectorAll('[data-dispensar-versao]').forEach(function(b){b.addEventListener('click',marcar)});
+});`;
+
 const JS_TEMA = `
 document.addEventListener('submit',function(e){
   var f=e.target; if(!f.classList||!f.classList.contains('form-tema')) return;
@@ -349,13 +371,13 @@ const Head: FC<{ titulo: string }> = ({ titulo }) => (
     <meta name="color-scheme" content="light dark" />
     <title>{titulo} — Certificados IECT</title>
     <style dangerouslySetInnerHTML={{ __html: CSS }} />
-    <script dangerouslySetInnerHTML={{ __html: JS_TEMA + JS_MENU }} />
+    <script dangerouslySetInnerHTML={{ __html: JS_TEMA + JS_MENU + JS_VERSAO }} />
   </head>
 );
 
 /** Telas que existem (para o "Voltar" automático subir até uma tela válida). */
 const TELAS = [
-  /^\/admin$/, /^\/admin\/(alunos|turmas|certificados|documentos|importacao|modelo|signatarios|instituicao|cursos|usuarios|auditoria|relatorios|diario)$/,
+  /^\/admin$/, /^\/admin\/(alunos|turmas|certificados|documentos|importacao|modelo|signatarios|instituicao|cursos|usuarios|auditoria|relatorios|diario|novidades)$/,
   /^\/admin\/(alunos|turmas|certificados|documentos|importacao|signatarios|cursos|usuarios)\/\d+$/,
   /^\/admin\/turmas\/\d+\/modulos\/\d+$/, /^\/admin\/diario\/\d+\/\d+$/, /^\/admin\/cursos\/\d+\/matrizes\/\d+$/, /^\/admin\/certificados\/pendentes$/,
 ];
@@ -379,6 +401,15 @@ export const Pagina: FC<
   const conteudo = (
     <>
       {destinoVoltar && <a class="voltar" href={destinoVoltar}><Icone nome="voltar" />Voltar</a>}
+      {usuario && caminho === '/admin' && (
+        <div class="msg novidade" data-aviso-versao hidden>
+          <span>O sistema foi atualizado para a <b>versão {VERSAO_ATUAL.versao}</b>. Veja o que mudou.</span>
+          <span class="acoes">
+            <a class="botao" href="/admin/novidades">Ver novidades</a>
+            <button type="button" class="sec" data-dispensar-versao>Dispensar</button>
+          </span>
+        </div>
+      )}
       {ok && <div class="msg ok">{ok}</div>}
       {erro && <div class="msg erro">{erro}</div>}
       {children}
@@ -411,6 +442,10 @@ export const Pagina: FC<
                 <a href="/admin/sair"><Icone nome="sair" />Sair</a>
               </div>
               <SeletorTema tema={t} acao="/admin/conta/tema" classe="tema" icones />
+              <a class="versao" href="/admin/novidades" title="Novidades do Sistema">
+                Versão {VERSAO_ATUAL.versao}
+                <span class="selo-novo" data-aviso-versao hidden>novo</span>
+              </a>
             </div>
           </aside>
           <div class="principal">

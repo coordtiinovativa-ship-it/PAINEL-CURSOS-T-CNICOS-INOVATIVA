@@ -372,6 +372,14 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   professores/horários das disciplinas e importações da turma; cadastros de alunos ficam. Auditoria guarda tudo no "antes".
 - **Bloqueada** se houver qualquer certificado ou documento emitido para alunos da turma (esses nunca são apagados).
 
+### Novidades do Sistema (17/11/2026)
+- Sistema → **Novidades do Sistema** (`/admin/novidades`, todos os perfis), no estilo do "Sobre o sistema" do sysGEP:
+  versão atual, busca (sem acento) e cada versão com Novidades / Melhorias / Correções e links para as telas
+  (link só aparece se o perfil tem permissão).
+- Fonte única: `src/novidades.ts`. **A cada entrega: nova versão no topo da lista + `version` do package.json**
+  (teste confere). Texto para a secretaria, em linguagem simples. 0.x = desenvolvimento; 1.0.0 = produção.
+- Versão nova não vista (por navegador, `localStorage`): selo "novo" ao lado da versão no rodapé do menu e aviso no Início.
+
 ### Prévia em tela com QR code de exemplo (16/11/2026)
 - Tela de emissão do certificado mostra a prévia (frente e verso) embutida ("Como vai ficar", `/admin/previa/{mat}/{mod}?embutida=1`)
   e botão "Ver em tela"; declaração e histórico idem (prévia embutida + "Ver em tela" + PDF de prévia).
