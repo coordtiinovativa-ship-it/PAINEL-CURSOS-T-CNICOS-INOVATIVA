@@ -8,6 +8,7 @@ import { urlArquivo } from '../lib/arquivos';
 import { qrSvg, urlQrExemplo } from '../lib/qr';
 import { dataBR } from '../lib/datas';
 import { mascararCPF } from '../lib/cpf';
+import { ROTULO_SITUACAO, type SituacaoModulo } from '../lib/turmaModulos';
 import { hojeMS, NaoEncontrado } from '../certificado/dados';
 import { prepararDocumento, ROTULO_DOCUMENTO, TIPOS_DOCUMENTO, type TipoDocumento } from '../documentos/montar';
 import { DocumentoHtml } from '../documentos/html';
@@ -21,9 +22,83 @@ const tipoValido = (t: string): t is TipoDocumento => (TIPOS_DOCUMENTO as string
 const pdfResposta = (pdf: Uint8Array, nome: string, disp = 'inline') =>
   new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `${disp}; filename="${nome}.pdf"`, 'Cache-Control': 'private, no-store' } });
 
+// ------------------------------ Prévia a partir da lista ------------------------------
+/** Quadro "Prévia e emissão": turma → aluno, módulo e documento → prévia em tela, PDF de prévia ou tela de emissão. */
+async function QuadroPrevia({ db, turmaId }: { db: D1Database; turmaId: number | null }) {
+  const turmas = (await db.prepare('SELECT id, codigo FROM turmas ORDER BY data_inicio DESC, codigo').all<{ id: number; codigo: string }>()).results;
+  const turma = turmas.find((t) => t.id === turmaId) ?? null;
+  const [alunos, modulos] = turma
+    ? await Promise.all([
+        db.prepare(
+          `SELECT m.id, m.situacao, CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END AS nome
+             FROM matriculas m JOIN alunos a ON a.id = m.aluno_id WHERE m.turma_id = ? ORDER BY nome`,
+        ).bind(turma.id).all<{ id: number; situacao: string; nome: string }>(),
+        db.prepare(
+          `SELECT mt.id, mt.ordem, mt.nome, coalesce(tm.situacao, 'planejado') AS situacao
+             FROM turmas t JOIN modulos_tematicos mt ON mt.matriz_id = t.matriz_id
+             LEFT JOIN turma_modulos tm ON tm.turma_id = t.id AND tm.modulo_id = mt.id
+            WHERE t.id = ? ORDER BY mt.ordem`,
+        ).bind(turma.id).all<{ id: number; ordem: number; nome: string; situacao: string }>(),
+      ]).then(([a, m]) => [a.results, m.results] as const)
+    : [[], []] as const;
+  const concluido = modulos.find((m) => m.situacao === 'concluido');
+  return (
+    <div class="cartao">
+      <h2 style="margin-top:0">Prévia e emissão</h2>
+      <form method="get" class="acoes" style="margin-top:0">
+        <label>Turma
+          <select name="turma" onchange="this.form.submit()">
+            <option value="">Selecione a turma</option>
+            {turmas.map((t) => <option value={t.id} selected={t.id === turma?.id}>{t.codigo}</option>)}
+          </select>
+        </label>
+        <noscript><button class="sec" style="align-self:flex-end">Escolher</button></noscript>
+      </form>
+      {!turmas.length && <p class="muted" style="margin-bottom:0">Nenhuma turma cadastrada.</p>}
+      {turma && !alunos.length && <p class="muted" style="margin-bottom:0">Esta turma ainda não tem alunos matriculados.</p>}
+      {turma && alunos.length > 0 && (
+        <form method="get" action="/admin/documentos/abrir" class="acoes">
+          <label>Aluno
+            <select name="mat" required>
+              {alunos.map((a) => <option value={a.id}>{a.nome}{a.situacao !== 'cursando' ? ` (${a.situacao})` : ''}</option>)}
+            </select>
+          </label>
+          <label>Módulo
+            <select name="mod" required>
+              {modulos.map((m) => (
+                <option value={m.id} selected={m.id === concluido?.id}>Módulo {m.ordem}: {m.nome} — {(ROTULO_SITUACAO[m.situacao as SituacaoModulo] ?? m.situacao).toLowerCase()}</option>
+              ))}
+            </select>
+          </label>
+          <label>Documento
+            <select name="tipo">{TIPOS_DOCUMENTO.map((t) => <option value={t}>{ROTULO_DOCUMENTO[t]}</option>)}</select>
+          </label>
+          <button name="ver" value="tela" class="sec" formtarget="_blank" style="align-self:flex-end"><Icone nome="documento" />Ver prévia</button>
+          <button name="ver" value="pdf" class="sec" formtarget="_blank" style="align-self:flex-end"><Icone nome="certificados" />PDF de prévia</button>
+          <button name="ver" value="emitir" style="align-self:flex-end">Ir para a emissão</button>
+        </form>
+      )}
+      {turma && alunos.length > 0 && (
+        <p class="muted" style="margin-bottom:0">A prévia mostra o documento com os dados atuais e um QR code de exemplo; o que faltar para emitir aparece na tela de emissão.</p>
+      )}
+    </div>
+  );
+}
+
+rotasDocumentos.get('/abrir', (c) => {
+  const tipo = c.req.query('tipo') ?? '';
+  const mat = Number(c.req.query('mat'));
+  const mod = Number(c.req.query('mod'));
+  if (!tipoValido(tipo) || !Number.isInteger(mat) || !Number.isInteger(mod) || mat <= 0 || mod <= 0) return c.redirect('/admin/documentos');
+  const base = `/admin/documentos/${tipo}/${mat}/${mod}`;
+  const ver = c.req.query('ver');
+  return c.redirect(ver === 'pdf' ? `${base}/previa.pdf` : ver === 'emitir' ? base : `${base}/previa`);
+});
+
 // ------------------------------ Lista ------------------------------
 rotasDocumentos.get('/', async (c) => {
   const q = (c.req.query('q') ?? '').trim();
+  const turmaId = Number(c.req.query('turma')) || null;
   const lista = (
     await c.env.DB.prepare(
       `SELECT d.id, d.tipo, d.codigo_validacao, d.data_emissao, d.status, d.emitido_por, t.codigo AS turma, mt.nome AS modulo,
@@ -36,8 +111,9 @@ rotasDocumentos.get('/', async (c) => {
   ).results;
   return c.html(
     <Pagina titulo="Declarações e históricos" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
-      <h1>Declarações e históricos emitidos</h1>
-      <p class="muted" style="margin-top:-.6rem">Para emitir, abra a turma → módulo e use os links "declaração" e "histórico" de cada aluno.</p>
+      <h1>Declarações e históricos</h1>
+      <QuadroPrevia db={c.env.DB} turmaId={turmaId} />
+      <h2>Emitidos</h2>
       <form method="get" class="acoes"><input name="q" value={q} placeholder="Código, aluno ou turma" /><button class="sec">Buscar</button></form>
       <table>
         <tr><th>Código</th><th>Documento</th><th>Aluno</th><th>Turma / módulo</th><th>Emissão</th><th>Situação</th><th></th></tr>

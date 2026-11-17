@@ -184,3 +184,28 @@ describe('motor de documentos', () => {
     expect(pdf.getPageCount()).toBeGreaterThanOrEqual(3);
   }, 30_000);
 });
+
+describe('prévia a partir da tela Declarações e históricos', () => {
+  it('escolhe turma, aluno, módulo e documento; abre prévia em tela, PDF de prévia ou a emissão', async () => {
+    const { c } = await pronto();
+    const lista = await (await c.req('/admin/documentos')).text();
+    expect(lista).toContain('Prévia e emissão');
+    expect(lista).toContain('Selecione a turma');
+    expect(lista).toContain('TIDC-2026-1');
+
+    const comTurma = await (await c.req('/admin/documentos?turma=1')).text();
+    expect(comTurma).toContain('action="/admin/documentos/abrir"');
+    expect(comTurma).toContain('Ana Beatriz Fictícia Souza');
+    expect(comTurma).toMatch(/Módulo 1: Qualidade — concluído/);
+    expect(comTurma).toContain('Histórico escolar');
+
+    const ir = async (ver: string) => (await c.req(`/admin/documentos/abrir?mat=1&mod=1&tipo=declaracao_conclusao_modulo&ver=${ver}`)).headers.get('Location');
+    expect(await ir('tela')).toBe(`${DECL}/1/1/previa`);
+    expect(await ir('pdf')).toBe(`${DECL}/1/1/previa.pdf`);
+    expect(await ir('emitir')).toBe(`${DECL}/1/1`);
+    // a prévia aberta por esse caminho funciona
+    expect(await (await c.req(`${DECL}/1/1/previa`)).text()).toContain('DECLARAÇÃO DE CONCLUSÃO DE MÓDULO');
+    // parâmetros inválidos voltam para a lista
+    expect((await c.req('/admin/documentos/abrir?mat=1&mod=1&tipo=outro')).headers.get('Location')).toBe('/admin/documentos');
+  });
+});

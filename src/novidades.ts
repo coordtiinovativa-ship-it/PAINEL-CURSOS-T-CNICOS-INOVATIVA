@@ -57,6 +57,13 @@ export const VERSOES: Versao[] = [
         perm: 'instituicao.editar',
       },
       {
+        titulo: 'Prévia em Declarações e Históricos',
+        texto: 'a tela Declarações e Históricos ganhou o quadro "Prévia e emissão": escolha a turma, o aluno, o módulo e o documento ' +
+          'para ver a prévia em tela, abrir o PDF de prévia ou ir direto para a emissão, sem passar pela tela da turma.',
+        href: '/admin/documentos',
+        perm: 'relatorios.emitir',
+      },
+      {
         titulo: 'Telefone e e-mail nos documentos',
         texto: 'o telefone e o e-mail cadastrados em Instituição e Atos passam a sair na linha do endereço, no cabeçalho do certificado, ' +
           'da declaração, do histórico e dos relatórios.',
