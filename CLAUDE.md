@@ -385,10 +385,10 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   formatado (sincronizado ao salvar, `ajustarRgUnificado` em `src/lib/cpf.ts`); RG digitado/importado igual ao CPF liga a chave.
   Órgão expedidor e UF continuam obrigatórios.
 - **Atos no cabeçalho (padrão sysGEP, decisão de 17/11/2026)**: a linha "Atos autorizativos vigentes" foi **substituída** por
-  1º as linhas FIXAS da instituição (`instituicoes.texto_atos`, tela Instituição: "Criação: ata n. 01, de 23/02/2010." e
+  1º as linhas FIXAS da instituição (`instituicoes.texto_atos`, migração 0014, tela Instituição: "Criação: ata n. 01, de 23/02/2010." e
   "Educação Profissional Técnica de Nível Médio credenciamento: Deliberação CEE/MS n. 10994, de 06/02/2017.") e, logo abaixo,
   2º as DINÂMICAS do curso da turma (`cursos.texto_autorizacao`, Cursos e Matrizes → Dados do curso → Autorização:
-  "Curso Técnico em ...: Deliberação CEE/MS n. 13111, de 18/12/2024"). Migração 0013 preenche os dois a partir dos atos.
+  "Curso Técnico em ...: Deliberação CEE/MS n. 13111, de 18/12/2024"). Migrações 0013 (curso) e 0014 (instituição + curso no formato "n. 13111") preenchem a partir dos atos. A 0013 foi aplicada em produção na 1ª versão: **nunca reescrever migração já aplicada** — corrigir com uma nova.
   Texto livre, impresso como digitado (uma linha por linha). Vazio → só aviso. Snapshot: `instituicao.atos`; certificados sem
   esse campo continuam com "Credenciamento..." + "Atos autorizativos vigentes". **A linha "Credenciamento Deliberação..." foi
   retirada** do cabeçalho de todos os documentos quando há atos (decisão da direção, 17/11/2026 — já está nas linhas fixas;
