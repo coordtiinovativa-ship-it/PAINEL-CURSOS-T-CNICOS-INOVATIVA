@@ -138,8 +138,11 @@ export async function gradeAtiva(db: D1Database, filtro: { funcionarioId?: numbe
     .bind(filtro.funcionarioId ?? filtro.turmaId).all<AulaGrade>()).results;
 }
 
-/** Valida a inclusão de uma aula na grade: tempo existe no turno, sem choque na turma nem no professor. */
-export async function validarAulaGrade(db: D1Database, lotacaoId: number, dia: number, tempo: number): Promise<void> {
+/**
+ * Valida a inclusão (ou a mudança de lugar) de uma aula na grade: tempo existe no turno, sem choque na turma nem no
+ * professor. `ignorarAulaId` = a própria aula que está sendo movida.
+ */
+export async function validarAulaGrade(db: D1Database, lotacaoId: number, dia: number, tempo: number, ignorarAulaId?: number): Promise<void> {
   const l = await db.prepare(
     `SELECT l.*, t.turno, t.codigo AS turma FROM lotacoes l JOIN turmas t ON t.id = l.turma_id WHERE l.id = ? AND l.data_fim IS NULL`,
   ).bind(lotacaoId).first<Record<string, any>>();
@@ -148,10 +151,10 @@ export async function validarAulaGrade(db: D1Database, lotacaoId: number, dia: n
   if (!DIAS_GRADE.some(([d]) => d === dia)) throw new ErroValidacao('Dia da semana inválido.');
   const t = (await temposDoTurno(db, l.turno)).find((x) => x.numero === tempo);
   if (!t) throw new ErroValidacao(`O turno ${ROTULO_TURNO[l.turno]} não tem o tempo ${tempo} (veja Tempos de aula).`);
-  const daTurma = await gradeAtiva(db, { turmaId: l.turma_id });
+  const daTurma = (await gradeAtiva(db, { turmaId: l.turma_id })).filter((a) => a.id !== ignorarAulaId);
   const choqueTurma = daTurma.find((a) => a.dia_semana === dia && a.tempo === tempo);
   if (choqueTurma) throw new ErroValidacao(`A turma ${l.turma} já tem ${choqueTurma.componente} nesse dia e tempo.`);
-  const doProfessor = await gradeAtiva(db, { funcionarioId: l.funcionario_id });
+  const doProfessor = (await gradeAtiva(db, { funcionarioId: l.funcionario_id })).filter((a) => a.id !== ignorarAulaId);
   const choqueProf = doProfessor.find((a) => a.dia_semana === dia && a.hora_inicio && a.hora_fim
     && a.hora_inicio < t.hora_fim && t.hora_inicio < a.hora_fim);
   if (choqueProf) throw new ErroValidacao(`O professor já tem aula nesse horário: ${choqueProf.componente} na turma ${choqueProf.turma} (${choqueProf.hora_inicio}–${choqueProf.hora_fim}).`);

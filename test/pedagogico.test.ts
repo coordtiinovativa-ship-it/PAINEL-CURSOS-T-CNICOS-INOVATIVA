@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { criarAmbiente } from './ambiente';
 import { aulasPrevistasDoProfessor, diaDaSemana, feriadosNacionais, pascoa, type AnoLetivo } from '../src/lib/pedagogico';
+import { sigla } from '../src/rotas/horario';
+
+describe('sigla da disciplina no quadro de horário', () => {
+  it('iniciais e numeral romano, como no sysGEP', () => {
+    expect(sigla('Unidade Curricular Profissional III')).toBe('UCP-III');
+    expect(sigla('Design Thinking')).toBe('DT');
+    expect(sigla('Qualidade de Vida, Segurança e Saúde no Trabalho')).toBe('QVSS');
+    expect(sigla('E-Commerce')).toBe('E-Commer');
+  });
+});
 
 const msg = (r: Response) => decodeURIComponent(r.headers.get('Location') ?? '');
 const QS = '?ano=2026&turma=1&modulo=2';
@@ -89,16 +99,36 @@ describe('lotação → horário → chamada → notas e faltas', () => {
     expect(tela).toContain('Lucas Fictício Nunes');
     expect(tela).toContain('sem professor'); // demais disciplinas do módulo
 
-    // horário: segunda, 1º tempo (19:00–19:45); a turma não pode ter duas aulas no mesmo tempo
-    r = await c.post(`/admin/pedagogico/horario?ano=2026&prof=${lucas}`, { lotacao_id: String(lotLucas), incluir: '1:1' });
-    expect(msg(r)).toContain('Aula incluída: Segunda, 1º tempo');
-    r = await c.post(`/admin/pedagogico/horario?ano=2026&prof=${ana}`, { lotacao_id: String(lotAna), incluir: '1:1' });
-    expect(msg(r)).toContain('A turma TIDC-2026-1 já tem Design Thinking nesse dia e tempo');
-    r = await c.post(`/admin/pedagogico/horario?ano=2026&prof=${lucas}`, { lotacao_id: String(lotLucas), incluir: '1:9' });
-    expect(msg(r)).toContain('não tem o tempo 9');
+    // horário (quadro de arrastar → API): segunda, 1º tempo (19:00–19:45); a turma não pode ter duas aulas no mesmo tempo
+    const api = async (prof: number, dados: Record<string, string>) =>
+      (await c.post(`/admin/pedagogico/horario/api?ano=2026&prof=${prof}`, dados)).json() as Promise<any>;
+    let j = await api(lucas, { acao: 'incluir', lotacao_id: String(lotLucas), dia: '1', tempo: '1' });
+    expect(j.msg).toContain('Design Thinking: Segunda, 1º tempo');
+    expect(j.estado.aulas).toEqual([{ id: expect.any(Number), lotacao_id: lotLucas, dia: 1, tempo: 1, turno: 'noturno' }]);
+    expect(j.estado.lots[0]).toMatchObject({ componente: 'Design Thinking', sigla: 'DT', aulas: 1, ch: 80 });
+    expect(j.estado.lots[0].horas).toBeGreaterThan(0); // horas cobertas pela grade até o fim do módulo/ano
+    j = await api(ana, { acao: 'incluir', lotacao_id: String(lotAna), dia: '1', tempo: '1' });
+    expect(j.erro).toContain('A turma TIDC-2026-1 já tem Design Thinking nesse dia e tempo');
+    j = await api(lucas, { acao: 'incluir', lotacao_id: String(lotLucas), dia: '1', tempo: '9' });
+    expect(j.erro).toContain('não tem o tempo 9');
+    j = await api(ana, { acao: 'incluir', lotacao_id: String(lotLucas), dia: '2', tempo: '1' });
+    expect(j.erro).toContain('não está lotada para este professor');
+    // mover (arrastar a aula) e remover (soltar no painel / dois cliques)
+    j = await api(ana, { acao: 'incluir', lotacao_id: String(lotAna), dia: '2', tempo: '2' });
+    const aulaAna = j.estado.aulas[0].id as number;
+    j = await api(ana, { acao: 'mover', aula_id: String(aulaAna), dia: '1', tempo: '1' });
+    expect(j.erro).toContain('já tem Design Thinking'); // choque na turma ao mover
+    j = await api(ana, { acao: 'mover', aula_id: String(aulaAna), dia: '3', tempo: '2' });
+    expect(j.msg).toContain('movida para Quarta, 2º tempo');
+    j = await api(lucas, { acao: 'remover', aula_id: String(aulaAna) });
+    expect(j.erro).toContain('não encontrada na grade deste professor'); // aula de outro professor
+    j = await api(ana, { acao: 'remover', aula_id: String(aulaAna) });
+    expect(j.msg).toContain('retirada do horário');
+    expect(j.estado.aulas).toEqual([]);
     const grade = await (await c.req(`/admin/pedagogico/horario?ano=2026&prof=${lucas}`)).text();
-    expect(grade).toContain('TIDC-2026-1');
-    expect(grade).toContain('19:00–19:45');
+    expect(grade).toContain('id="quadro"');
+    expect(grade).toContain('"turma":"TIDC-2026-1"');
+    expect(grade).toContain('"hora_inicio":"19:00"');
 
     // datas de aula: segundas desde 03/08, sem o feriado de 07/09 (depois de incluir no calendário)
     const ano = sqlite.prepare('SELECT * FROM anos_letivos WHERE ano = 2026').get() as unknown as AnoLetivo;

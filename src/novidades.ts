@@ -35,6 +35,20 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.10.0',
+    data: '2026-11-17',
+    melhorias: [
+      {
+        titulo: 'Horário do Professor em quadro de arrastar (estilo sysGEP)',
+        texto: 'arraste a disciplina do painel para um horário livre (ou clique nela e depois no horário); arraste uma aula para mudá-la de lugar; ' +
+          'solte-a de volta no painel ou dê dois cliques para remover. Tudo salva na hora, sem recarregar a página. ' +
+          'Cada disciplina mostra as aulas por semana e quantas horas a grade cobre até o fim do módulo (descontando feriados e recessos) contra a carga horária.',
+        href: '/admin/pedagogico/horario',
+        perm: 'pedagogico.gerenciar',
+      },
+    ],
+  },
+  {
     versao: '1.9.0',
     data: '2026-11-17',
     resumo: 'Novo menu Gestão Pedagógica, no padrão do sysGEP.',
