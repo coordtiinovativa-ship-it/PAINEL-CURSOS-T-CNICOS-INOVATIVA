@@ -148,13 +148,41 @@ export function hojeMS(): string {
 
 const vazio = (v: unknown) => v == null || String(v).trim() === '';
 
+/** Telefone só com dígitos → (67) 4042-0453 / (67) 99999-0000; outro formato fica como digitado. */
+export function formatarTelefone(t: string | null | undefined): string | null {
+  if (!t?.trim()) return null;
+  const d = t.replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  return t.trim();
+}
+
+/** Linha do cabeçalho: endereço da instituição + telefone e e-mail (os que estiverem cadastrados). */
+export function linhaEndereco(i: Record<string, any>): string {
+  const tel = formatarTelefone(i.telefone);
+  return [
+    `${i.endereco} – ${i.bairro}, ${i.municipio} - ${i.uf}, ${i.cep}`,
+    tel && `Tel.: ${tel}`,
+    i.email?.trim() && `E-mail: ${i.email.trim()}`,
+  ].filter(Boolean).join(' · ');
+}
+
 /**
- * A folha do certificado tem altura fixa e o modelo aprovado reservava 1 linha de atos ("Atos autorizativos vigentes").
- * Cada linha de atos além dessa (9 pt ≈ 11,4 pt com o espaçamento) é compensada tirando dos respiros em volta do
- * título e do topo do verso (em pt).
+ * Linhas do cabeçalho do certificado abaixo do endereço. Com atos cadastrados: só os atos (fixos da instituição + do
+ * curso), sem a antiga linha "Credenciamento ...", que já está nos fixos (decisão da direção, 17/11/2026).
  */
-export function espacosCabecalho(linhasAtos: number): { antesTitulo: number; depoisTitulo: number; topoVerso: number } {
-  const extra = Math.max(0, linhasAtos - 1) * 11.4;
+export function linhasCabecalho(credenciamento: string, atos: string[] | undefined): string[] {
+  if (atos === undefined) return [credenciamento, 'Atos autorizativos vigentes']; // certificados emitidos antes da migração 0013
+  return atos.length ? atos : [credenciamento];
+}
+
+/**
+ * A folha do certificado tem altura fixa e o modelo aprovado tinha 2 linhas abaixo do endereço (credenciamento e
+ * "Atos autorizativos vigentes"). Cada linha além dessas (9 pt ≈ 11,4 pt com o espaçamento) é compensada tirando
+ * dos respiros em volta do título e do topo do verso (em pt).
+ */
+export function espacosCabecalho(linhas: number): { antesTitulo: number; depoisTitulo: number; topoVerso: number } {
+  const extra = Math.max(0, linhas - 2) * 11.4;
   return {
     antesTitulo: Math.max(4, 14 - extra / 2),
     depoisTitulo: Math.max(8, 16 - extra / 2),

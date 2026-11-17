@@ -3,7 +3,7 @@
  * a validação pública o exibe e o hash SHA-256 é calculado sobre ele — assim o certificado emitido
  * não muda se os cadastros forem alterados depois.
  */
-import type { DadosCertificado } from './dados';
+import { linhaEndereco, type DadosCertificado } from './dados';
 import { dataExtenso } from '../lib/datas';
 
 export interface DadosEmissao {
@@ -84,7 +84,7 @@ export function montarSnapshot(d: DadosCertificado, e: DadosEmissao): SnapshotCe
     instituicao: {
       nome: String(i.razao_social).toUpperCase(),
       cnpj: i.cnpj ?? null,
-      enderecoLinha: `${i.endereco} – ${i.bairro}, ${i.municipio} - ${i.uf}, ${i.cep}`,
+      enderecoLinha: linhaEndereco(i),
       credenciamento: d.credenciamentoTexto ?? '[ato de credenciamento]',
       atos: d.atosCabecalho,
       logo_r2_key: i.logo_r2_key ?? null,

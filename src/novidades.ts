@@ -51,7 +51,15 @@ export const VERSOES: Versao[] = [
         texto: 'no lugar de "Atos autorizativos vigentes", o cabeçalho do certificado, da declaração e do histórico traz primeiro os atos fixos da instituição ' +
           '(criação e credenciamento da Educação Profissional Técnica, editáveis em Instituição e Atos) e, logo abaixo, os atos do curso da turma ' +
           '(campo "Autorização" em Cursos e Matrizes → Dados do curso). O que for digitado é o que sai, uma linha por linha. ' +
-          'Os campos já vieram preenchidos com a ata de criação, a Deliberação CEE/MS n. 10994 e a Deliberação CEE/MS n. 13111.',
+          'Os campos já vieram preenchidos com a ata de criação, a Deliberação CEE/MS n. 10994 e a Deliberação CEE/MS n. 13111. ' +
+          'A antiga linha "Credenciamento Deliberação..." saiu do cabeçalho, porque o credenciamento já está nos atos da instituição.',
+        href: '/admin/instituicao',
+        perm: 'instituicao.editar',
+      },
+      {
+        titulo: 'Telefone e e-mail nos documentos',
+        texto: 'o telefone e o e-mail cadastrados em Instituição e Atos passam a sair na linha do endereço, no cabeçalho do certificado, ' +
+          'da declaração, do histórico e dos relatórios.',
         href: '/admin/instituicao',
         perm: 'instituicao.editar',
       },

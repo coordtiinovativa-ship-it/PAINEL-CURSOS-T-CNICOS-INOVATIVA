@@ -7,7 +7,8 @@ import { degrees, PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } 
 import fontkit from '@pdf-lib/fontkit';
 import qrcode from 'qrcode-generator';
 import type { SnapshotCertificado } from './snapshot';
-import { espacosCabecalho } from './dados';
+import { espacosCabecalho, linhasCabecalho } from './dados';
+import { tamanhoQueCabe } from '../documentos/pdf';
 import { dataExtenso } from '../lib/datas';
 
 export interface RecursosPdf {
@@ -208,8 +209,8 @@ function desenharQr(fo: Folha, texto: string, x: number, topo: number, lado: num
   }
 }
 
-/** Atos do cabeçalho; certificados emitidos antes da migração 0013 traziam a linha fixa do modelo. */
-const linhasAtos = (s: SnapshotCertificado) => s.instituicao.atos ?? ['Atos autorizativos vigentes'];
+/** Linhas abaixo do endereço (certificados emitidos antes da migração 0013 continuam como foram emitidos). */
+const linhasAtos = (s: SnapshotCertificado) => linhasCabecalho(s.instituicao.credenciamento, s.instituicao.atos);
 
 function cabecalho(fo: Folha, s: SnapshotCertificado, logo: PDFImage): number {
   let y = MARGEM.topo;
@@ -217,8 +218,8 @@ function cabecalho(fo: Folha, s: SnapshotCertificado, logo: PDFImage): number {
   y += 15.6 * MM + 1.4 * MM;
   fo.centro(s.instituicao.nome, y, 10.5, fo.f.b);
   y += 10.5 * LH_NORMAL + 1;
-  for (const t of [s.instituicao.enderecoLinha, s.instituicao.credenciamento, ...linhasAtos(s)]) {
-    fo.centro(t, y, 9, fo.f.r);
+  for (const t of [s.instituicao.enderecoLinha, ...linhasAtos(s)]) {
+    fo.centro(t, y, tamanhoQueCabe(t, fo.f.r, 9, LARG), fo.f.r);
     y += 9 * LH_NORMAL + 1;
   }
   return y;

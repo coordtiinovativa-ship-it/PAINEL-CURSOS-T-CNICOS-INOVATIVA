@@ -73,7 +73,7 @@ describe('vários cursos', () => {
     expect(b).toContain('Projeto Pedagógico do Curso Técnico em Logística');
     expect(b).toContain('conforme Deliberação CEE/MS nº 14.500, de 20 de agosto de 2025');
     expect(b).not.toContain('13.111');
-    expect(b).toContain('Credenciamento Deliberação CEE/MS nº 10.994, de 6 de fevereiro de 2017'); // fixo da instituição
+    expect(b).toContain('Educação Profissional Técnica de Nível Médio credenciamento: Deliberação CEE/MS n. 10994, de 06/02/2017.'); // fixo da instituição
     expect(b).toContain('conferindo-lhe o título de Auxiliar de Armazenagem');
     expect(b).toContain('Apto para emissão');
     // e o curso original continua com a sua deliberação
@@ -253,5 +253,20 @@ describe('texto "Autorização" do curso (cabeçalho dos documentos)', () => {
     const vazio = await (await c.req('/admin/previa/1/1')).text();
     expect(vazio).toContain('Texto de autorização do curso não preenchido');
     expect(vazio).not.toContain('Reconhecimento: Deliberação');
+  });
+});
+
+describe('telefone e e-mail da instituição nos documentos', () => {
+  it('saem na linha do endereço do certificado, da declaração e do histórico', async () => {
+    const { c, sqlite } = await admin();
+    sqlite.exec(`UPDATE instituicoes SET telefone = '6740420453', email = 'contato@institutoinovativa.org' WHERE id = 1;
+      UPDATE modulos_tematicos SET perfil_profissional = 'Perfil.', competencias = 'Competência' WHERE id = 1;`);
+    const linha = 'Rua do Rosário, 815 – Coronel Antonino, Campo Grande - MS, 79010-310 · Tel.: (67) 4042-0453 · E-mail: contato@institutoinovativa.org';
+    expect(await (await c.req('/admin/previa/1/1')).text()).toContain(linha);
+    expect(await (await c.req('/admin/documentos/declaracao_conclusao_modulo/1/1/previa')).text()).toContain(linha);
+    expect(await (await c.req('/admin/documentos/historico_escolar/1/1/previa')).text()).toContain(linha);
+    // sem telefone/e-mail, a linha fica só com o endereço
+    sqlite.exec(`UPDATE instituicoes SET telefone = NULL, email = NULL WHERE id = 1;`);
+    expect(await (await c.req('/admin/previa/1/1')).text()).toContain('Campo Grande - MS, 79010-310</p>');
   });
 });

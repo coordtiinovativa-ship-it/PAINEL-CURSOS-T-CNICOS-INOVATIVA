@@ -230,7 +230,10 @@ describe('prévia do certificado', () => {
     // negrito parcial, como no modelo aprovado
     expect(html).toContain('<b>CERTIFICADO por ter concluído com êxito o MÓDULO TEMÁTICO DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA QUALIDADE</b>');
     expect(html).toContain('<b>Área Tecnológica:</b>');
-    expect(html).toContain('Credenciamento Deliberação CEE/MS nº 10.994, de 6 de fevereiro de 2017');
+    // cabeçalho: endereço com telefone e e-mail; atos fixos da instituição no lugar da antiga linha "Credenciamento ..."
+    expect(html).toMatch(/79010-310( · Tel\.: \(\d\d\) [\d-]+)?( · E-mail: \S+)?<\/p>/);
+    expect(html).toContain('Educação Profissional Técnica de Nível Médio credenciamento: Deliberação CEE/MS n. 10994, de 06/02/2017.');
+    expect(html).not.toContain('Credenciamento Deliberação CEE/MS nº 10.994');
     expect(html).not.toContain('Verso do Certificado'); // o modelo atualizado não tem essa linha
     expect(html).toContain('Apto para emissão');
     expect(amb.auditoria().at(-1)!.acao).toBe('visualizar_previa');

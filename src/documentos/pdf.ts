@@ -93,6 +93,12 @@ function linhaJustificada(ctx: Ctx, t: string, x: number, topo: number, size: nu
   });
 }
 
+/** Tamanho de fonte para a linha caber na largura (nunca maior que o padrão; linhas do cabeçalho não quebram). */
+export function tamanhoQueCabe(t: string, font: PDFFont, padrao: number, largura: number): number {
+  const w = font.widthOfTextAtSize(t, padrao);
+  return w <= largura ? padrao : Math.floor((padrao * largura) / w * 10) / 10;
+}
+
 /** Junta linhas curtas seguidas ("a · b") enquanto couberem na largura; nenhuma linha é cortada. */
 export function agruparLinhas(linhas: string[], font: PDFFont, size: number, largura: number): string[] {
   const out: string[] = [];
@@ -118,11 +124,11 @@ function novaPagina(ctx: Ctx) {
   centro(ctx, inst.nome, y, 10, ctx.b, MARINHO);
   y += 10 * LH + 1;
   for (const t of atos.length ? [inst.enderecoLinha] : [inst.enderecoLinha, inst.credenciamento]) {
-    centro(ctx, t, y, 8, ctx.r, CINZA);
+    centro(ctx, t, y, tamanhoQueCabe(t, ctx.r, 8, LARG), ctx.r, CINZA);
     y += 8 * LH;
   }
   for (const t of atos) {
-    centro(ctx, t, y, 7, ctx.r, CINZA);
+    centro(ctx, t, y, tamanhoQueCabe(t, ctx.r, 7, LARG), ctx.r, CINZA);
     y += 7 * 1.12;
   }
   y += atos.length ? 2.5 : 4;

@@ -6,6 +6,7 @@ import { formatarCPF } from '../lib/cpf';
 import { dataBR } from '../lib/datas';
 import { gerarCSV } from '../importacao/planilha';
 import type { Bloco, DocumentoLayout } from '../documentos/tipos';
+import { linhaEndereco } from '../certificado/dados';
 
 export const SITUACOES_MATRICULA: [string, string][] = [
   ['cursando', 'Cursando'], ['concluído', 'Concluído'], ['reprovado', 'Reprovado'], ['desistente', 'Desistente'],
@@ -90,7 +91,7 @@ export function montarLayout(
     titulo: 'Relatório de alunos por situação de matrícula',
     instituicao: {
       nome: String(instituicao.razao_social).toUpperCase(),
-      enderecoLinha: `${instituicao.endereco} – ${instituicao.bairro}, ${instituicao.municipio} - ${instituicao.uf}, ${instituicao.cep}`,
+      enderecoLinha: linhaEndereco(instituicao),
       credenciamento,
       logo_r2_key: instituicao.logo_r2_key ?? null,
     },

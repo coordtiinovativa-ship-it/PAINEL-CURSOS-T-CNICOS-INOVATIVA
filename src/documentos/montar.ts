@@ -2,7 +2,7 @@
  * Monta o layout (blocos) da declaração de conclusão de módulo e do histórico escolar a partir
  * dos mesmos dados do certificado (montarDadosCertificado), com as pendências que impedem a emissão.
  */
-import { descreverAto, montarDadosCertificado, ESTADOS, type DadosCertificado } from '../certificado/dados';
+import { descreverAto, linhaEndereco, montarDadosCertificado, ESTADOS, type DadosCertificado } from '../certificado/dados';
 import { formatarCPF } from '../lib/cpf';
 import { dataBR, dataExtenso } from '../lib/datas';
 import { numBR } from '../lib/form';
@@ -263,7 +263,7 @@ export async function prepararDocumento(
     titulo,
     instituicao: {
       nome: String(d.instituicao.razao_social).toUpperCase(),
-      enderecoLinha: `${d.instituicao.endereco} – ${d.instituicao.bairro}, ${d.instituicao.municipio} - ${d.instituicao.uf}, ${d.instituicao.cep}`,
+      enderecoLinha: linhaEndereco(d.instituicao),
       credenciamento: d.credenciamentoTexto ?? '',
       atos: d.atosCabecalho,
       logo_r2_key: d.instituicao.logo_r2_key ?? null,
