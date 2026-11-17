@@ -54,7 +54,9 @@ async function contexto(db: D1Database, turmaId: number, moduloId: number) {
                  AND r.componente_id IN (SELECT id FROM componentes_curriculares WHERE modulo_id = ?)`).bind(turmaId, moduloId).all<Record<string, any>>(),
   ]);
   const atuais = new Map(res.results.map((r) => [`${r.matricula_id}:${r.componente_id}`, { nota: r.nota, exame: r.nota_exame_final, freq: r.frequencia, aproveitada: !!r.aproveitado_de_resultado_id }]));
-  return { turma, criterios: criteriosDoCurso(turma as any), comps: comps.results, mats: mats.results, atuais };
+  // disciplinas com chamada (Faltas do Aluno): a frequência vem da chamada e não é importada
+  const comChamada = new Set((await db.prepare('SELECT DISTINCT componente_id FROM aulas WHERE turma_id = ?').bind(turmaId).all<{ componente_id: number }>()).results.map((x) => x.componente_id));
+  return { turma, criterios: criteriosDoCurso(turma as any), comps: comps.results, mats: mats.results, atuais, comChamada };
 }
 
 const nomeDe = (m: Matricula) => nomeDoAluno(m);
@@ -90,7 +92,8 @@ function localizarMatricula(mats: Matricula[], cpf: string | null, ra: string | 
 
 export async function analisarNotas(db: D1Database, tabela: Tabela, turmaId: number, moduloId: number): Promise<AnaliseNotas> {
   if (tabela.length < 2) throw new ErroValidacao('A planilha está vazia ou só tem o cabeçalho.');
-  const { turma, criterios, comps, mats, atuais } = await contexto(db, turmaId, moduloId);
+  const { turma, criterios, comps, mats, atuais, comChamada } = await contexto(db, turmaId, moduloId);
+  const freqIgnorada = new Set<string>();
   const nomeModulo = (await db.prepare('SELECT nome FROM modulos_tematicos WHERE id = ?').bind(moduloId).first<{ nome: string }>())?.nome ?? '';
   await exigirModuloIniciado(db, turmaId, moduloId, `${nomeModulo} (turma ${turma.codigo})`);
   const cab = tabela[0].map(chave);
@@ -144,6 +147,7 @@ export async function analisarNotas(db: D1Database, tabela: Tabela, turmaId: num
       try {
         const v = normalizarNumero(bruto ?? '', `${comp.nome} — ${ROTULO_CAMPO[campo]}`);
         if (v == null) return;
+        if (campo === 'freq' && comChamada.has(comp.id)) { freqIgnorada.add(comp.nome); return; }
         const max = campo === 'freq' ? 100 : 10;
         if (v < 0 || v > max) throw new ErroValidacao(`${comp.nome} — ${ROTULO_CAMPO[campo]}: ${numBR(v, 2)} fora do intervalo 0–${max}`);
         const k = `${m.id}:${comp.id}`;
@@ -182,7 +186,7 @@ export async function analisarNotas(db: D1Database, tabela: Tabela, turmaId: num
     formato: iDisc >= 0 ? 'longo' : 'largo',
     linhas,
     ausentes,
-    colunasIgnoradas: ignoradas,
+    colunasIgnoradas: [...ignoradas, ...[...freqIgnorada].map((n) => `${n} | Frequência (vem da chamada em Faltas do Aluno)`)],
     totais: {
       alunos: linhasPorMat.size,
       alteracoes: linhas.reduce((s, l) => s + l.alteracoes.length, 0),

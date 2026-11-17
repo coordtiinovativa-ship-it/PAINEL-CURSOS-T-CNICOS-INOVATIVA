@@ -2,18 +2,22 @@
 
 Requisitos e regras do sistema: ver [CLAUDE.md](CLAUDE.md).
 
-## Rodar localmente
+## Ambiente local de testes (não afeta a produção)
 
 ```bash
 npm install
-npm run db:migrate:local      # schema + dados reais (instituição, atos, curso, matriz)
-npm run db:ficticios:local    # 3 alunos fictícios + turma (somente dev)
-node scripts/criar-usuario.mjs --email voce@exemplo.com --nome "Seu Nome"   # 1º admin master (mostra senha temporária)
-npm run dev                   # http://localhost:8787/admin
-npm test                      # testes automatizados
+npm run local          # prepara o banco local e sobe o sistema em http://localhost:8787/admin
+npm run local:zerar    # apaga o banco/arquivos locais e recria do zero
+npm test               # testes automatizados
 ```
 
-Para recriar o banco local do zero: apagar `.wrangler/state` e repetir os dois comandos `db:`.
+- Login local: **teste@local.test** / **TesteLocal2026** (admin master, sem troca de senha).
+- O banco (D1), os arquivos (R2) e os limites ficam em `.wrangler/state`, só na sua máquina. Nada vai para a Cloudflare:
+  os comandos de produção exigem `--env production --remote` e não são usados pelo `npm run local`.
+- Carrega as migrações (dados reais do PPC) e os dados fictícios de `seed/dev_*.sql` — alunos, turma, funcionários, lotações,
+  horário e calendário 2026. Cada seed só entra se a tabela da 1ª linha (`-- se-vazio: tabela`) estiver vazia.
+- Para testar uma mudança antes de publicar: `npm run local`, conferir no navegador, `npm test`, e só então `npm run deploy`
+  (com `npm run db:migrate:prod` antes, se houver migração nova).
 
 ## Estrutura
 

@@ -37,12 +37,11 @@ describe('Secretaria → Notas e Faltas', () => {
     expect(await (await c.req('/admin/diario/1/1')).text()).toContain('Atendimento a Clientes e Fornecedores');
   });
 
-  it('salva professor, dias, horário e tempo da aula; lança faltas e calcula a frequência', async () => {
+  it('sem horário na grade: salva o tempo da aula; lança faltas e calcula a frequência', async () => {
     const { c, sqlite, auditoria } = await pronto();
-    let r = await c.post(`${URL}/dados`, { professor: 'Prof. Fictício', dias: 'seg,qua', hora_inicio: '19:00', hora_fim: '22:30', duracao_aula_min: '50' });
-    expect(msg(r)).toContain('Professor, horário e tempo das aulas salvos');
-    expect(sqlite.prepare('SELECT professor, dias_semana, hora_inicio, hora_fim, duracao_aula_min FROM turma_disciplinas').get())
-      .toEqual({ professor: 'Prof. Fictício', dias_semana: 'seg,qua', hora_inicio: '19:00', hora_fim: '22:30', duracao_aula_min: 50 });
+    let r = await c.post(`${URL}/dados`, { duracao_aula_min: '50' });
+    expect(msg(r)).toContain('Tempo das aulas salvo');
+    expect(sqlite.prepare('SELECT duracao_aula_min FROM turma_disciplinas').get()).toEqual({ duracao_aula_min: 50 });
 
     const tela = await (await c.req(URL)).text();
     expect(tela).toContain('Aulas previstas <b>96</b>');
@@ -56,7 +55,7 @@ describe('Secretaria → Notas e Faltas', () => {
     expect(auditoria().map((a) => a.acao)).toEqual(expect.arrayContaining(['atualizar_disciplina_turma', 'lancar_notas_faltas']));
 
     // mudar o tempo da aula recalcula a frequência de quem tem faltas
-    await c.post(`${URL}/dados`, { professor: 'Prof. Fictício', duracao_aula_min: '40' });
+    await c.post(`${URL}/dados`, { duracao_aula_min: '40' });
     expect(res(1)).toMatchObject({ frequencia: 95 }); // 6 × 40 min = 4 h de 80 h
   });
 
@@ -64,14 +63,14 @@ describe('Secretaria → Notas e Faltas', () => {
     const { c, sqlite } = await pronto('coordenador');
     let r = await c.post(URL, { faltas_1: '3' });
     expect(msg(r)).toContain('Informe o tempo de cada aula');
-    await c.post(`${URL}/dados`, { professor: 'Prof. Fictício', duracao_aula_min: '50' });
+    await c.post(`${URL}/dados`, { duracao_aula_min: '50' });
     r = await c.post(URL, { faltas_1: '97' });
     expect(msg(r)).toContain('o máximo é 96 aulas previstas');
     r = await c.post(URL, { nota_1: '11' });
     expect(msg(r)).toContain('fora do intervalo 0–10');
     expect(sqlite.prepare('SELECT faltas FROM resultados WHERE matricula_id = 1 AND componente_id = 1').get()).toEqual({ faltas: null });
-    r = await c.post(`${URL}/dados`, { professor: '', duracao_aula_min: '50' });
-    expect(msg(r)).toContain('Informe o nome do professor');
+    r = await c.post(`${URL}/dados`, { duracao_aula_min: '5' });
+    expect(msg(r)).toContain('entre 10 e 600 minutos');
   });
 
   it('módulo planejado não aceita lançamento; tela antiga da disciplina redireciona ao diário', async () => {

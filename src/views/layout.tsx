@@ -179,6 +179,7 @@ code{font-size:.92em}
 const ICONES: Record<string, string> = {
   secretaria: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6v3H9z"/><path d="M9 11h6M9 15h4"/>',
   cadastros: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+  pedagogico: '<path d="M2 9 12 4l10 5-10 5z"/><path d="M6 11v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5"/><path d="M22 9v6"/>',
   sistema: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
   seta: '<path d="m9 6 6 6-6 6"/>',
   incluir: '<circle cx="12" cy="12" r="9.5"/><path d="M12 7.5v9M7.5 12h9"/>',
@@ -238,6 +239,18 @@ export const SECOES_MENU: SecaoMenu[] = [
       { href: '/admin/documentos', rotulo: 'Declarações e Históricos', perm: 'relatorios.emitir' },
       { href: '/admin/relatorios', rotulo: 'Relatórios', perm: 'relatorios.emitir' },
       { href: '/v', rotulo: 'Validação Pública', perm: 'relatorios.emitir', externo: true },
+    ],
+  },
+  {
+    id: 'pedagogico', rotulo: 'Gestão Pedagógica', icone: 'pedagogico',
+    itens: [
+      { href: '/admin/pedagogico/funcionarios', rotulo: 'Funcionários', perm: 'pedagogico.gerenciar' },
+      { href: '/admin/pedagogico/lotacao', rotulo: 'Lotação de Professores', perm: 'pedagogico.gerenciar' },
+      { href: '/admin/pedagogico/horario', rotulo: 'Horário do Professor', perm: 'pedagogico.gerenciar' },
+      { href: '/admin/pedagogico/faltas', rotulo: 'Faltas do Aluno', perm: 'resultados.lancar' },
+      { separador: true },
+      { href: '/admin/pedagogico/anos', rotulo: 'Ano Letivo', perm: 'pedagogico.gerenciar' },
+      { href: '/admin/pedagogico/calendario', rotulo: 'Calendário Escolar', perm: 'pedagogico.gerenciar' },
     ],
   },
   {
@@ -379,6 +392,7 @@ const Head: FC<{ titulo: string }> = ({ titulo }) => (
 const TELAS = [
   /^\/admin$/, /^\/admin\/(alunos|turmas|certificados|documentos|importacao|modelo|signatarios|instituicao|cursos|usuarios|auditoria|relatorios|diario|novidades)$/,
   /^\/admin\/(alunos|turmas|certificados|documentos|importacao|signatarios|cursos|usuarios)\/\d+$/,
+  /^\/admin\/pedagogico\/(funcionarios|lotacao|horario|faltas|anos|calendario)$/, /^\/admin\/pedagogico\/funcionarios\/\d+$/,
   /^\/admin\/turmas\/\d+\/modulos\/\d+$/, /^\/admin\/diario\/\d+\/\d+$/, /^\/admin\/cursos\/\d+\/matrizes\/\d+$/, /^\/admin\/certificados\/pendentes$/,
 ];
 /** Destino padrão do "Voltar": o nível acima que seja uma tela existente. */

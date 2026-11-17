@@ -29,6 +29,7 @@ export const PERMISSOES = {
   'turmas.editar': { rotulo: 'Cadastrar turmas e matricular alunos', perfis: TODOS },
   'turmas.excluir': { rotulo: 'Excluir turma cadastrada por engano (sem documentos emitidos)', perfis: ADMINS },
   'resultados.lancar': { rotulo: 'Lançar notas e frequência', perfis: TODOS },
+  'pedagogico.gerenciar': { rotulo: 'Gestão pedagógica: funcionários, ano letivo, calendário, lotação e horário', perfis: TODOS },
   'relatorios.emitir': { rotulo: 'Emitir relatórios e prévias', perfis: TODOS },
   'certificados.emitir': { rotulo: 'Emitir certificados', perfis: TODOS },
   'certificados.revogar': { rotulo: 'Revogar certificados e emitir 2ª via', perfis: MASTER },

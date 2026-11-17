@@ -35,6 +35,55 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.9.0',
+    data: '2026-11-17',
+    resumo: 'Novo menu Gestão Pedagógica, no padrão do sysGEP.',
+    novidades: [
+      {
+        titulo: 'Funcionários',
+        texto: 'cadastro com dados pessoais, documentos, formação, contato, endereço, categorias (professor, coordenador...) e documentos anexos.',
+        href: '/admin/pedagogico/funcionarios',
+        perm: 'pedagogico.gerenciar',
+      },
+      {
+        titulo: 'Lotação de Professores',
+        texto: 'vincula o professor a cada disciplina da turma, por módulo. "Trocar" encerra a lotação atual com motivo e passa o horário para o novo professor; o histórico fica guardado.',
+        href: '/admin/pedagogico/lotacao',
+        perm: 'pedagogico.gerenciar',
+      },
+      {
+        titulo: 'Horário do Professor',
+        texto: 'grade semanal: escolha a disciplina e clique no horário livre. O sistema não deixa a turma ter duas aulas no mesmo tempo nem o professor estar em dois lugares. ' +
+          'Os horários de cada tempo ficam em "Tempos de aula".',
+        href: '/admin/pedagogico/horario',
+        perm: 'pedagogico.gerenciar',
+      },
+      {
+        titulo: 'Faltas do Aluno (chamada do dia)',
+        texto: 'escolha o professor e a data — só aparecem os dias com aula no horário, sem feriados e recessos — e marque presença ou falta por tempo. ' +
+          'A frequência da disciplina é calculada sozinha em Notas e Faltas.',
+        href: '/admin/pedagogico/faltas',
+        perm: 'resultados.lancar',
+      },
+      {
+        titulo: 'Ano Letivo e Calendário Escolar',
+        texto: 'período do ano letivo, dias letivos e calendário com feriados, recessos, pontos facultativos e eventos. O botão "Incluir feriados nacionais" já calcula Carnaval, Sexta-feira Santa e Corpus Christi.',
+        href: '/admin/pedagogico/calendario',
+        perm: 'pedagogico.gerenciar',
+      },
+    ],
+    melhorias: [
+      {
+        titulo: 'Notas e Faltas ligadas à Gestão Pedagógica',
+        texto: 'o professor vem da lotação (não é mais digitado), o horário e o tempo da aula vêm da grade e, quando a disciplina tem chamada registrada, as faltas vêm dela e não podem ser digitadas. ' +
+          'Sem chamada, continua sendo possível lançar o total de faltas.',
+        href: '/admin/diario',
+        perm: 'resultados.lancar',
+      },
+      { titulo: 'Importação de notas', texto: 'a frequência de disciplina com chamada registrada não é sobrescrita pela planilha (aparece como coluna ignorada na conferência).' },
+    ],
+  },
+  {
     versao: '1.8.0',
     data: '2026-11-17',
     novidades: [

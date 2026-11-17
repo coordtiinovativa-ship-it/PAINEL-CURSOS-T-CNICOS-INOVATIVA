@@ -26,6 +26,11 @@ import { rotasImportacao } from './rotas/importacao';
 import { rotasRelatorios } from './rotas/relatorios';
 import { rotasDiario } from './rotas/diario';
 import { rotasNovidades } from './rotas/novidades';
+import { rotasFuncionarios } from './rotas/funcionarios';
+import { rotasCalendario } from './rotas/calendario';
+import { rotasLotacao } from './rotas/lotacao';
+import { rotasHorario } from './rotas/horario';
+import { rotasChamada } from './rotas/chamada';
 
 export type { Env } from './tipos';
 
@@ -77,6 +82,12 @@ app.route('/admin/importacao', rotasImportacao);
 app.route('/admin/relatorios', rotasRelatorios);
 app.route('/admin/diario', rotasDiario);
 app.route('/admin/novidades', rotasNovidades);
+// Gestão Pedagógica
+app.route('/admin/pedagogico/funcionarios', rotasFuncionarios);
+app.route('/admin/pedagogico/lotacao', rotasLotacao);
+app.route('/admin/pedagogico/horario', rotasHorario);
+app.route('/admin/pedagogico/faltas', rotasChamada);
+app.route('/admin/pedagogico', rotasCalendario); // /anos e /calendario
 
 // Arquivos privados do R2 (logos, assinaturas, portarias) — somente usuários logados
 app.get('/admin/arquivos/*', async (c) => {

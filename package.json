@@ -1,11 +1,13 @@
 {
   "name": "certificados-iect",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "type": "module",
   "description": "Sistema de Certificados — Instituto Inovativa (IECT)",
   "scripts": {
     "dev": "wrangler dev",
+    "local": "node scripts/ambiente-local.mjs",
+    "local:zerar": "node scripts/ambiente-local.mjs --zerar",
     "deploy": "wrangler deploy --env production",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:prod": "wrangler d1 migrations apply DB --env production --remote",

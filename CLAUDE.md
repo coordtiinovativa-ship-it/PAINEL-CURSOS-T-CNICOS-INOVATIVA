@@ -372,6 +372,26 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   professores/horários das disciplinas e importações da turma; cadastros de alunos ficam. Auditoria guarda tudo no "antes".
 - **Bloqueada** se houver qualquer certificado ou documento emitido para alunos da turma (esses nunca são apagados).
 
+### Gestão Pedagógica (17/11/2026 — padrão sysGEP)
+- Menu **Gestão Pedagógica**: Funcionários, Lotação de Professores, Horário do Professor, Faltas do Aluno, Ano Letivo,
+  Calendário Escolar. Migração 0015; regras em `src/lib/pedagogico.ts` (fonte única); permissão `pedagogico.gerenciar`
+  (chamada: `resultados.lancar`). Rotas: `funcionarios.tsx`, `lotacao.tsx`, `horario.tsx`, `chamada.tsx`, `calendario.tsx`.
+- **Funcionários**: sem dados bancários, família e CNH do sysGEP (o sistema não usa — LGPD). Categorias (professor...);
+  não inativa nem tira "professor" com lotação ativa.
+- **Lotação**: 1 ativa por disciplina da turma (índice único parcial). Trocar = encerra (data_fim = véspera, motivo) + abre nova
+  + passa a grade (se o novo professor não tiver choque). Histórico nunca é apagado.
+- **Horário**: `horario_tempos` por turno (editável em Tempos de aula) + `horario_aulas` (lotação, dia 1–6, tempo). Sem choque
+  na turma (mesmo dia/tempo) nem no professor (sobreposição de horário). Turma precisa de turno.
+- **Calendário**: feriado/recesso/ponto facultativo = não letivo; "Incluir feriados nacionais" calcula a Páscoa.
+- **Chamada** (Faltas do Aluno, dia completo do professor): datas = grade × período da lotação × período do módulo
+  (em andamento/concluído) × ano letivo × dias letivos, até hoje. Grava `aulas` (turma+data+tempo, duração congelada) e
+  `faltas_aula`; recalcula `resultados.faltas` (nº de aulas) e `frequencia` = 100 × (1 − horas faltadas ÷ CH).
+- **Notas e Faltas**: professor = lotação; horário/tempo = grade (sem grade: tempo manual). Com chamada registrada, faltas
+  vêm só dela (formulário e importação de planilha não alteram faltas/frequência). Sem chamada: lançamento manual do total.
+  `turma_disciplinas.professor/dias/horário` ficaram obsoletos (só `duracao_aula_min` ainda é usado, sem grade).
+- **Ambiente local**: `npm run local` (ver README) — login teste@local.test / TesteLocal2026; seeds `seed/dev_*.sql`.
+- Pendente: vincular Signatários a Funcionários; rematrícula com aproveitamento; relatório de frequência por aula.
+
 ### Novidades do Sistema (17/11/2026)
 - Sistema → **Novidades do Sistema** (`/admin/novidades`, todos os perfis), no estilo do "Sobre o sistema" do sysGEP:
   versão atual, busca (sem acento) e cada versão com Novidades / Melhorias / Correções e links para as telas
