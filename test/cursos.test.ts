@@ -189,3 +189,49 @@ describe('vários cursos', () => {
     expect((await c.req('/admin/cursos/1')).status).toBe(403);
   });
 });
+
+describe('texto "Autorização" do curso (cabeçalho dos documentos)', () => {
+  const PADRAO = 'Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE/MS nº 13.111, de 18/12/2024';
+
+  /** Reenvia o formulário completo do curso 1, como o navegador faz. */
+  function formCurso(sqlite: any, mudancas: Record<string, string>) {
+    const cu = sqlite.prepare('SELECT * FROM cursos WHERE id = 1').get() as Record<string, any>;
+    const f: Record<string, string> = {};
+    for (const k of ['nome', 'tipo', 'nivel', 'area_tecnologica', 'forma_oferta', 'modalidade', 'escolaridade_minima', 'requisitos_acesso',
+      'perfil_profissional_conclusao', 'itinerario_formativo', 'texto_autorizacao', 'eixo_id', 'carga_horaria_total', 'prazo_integralizacao_anos']) {
+      if (cu[k] != null) f[k] = String(cu[k]);
+    }
+    if (cu.oferta_experimental) f.oferta_experimental = '1';
+    if (cu.ativo) f.ativo = '1';
+    return { ...f, ...mudancas };
+  }
+
+  it('migração preenche a partir do ato de autorização; sai na prévia do certificado e na declaração', async () => {
+    const { c, sqlite } = await admin();
+    expect((sqlite.prepare('SELECT texto_autorizacao FROM cursos WHERE id = 1').get() as any).texto_autorizacao).toBe(PADRAO);
+    const cert = await (await c.req('/admin/previa/1/1')).text();
+    expect(cert).toMatch(/Atos autorizativos vigentes<\/p><p class="cab2">Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE\/MS nº 13.111, de 18\/12\/2024<\/p>/);
+    const decl = await (await c.req('/admin/documentos/declaracao_conclusao_modulo/1/1/previa')).text();
+    expect(decl).toContain(PADRAO);
+  });
+
+  it('o que for digitado na tela é o que sai (uma linha por linha); vazio só gera aviso', async () => {
+    const { c, sqlite } = await admin();
+    const tela = await (await c.req('/admin/cursos/1')).text();
+    expect(tela).toContain('name="texto_autorizacao"');
+    expect(tela).toContain(PADRAO);
+
+    const texto = 'Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE/MS n. 13111, de 18/12/2024\r\nReconhecimento: Deliberação CEE/MS n. 99999, de 01/12/2026';
+    expect((await c.post('/admin/cursos/1', formCurso(sqlite, { texto_autorizacao: texto }))).status).toBe(302);
+    const cert = await (await c.req('/admin/previa/1/1')).text();
+    expect(cert).toContain('<p class="cab2">Curso Técnico em Inovação e Desenvolvimento Corporativo: Deliberação CEE/MS n. 13111, de 18/12/2024</p>');
+    expect(cert).toContain('<p class="cab2">Reconhecimento: Deliberação CEE/MS n. 99999, de 01/12/2026</p>');
+    // duas linhas a mais no cabeçalho: os respiros em volta do título diminuem para caber na folha
+    expect(cert).toContain('margin-top:4pt;margin-bottom:8pt');
+
+    await c.post('/admin/cursos/1', formCurso(sqlite, { texto_autorizacao: '' }));
+    const vazio = await (await c.req('/admin/previa/1/1')).text();
+    expect(vazio).toContain('Texto de autorização do curso não preenchido');
+    expect(vazio).not.toContain('Reconhecimento: Deliberação');
+  });
+});

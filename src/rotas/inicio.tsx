@@ -7,6 +7,16 @@ import { OBRIGATORIOS_ALUNO } from '../certificado/dados';
 
 export const rotasInicio = new Hono<Env>();
 
+/** Logo vertical centralizado no espaço livre da tela (como na tela inicial do sysGEP). */
+const CSS_INICIO = `
+.inicio{min-height:calc(100vh - 130px);display:flex;flex-direction:column}
+.inicio-logo{flex:1;display:grid;place-items:center;padding:2.5rem 0 1rem}
+.inicio-logo img{width:min(400px,70vw);height:auto;display:block}
+html[data-tema="escuro"] .inicio-logo img{background:#fff;border-radius:18px;padding:22px 26px;box-shadow:var(--sombra)}
+@media (prefers-color-scheme: dark){ html[data-tema="sistema"] .inicio-logo img{background:#fff;border-radius:18px;padding:22px 26px;box-shadow:var(--sombra)} }
+@media (max-width:900px){ .inicio{min-height:0} .inicio-logo img{width:min(260px,70vw)} }
+`;
+
 rotasInicio.get('/', async (c) => {
   const db = c.env.DB;
   const u = c.get('usuario');
@@ -38,6 +48,8 @@ rotasInicio.get('/', async (c) => {
 
   return c.html(
     <Pagina titulo="Início" usuario={u} caminho={c.req.path} ok={c.req.query('ok')}>
+      <style dangerouslySetInnerHTML={{ __html: CSS_INICIO }} />
+      <div class="inicio">
       <h1>Olá, {u.nome.split(' ')[0]}</h1>
       <div class="kpis">
         <a class="cartao" href="/admin/alunos" style="text-decoration:none"><b>{contagens?.alunos ?? 0}</b>alunos</a>
@@ -53,6 +65,10 @@ rotasInicio.get('/', async (c) => {
       ) : (
         <div class="msg ok">Nenhuma pendência.</div>
       )}
+      <div class="inicio-logo">
+        <img src="/modelo/logo-vertical.png" alt="Instituto Inovativa — Soluções em Educação" width="829" height="698" />
+      </div>
+      </div>
     </Pagina>,
   );
 });

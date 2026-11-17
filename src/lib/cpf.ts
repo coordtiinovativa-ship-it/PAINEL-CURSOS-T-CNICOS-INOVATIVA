@@ -19,6 +19,18 @@ export function formatarCPF(entrada: string): string {
   return `${c.slice(0, 3)}.${c.slice(3, 6)}.${c.slice(6, 9)}-${c.slice(9, 11)}`;
 }
 
+/**
+ * RG unificado ao CPF (Carteira de Identidade Nacional — CIN): o número do RG é o próprio CPF.
+ * Com a opção ligada, o RG vira o CPF formatado (sempre sincronizado). RG igual ao CPF liga a opção.
+ * Órgão expedidor e UF continuam sendo informados (ex.: SEJUSP-MS).
+ */
+export function ajustarRgUnificado(d: { cpf?: string | null; rg?: string | null; rg_unificado_cpf?: string | null }): void {
+  const cpf = d.cpf ? somenteDigitos(d.cpf) : '';
+  if (cpf.length !== 11) return;
+  if (d.rg && somenteDigitos(d.rg) === cpf) d.rg_unificado_cpf = '1';
+  if (d.rg_unificado_cpf === '1') d.rg = formatarCPF(cpf);
+}
+
 /** LGPD: 123.456.789-09 → ***.456.789-** */
 export function mascararCPF(entrada: string): string {
   const c = somenteDigitos(entrada);

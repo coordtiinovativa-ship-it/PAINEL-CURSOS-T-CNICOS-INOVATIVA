@@ -7,6 +7,7 @@ import { degrees, PDFDocument, rgb, type PDFFont, type PDFImage, type PDFPage } 
 import fontkit from '@pdf-lib/fontkit';
 import qrcode from 'qrcode-generator';
 import type { SnapshotCertificado } from './snapshot';
+import { espacosCabecalho } from './dados';
 import { dataExtenso } from '../lib/datas';
 
 export interface RecursosPdf {
@@ -213,7 +214,7 @@ function cabecalho(fo: Folha, s: SnapshotCertificado, logo: PDFImage): number {
   y += 15.6 * MM + 1.4 * MM;
   fo.centro(s.instituicao.nome, y, 10.5, fo.f.b);
   y += 10.5 * LH_NORMAL + 1;
-  for (const t of [s.instituicao.enderecoLinha, s.instituicao.credenciamento, 'Atos autorizativos vigentes']) {
+  for (const t of [s.instituicao.enderecoLinha, s.instituicao.credenciamento, 'Atos autorizativos vigentes', ...(s.instituicao.autorizacao ?? [])]) {
     fo.centro(t, y, 9, fo.f.r);
     y += 9 * LH_NORMAL + 1;
   }
@@ -268,9 +269,10 @@ export async function gerarPdfCertificado(
     const fo = new Folha(doc.addPage([W, H]), f);
     fo.p.drawImage(fundoFrente, { x: 0, y: 0, width: W, height: H });
     let y = cabecalho(fo, s, logo);
-    y += 14;
+    const esp = espacosCabecalho(s.instituicao.autorizacao?.length ?? 0);
+    y += esp.antesTitulo;
     fo.centro('C  E  R  T  I  F  I  C  A  D  O', y, 21, f.b);
-    y += 21 * LH_NORMAL + 16;
+    y += 21 * LH_NORMAL + esp.depoisTitulo;
     // certificados antigos (sem texto rico) saíam com o texto inteiro em negrito
     y += justificadoRico(fo, s.textoFrenteRico ?? [{ t: s.textoFrente, b: true }], y, 11, 11 * 1.55, 19.05 * MM);
     y += 14 + 4;
@@ -311,7 +313,7 @@ export async function gerarPdfCertificado(
     const fo = new Folha(doc.addPage([W, H]), f);
     fo.p.drawImage(fundoVerso, { x: 0, y: 0, width: W, height: H });
     let y = cabecalho(fo, s, logo);
-    y += 8; // o modelo atualizado não tem a linha "(Verso do Certificado da ...)"
+    y += espacosCabecalho(s.instituicao.autorizacao?.length ?? 0).topoVerso; // o modelo atualizado não tem a linha "(Verso do Certificado da ...)"
     const qualif = s.modulo.qualificacao.toUpperCase();
 
     const xEm = MARGEM.esq + 3.8 * MM;

@@ -16,9 +16,33 @@ function formularioDe(sqlite: any, id: number, mudancas: Record<string, string>)
   const a = sqlite.prepare('SELECT * FROM alunos WHERE id = ?').get(id) as Record<string, unknown>;
   const f: Record<string, string> = {};
   for (const [k, v] of Object.entries(a)) if (v != null && !['id', 'criado_em', 'atualizado_em'].includes(k)) f[k] = String(v);
-  if (f.usar_nome_social === '0') delete f.usar_nome_social; // checkbox desmarcado não é enviado
+  for (const k of ['usar_nome_social', 'rg_unificado_cpf']) if (f[k] === '0') delete f[k]; // checkbox desmarcado não é enviado
   return { ...f, ...mudancas };
 }
+
+describe('RG unificado ao CPF (CIN)', () => {
+  it('ligada, o RG passa a ser o CPF formatado e sai assim no certificado; desligada, volta a aceitar outro RG', async () => {
+    const { c, sqlite } = await logado();
+    const cpf = (sqlite.prepare('SELECT cpf FROM alunos WHERE id = 1').get() as any).cpf as string;
+    const fmt = `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9)}`;
+    const html = await (await c.req('/admin/alunos/1')).text();
+    expect(html).toContain('RG unificado ao CPF');
+
+    expect((await c.post('/admin/alunos/1', formularioDe(sqlite, 1, { rg_unificado_cpf: '1', rg: '' }))).status).toBe(302);
+    expect(sqlite.prepare('SELECT rg, rg_unificado_cpf FROM alunos WHERE id = 1').get()).toEqual({ rg: fmt, rg_unificado_cpf: 1 });
+    expect(await (await c.req('/admin/previa/1/1')).text()).toContain(`RG ${fmt}`);
+
+    await c.post('/admin/alunos/1', formularioDe(sqlite, 1, { rg_unificado_cpf: '', rg: '1234567' })); // chave desligada
+    expect(sqlite.prepare('SELECT rg, rg_unificado_cpf FROM alunos WHERE id = 1').get()).toEqual({ rg: '1234567', rg_unificado_cpf: 0 });
+  });
+
+  it('RG digitado igual ao CPF liga a opção sozinho', async () => {
+    const { c, sqlite } = await logado();
+    const cpf = (sqlite.prepare('SELECT cpf FROM alunos WHERE id = 2').get() as any).cpf as string;
+    await c.post('/admin/alunos/2', formularioDe(sqlite, 2, { rg: cpf }));
+    expect((sqlite.prepare('SELECT rg_unificado_cpf FROM alunos WHERE id = 2').get() as any).rg_unificado_cpf).toBe(1);
+  });
+});
 
 describe('ficha do aluno (estilo SysGEP)', () => {
   it('mostra barra de ferramentas, abas, obrigatórios e abre em modo de visualização', async () => {

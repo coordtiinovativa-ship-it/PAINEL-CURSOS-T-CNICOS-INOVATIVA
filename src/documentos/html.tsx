@@ -118,6 +118,7 @@ export const PaginasDocumento: FC<{ layout: DocumentoLayout; url: (k: string | n
             <div class="n">{i.nome}</div>
             <div class="s">{i.enderecoLinha}</div>
             <div class="s">{i.credenciamento}</div>
+            {(i.autorizacao ?? []).map((l) => <div class="s">{l}</div>)}
           </div>
           <div class="faixa" />
           {pg.blocos.map((b) => <Bl b={b} url={url} />)}

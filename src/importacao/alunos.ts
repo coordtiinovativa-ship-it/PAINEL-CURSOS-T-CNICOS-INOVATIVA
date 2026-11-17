@@ -3,7 +3,7 @@
  * analisar (nada é gravado) → aplicar (em lote, atômico). Chave do aluno: CPF.
  */
 import { CAMPOS_ALUNO, OBRIGATORIOS_ALUNO, type CampoAluno } from '../certificado/dados';
-import { validarCPF, formatarCPF } from '../lib/cpf';
+import { ajustarRgUnificado, validarCPF, formatarCPF } from '../lib/cpf';
 import { ErroValidacao } from '../lib/form';
 import { chave, gerarCSV, normalizarCPF, normalizarData, normalizarUF, type Tabela } from './planilha';
 
@@ -33,6 +33,7 @@ const APELIDOS: Record<CampoAluno, string[]> = {
   telefone: ['telefone', 'fone', 'telefone_fixo', 'telefone_residencial'],
   celular: ['celular', 'whatsapp', 'telefone_celular', 'cel'],
   usar_nome_social: ['usar_nome_social', 'usa_nome_social'],
+  rg_unificado_cpf: ['rg_unificado_cpf', 'rg_unificado', 'rg_unificado_ao_cpf', 'cin', 'carteira_de_identidade_nacional', 'rg_igual_cpf'],
   estado_civil: ['estado_civil'],
   necessidades_especificas: ['necessidades_especificas', 'necessidades_educacionais_especificas', 'necessidade_especial', 'deficiencia', 'nee'],
   rg_data_expedicao: ['rg_data_expedicao', 'data_expedicao', 'data_de_expedicao', 'data_expedicao_rg', 'expedicao_rg'],
@@ -55,6 +56,7 @@ export const ROTULOS_MODELO: [CampoAluno, string][] = [
   ['necessidades_especificas', 'Necessidades educacionais específicas'], ['rg_data_expedicao', 'Data de expedição do RG'],
   ['cep', 'CEP'], ['endereco', 'Endereço'], ['bairro', 'Bairro'], ['complemento', 'Complemento'],
   ['endereco_municipio', 'Município (residência)'], ['endereco_uf', 'UF (residência)'], ['usar_nome_social', 'Usar nome social'],
+  ['rg_unificado_cpf', 'RG unificado ao CPF'],
 ];
 
 // cabeçalhos do próprio modelo também são reconhecidos
@@ -67,7 +69,7 @@ export function modeloAlunosCSV(): string {
     ROTULOS_MODELO.map(([, r]) => r),
     ['Maria Exemplo da Silva', '', '529.982.247-25', '2026010', '1234567', 'SEJUSP', 'MS', '15/01/2000', 'F', 'Parda', 'brasileira', 'Campo Grande', 'MS',
       'João Exemplo da Silva', 'Ana Exemplo da Silva', 'Ensino médio completo', 'Escola Estadual Exemplo', 'Campo Grande', 'MS', '2018', 'maria@exemplo.com', '(67) 3333-0000',
-      '(67) 99999-0000', 'Solteiro(a)', '', '10/02/2015', '79010-310', 'Rua Exemplo, 100', 'Centro', 'Apto 1', 'Campo Grande', 'MS', 'não'],
+      '(67) 99999-0000', 'Solteiro(a)', '', '10/02/2015', '79010-310', 'Rua Exemplo, 100', 'Centro', 'Apto 1', 'Campo Grande', 'MS', 'não', 'não'],
   ]);
 }
 
@@ -99,7 +101,7 @@ function normalizarValor(campo: CampoAluno, bruto: string): string | null {
   switch (campo) {
     case 'cpf': return normalizarCPF(v);
     case 'data_nascimento': case 'rg_data_expedicao': return normalizarData(v);
-    case 'usar_nome_social': {
+    case 'usar_nome_social': case 'rg_unificado_cpf': {
       const s = chave(v);
       if (['1', 's', 'sim', 'x', 'verdadeiro', 'true'].includes(s)) return '1';
       if (['0', 'n', 'nao', 'falso', 'false'].includes(s)) return '0';
@@ -168,6 +170,7 @@ export async function analisarAlunos(db: D1Database, tabela: Tabela, opcoes: { t
       }
     });
     const cpf = dados.cpf ?? null;
+    ajustarRgUnificado(dados); // RG igual ao CPF ou coluna "RG unificado ao CPF" = sim → RG no formato do CPF
     if (!dados.nome_civil) erros.push('Nome não informado');
     if (!cpf) erros.push('CPF não informado');
     else if (!validarCPF(cpf)) erros.push(`CPF inválido (${bruta[mapa.indexOf('cpf')]})`);

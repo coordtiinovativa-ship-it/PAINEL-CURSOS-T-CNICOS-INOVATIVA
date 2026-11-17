@@ -15,7 +15,11 @@ export const CAMPOS_ALUNO = [
   // ficha completa (migração 0008)
   'usar_nome_social', 'estado_civil', 'necessidades_especificas', 'rg_data_expedicao', 'celular',
   'cep', 'endereco', 'bairro', 'complemento', 'endereco_municipio', 'endereco_uf',
+  // migração 0012: RG unificado ao CPF (CIN) — '1' = o RG é o próprio CPF
+  'rg_unificado_cpf',
 ] as const;
+/** Campos sim/não (guardados como 0/1 no banco). */
+export const CAMPOS_ALUNO_SIM_NAO = new Set<CampoAluno>(['usar_nome_social', 'rg_unificado_cpf']);
 export type CampoAluno = (typeof CAMPOS_ALUNO)[number];
 export type Aluno = { id: number } & Record<CampoAluno, string | null>;
 
@@ -74,6 +78,8 @@ export interface DadosCertificado {
   matriculaId: number;
   instituicao: Record<string, any>;
   credenciamentoTexto: string | null;
+  /** Linhas do texto "Autorização" do curso (cabeçalho, abaixo de "Atos autorizativos vigentes"). */
+  autorizacaoLinhas: string[];
   atoAutorizacao: Record<string, any> | null;
   /** "Qualificação Profissional Técnica" etc., conforme o tipo do curso da turma */
   rotuloQualificacao: string;
@@ -139,6 +145,24 @@ export function hojeMS(): string {
 
 const vazio = (v: unknown) => v == null || String(v).trim() === '';
 
+/**
+ * A folha do certificado tem altura fixa: cada linha de autorização no cabeçalho (9 pt ≈ 11,4 pt com o
+ * espaçamento) é compensada tirando dos respiros em volta do título e do topo do verso (em pt).
+ */
+export function espacosCabecalho(linhasAutorizacao: number): { antesTitulo: number; depoisTitulo: number; topoVerso: number } {
+  const extra = linhasAutorizacao * 11.4;
+  return {
+    antesTitulo: Math.max(4, 14 - extra / 2),
+    depoisTitulo: Math.max(8, 16 - extra / 2),
+    topoVerso: Math.max(2, 8 - extra),
+  };
+}
+
+/** Texto livre "Autorização" do curso → linhas não vazias, sem espaços sobrando (impressas como digitadas). */
+export function linhasAutorizacao(texto: unknown): string[] {
+  return String(texto ?? '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+}
+
 export async function montarDadosCertificado(
   db: D1Database,
   matriculaId: number,
@@ -168,6 +192,7 @@ export const ALUNO_EXEMPLO: Aluno = {
   ensino_medio_ano_conclusao: '2018', email: null, telefone: null,
   usar_nome_social: '0', estado_civil: null, necessidades_especificas: null, rg_data_expedicao: null, celular: null,
   cep: null, endereco: null, bairro: null, complemento: null, endereco_municipio: null, endereco_uf: null,
+  rg_unificado_cpf: '0',
 };
 
 /** Nome impresso nos documentos: o social só quando a chave "usar nome social" estiver ligada. */
@@ -266,6 +291,10 @@ async function comporDados(
   if (vazio(aluno.nome_pai)) avisos.push('Nome do pai não informado: a filiação sairá só com o nome da mãe.');
   if (aluno.nome_social && nomeExibido !== aluno.nome_civil) avisos.push('O certificado usará o nome social do(a) estudante.');
   if (!credenciamento) faltantes.push('Instituição: ato de credenciamento');
+  const autorizacaoLinhas = linhasAutorizacao(curso.texto_autorizacao);
+  if (!autorizacaoLinhas.length) {
+    avisos.push('Texto de autorização do curso não preenchido (Cadastros → Cursos e Matrizes → Dados do curso → Autorização): o cabeçalho sairá só com "Atos autorizativos vigentes".');
+  }
   if (!atoPpc) faltantes.push('Curso: ato de aprovação do PPC / autorização');
   if (!modulo.qualificacao_conferida) faltantes.push('Módulo: qualificação conferida');
   const chComponentes = componentes.results.reduce((soma, cc) => soma + cc.ch, 0);
@@ -363,6 +392,7 @@ async function comporDados(
     matriculaId,
     instituicao,
     credenciamentoTexto,
+    autorizacaoLinhas,
     atoAutorizacao: atoPpc ?? null,
     rotuloQualificacao: rotuloQualificacao(curso.tipo),
     moduloTurma,

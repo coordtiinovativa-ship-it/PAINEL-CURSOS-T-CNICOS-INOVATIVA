@@ -34,6 +34,8 @@ export interface SnapshotCertificado {
     cnpj: string | null;
     enderecoLinha: string;
     credenciamento: string;
+    /** texto "Autorização" do curso, linha a linha (ausente em certificados anteriores à migração 0013) */
+    autorizacao?: string[];
     logo_r2_key: string | null;
     fundo_r2_key: string | null;
     /** ausente em certificados emitidos antes da migração 0005 */
@@ -84,6 +86,7 @@ export function montarSnapshot(d: DadosCertificado, e: DadosEmissao): SnapshotCe
       cnpj: i.cnpj ?? null,
       enderecoLinha: `${i.endereco} – ${i.bairro}, ${i.municipio} - ${i.uf}, ${i.cep}`,
       credenciamento: d.credenciamentoTexto ?? '[ato de credenciamento]',
+      autorizacao: d.autorizacaoLinhas,
       logo_r2_key: i.logo_r2_key ?? null,
       fundo_r2_key: i.fundo_r2_key ?? null,
       fundo_verso_r2_key: i.fundo_verso_r2_key ?? null,

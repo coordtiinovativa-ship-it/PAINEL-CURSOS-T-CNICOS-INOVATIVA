@@ -11,10 +11,10 @@ import { exigir } from '../auth/sessao';
 import { pode } from '../auth/permissoes';
 import { auditar } from '../lib/auditoria';
 import { arquivo, ErroValidacao, lerCorpo, texto, type Corpo } from '../lib/form';
-import { formatarCPF, somenteDigitos, validarCPF } from '../lib/cpf';
+import { ajustarRgUnificado, formatarCPF, somenteDigitos, validarCPF } from '../lib/cpf';
 import { salvarArquivo, TIPOS_IMAGEM, TIPOS_PDF, urlArquivo } from '../lib/arquivos';
 import { dataBR } from '../lib/datas';
-import { CAMPOS_ALUNO, nomeDoAluno, OBRIGATORIOS_ALUNO, type Aluno, type CampoAluno } from '../certificado/dados';
+import { CAMPOS_ALUNO, CAMPOS_ALUNO_SIM_NAO, nomeDoAluno, OBRIGATORIOS_ALUNO, type Aluno, type CampoAluno } from '../certificado/dados';
 
 export const rotasAlunos = new Hono<Env>();
 rotasAlunos.use('*', exigir('alunos.editar'));
@@ -38,7 +38,9 @@ export function faltantesAluno(a: Partial<Aluno>): string[] {
 export function lerAluno(corpo: Corpo, parcial = false): Record<CampoAluno, string | null> {
   const d = Object.fromEntries(CAMPOS_ALUNO.map((k) => [k, texto(corpo, k)])) as Record<CampoAluno, string | null>;
   d.usar_nome_social = corpo.usar_nome_social === '1' ? '1' : '0';
+  d.rg_unificado_cpf = corpo.rg_unificado_cpf === '1' ? '1' : '0';
   if (d.cpf) d.cpf = somenteDigitos(d.cpf);
+  ajustarRgUnificado(d);
   if (d.rg_orgao_expedidor) d.rg_orgao_expedidor = d.rg_orgao_expedidor.toUpperCase();
   if (d.email) d.email = d.email.toLowerCase();
   if (d.cep) {
@@ -147,6 +149,13 @@ const JS = `
   function mascara(nome,fn){ var el=form&&form[nome]; if(el) el.addEventListener('blur',function(){ el.value=fn(el.value); }); }
   mascara('cpf',function(v){var d=v.replace(/\\D/g,'');return d.length===11?d.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/,'$1.$2.$3-$4'):v;});
   mascara('cep',function(v){var d=v.replace(/\\D/g,'');return d.length===8?d.slice(0,5)+'-'+d.slice(5):v;});
+  // RG unificado ao CPF (CIN): o RG acompanha o CPF e fica só para leitura
+  var cin=form&&form.rg_unificado_cpf;
+  function sincronizarRg(){ if(!cin) return; var rg=form.rg, tag=form.querySelector('.rg-cin');
+    rg.readOnly=cin.checked; if(tag) tag.hidden=!cin.checked;
+    if(cin.checked){ var d=(form.cpf.value||'').replace(/\\D/g,''); rg.value=d.length===11?d.replace(/(\\d{3})(\\d{3})(\\d{3})(\\d{2})/,'$1.$2.$3-$4'):''; } }
+  if(cin){ cin.addEventListener('change',function(){ if(!cin.checked) form.rg.value=''; sincronizarRg(); if(!cin.checked) form.rg.focus(); });
+    form.cpf.addEventListener('input',sincronizarRg); sincronizarRg(); }
   ['telefone','celular'].forEach(function(n){ mascara(n,function(v){var d=v.replace(/\\D/g,'');
     return d.length===11?'('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7):d.length===10?'('+d.slice(0,2)+') '+d.slice(2,6)+'-'+d.slice(6):v;}); });
   // prévia do certificado: dados salvos (modo ver) ou rascunho do formulário (modo editar)
@@ -270,12 +279,19 @@ function Ficha({ a, modo }: { a: Partial<Aluno>; modo: 'ver' | 'editar' | 'novo'
         <S n="naturalidade_uf" r="UF de naturalidade" s={2} a={a} opcoes={UFS} />
         <F n="nacionalidade" r="Nacionalidade" s={2} a={{ ...a, nacionalidade: a.nacionalidade ?? (a.id ? null : 'brasileira') }} />
 
-        <S n="cor_raca" r="Cor/raça" s={2} a={a} opcoes={CORES} />
-        <F n="necessidades_especificas" r="Necessidades educacionais específicas" s={3} a={a} />
-        <F n="rg" r="RG" s={2} a={a} />
-        <F n="rg_orgao_expedidor" r="Órgão expedidor" s={2} a={a} extra={{ placeholder: 'SEJUSP' }} />
+        <S n="cor_raca" r="Cor/raça" s={3} a={a} opcoes={CORES} />
+        <F n="necessidades_especificas" r="Necessidades educacionais específicas" s={9} a={a} />
+
+        <label class="chave s2" title="Carteira de Identidade Nacional (CIN): o número do RG é o próprio CPF">
+          RG unificado ao CPF<input type="checkbox" name="rg_unificado_cpf" value="1" checked={String(a.rg_unificado_cpf ?? '0') === '1'} role="switch" />
+        </label>
+        <label class={`f s3 obr`}>
+          <span>RG <small class="rg-cin" style="color:var(--texto-2)" hidden={String(a.rg_unificado_cpf ?? '0') !== '1'}>(= CPF)</small></span>
+          <input name="rg" value={a.rg ?? ''} />
+        </label>
+        <F n="rg_orgao_expedidor" r="Órgão expedidor" s={3} a={a} extra={{ placeholder: 'SEJUSP' }} />
         <S n="rg_uf" r="UF do RG" s={1} a={a} opcoes={UFS} />
-        <F n="rg_data_expedicao" r="Data de expedição" s={2} a={a} tipo="date" />
+        <F n="rg_data_expedicao" r="Data de expedição" s={3} a={a} tipo="date" />
 
         <div class="grupo-ficha">Endereço e contato</div>
         <label class="f s2"><span>CEP</span>
@@ -472,7 +488,7 @@ rotasAlunos.post('/novo', async (c) => {
   }
   const cols = CAMPOS_ALUNO.filter((k) => d[k] != null); // vazios ficam com o padrão do banco
   const r = await c.env.DB.prepare(`INSERT INTO alunos (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')}) RETURNING id`)
-    .bind(...cols.map((k) => (k === 'usar_nome_social' ? Number(d[k]) : d[k])))
+    .bind(...cols.map((k) => (CAMPOS_ALUNO_SIM_NAO.has(k) ? Number(d[k]) : d[k])))
     .first<{ id: number }>();
   await auditar(c, 'criar', 'aluno', r!.id, null, d);
   return c.redirect(`/admin/alunos/${r!.id}?ok=` + encodeURIComponent('Aluno cadastrado.'));
@@ -499,7 +515,7 @@ rotasAlunos.post('/:id{[0-9]+}', async (c) => {
   }
   const cols = CAMPOS_ALUNO;
   await c.env.DB.prepare(`UPDATE alunos SET ${cols.map((k) => `${k} = ?`).join(', ')}, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ?`)
-    .bind(...cols.map((k) => (k === 'usar_nome_social' ? Number(d[k]) : d[k])), id)
+    .bind(...cols.map((k) => (CAMPOS_ALUNO_SIM_NAO.has(k) ? Number(d[k]) : d[k])), id)
     .run();
   const mudou = Object.fromEntries(cols.filter((k) => String(antes[k] ?? '') !== String(d[k] ?? '')).map((k) => [k, d[k]]));
   const era = Object.fromEntries(Object.keys(mudou).map((k) => [k, antes[k as keyof Aluno]]));

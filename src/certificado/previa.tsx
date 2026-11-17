@@ -6,7 +6,7 @@
  * QR code e código de validação são acréscimos discretos (gerados no passo 3).
  */
 import type { Child, FC } from 'hono/jsx';
-import type { DadosCertificado, Signatario } from './dados';
+import { espacosCabecalho, type DadosCertificado, type Signatario } from './dados';
 import { dataExtenso } from '../lib/datas';
 
 export interface ImagensCertificado {
@@ -87,6 +87,7 @@ const Cabecalho: FC<{ d: DadosCertificado; img: ImagensCertificado }> = ({ d, im
       <p class="cab2">{i.endereco} – {i.bairro}, {i.municipio} - {i.uf}, {i.cep}</p>
       <p class="cab2">{d.credenciamentoTexto ?? <span class="falta">[ato de credenciamento]</span>}</p>
       <p class="cab2">Atos autorizativos vigentes</p>
+      {d.autorizacaoLinhas.map((l) => <p class="cab2">{l}</p>)}
     </>
   );
 };
@@ -119,7 +120,7 @@ export const Frente: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Re
     <img class="fundo" src={img.fundoFrente} alt="" />
     <div class="conteudo">
       <Cabecalho d={d} img={img} />
-      <p class="titulo" style="margin-top:14pt">C  E  R  T  I  F  I  C  A  D  O</p>
+      <p class="titulo" style={`margin-top:${espacosCabecalho(d.autorizacaoLinhas.length).antesTitulo}pt;margin-bottom:${espacosCabecalho(d.autorizacaoLinhas.length).depoisTitulo}pt`}>C  E  R  T  I  F  I  C  A  D  O</p>
       <p class="corpo">
         {agruparNegrito(d.textoFrente).map((g) => {
           const conteudo = g.itens.map((s) => s.faltante ? <span class="falta" title={`Campo não preenchido: ${s.variavel}`}>{s.texto}</span> : s.texto);
@@ -159,7 +160,7 @@ export const Verso: FC<{ d: DadosCertificado; img: ImagensCertificado; reg?: Reg
       <img class="fundo" src={img.fundoVerso} alt="" />
       <div class="conteudo">
         <Cabecalho d={d} img={img} />
-        <div style="height:8pt" />
+        <div style={`height:${espacosCabecalho(d.autorizacaoLinhas.length).topoVerso}pt`} />
         <div class="em">
           <p>Conclusão do Ensino Médio:</p>
           <p>

@@ -102,7 +102,7 @@ function novaPagina(ctx: Ctx) {
   y += 13 * MM + 2.5;
   centro(ctx, inst.nome, y, 10, ctx.b, MARINHO);
   y += 10 * LH + 1;
-  for (const t of [inst.enderecoLinha, inst.credenciamento]) {
+  for (const t of [inst.enderecoLinha, inst.credenciamento, ...(inst.autorizacao ?? [])]) {
     centro(ctx, t, y, 8, ctx.r, CINZA);
     y += 8 * LH;
   }

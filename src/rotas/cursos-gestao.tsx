@@ -97,7 +97,7 @@ rotasCursosGestao.get('/', async (c) => {
 });
 
 // ------------------------------------------------------------------ dados do curso
-const CAMPOS_CURSO = ['nome', 'tipo', 'nivel', 'area_tecnologica', 'forma_oferta', 'modalidade', 'escolaridade_minima', 'requisitos_acesso', 'perfil_profissional_conclusao', 'itinerario_formativo'] as const;
+const CAMPOS_CURSO = ['nome', 'tipo', 'nivel', 'area_tecnologica', 'forma_oferta', 'modalidade', 'escolaridade_minima', 'requisitos_acesso', 'perfil_profissional_conclusao', 'itinerario_formativo', 'texto_autorizacao'] as const;
 
 function lerCurso(corpo: Corpo) {
   const d: Record<string, string | number | null> = Object.fromEntries(CAMPOS_CURSO.map((k) => [k, texto(corpo, k)]));
@@ -134,6 +134,11 @@ const FormCurso = ({ cu, eixosLista, cbos, acao }: { cu: Record<string, any>; ei
     <Campo nome="escolaridade_minima" rotulo="Escolaridade mínima" valor={cu.escolaridade_minima} />
     <label class="check"><input type="checkbox" name="oferta_experimental" value="1" checked={!!cu.oferta_experimental} /> Oferta experimental</label>
     <label class="check"><input type="checkbox" name="ativo" value="1" checked={cu.ativo == null ? true : !!cu.ativo} /> Curso ativo (disponível para novas turmas)</label>
+    <label class="largo">Autorização — impressa no cabeçalho dos documentos, abaixo de "Atos autorizativos vigentes"
+      <textarea name="texto_autorizacao" rows={3} placeholder="Ex.: Curso Técnico em Informática para Internet: Deliberação CEE/MS nº 13.253, de 03/11/2025">{cu.texto_autorizacao ?? ''}</textarea>
+      <span class="muted">O que for digitado aqui sai exatamente assim no certificado, na declaração e no histórico. Cada linha vira uma linha no cabeçalho
+        (ex.: autorização e, depois, reconhecimento). Vale para os documentos emitidos a partir de agora; os já emitidos não mudam.</span>
+    </label>
     <label class="largo">Requisitos de acesso<textarea name="requisitos_acesso" rows={2}>{cu.requisitos_acesso ?? ''}</textarea></label>
     <label class="largo">Perfil profissional de conclusão do curso<textarea name="perfil_profissional_conclusao" rows={4}>{cu.perfil_profissional_conclusao ?? ''}</textarea></label>
     <label class="largo">Itinerário formativo<textarea name="itinerario_formativo" rows={2}>{cu.itinerario_formativo ?? ''}</textarea></label>

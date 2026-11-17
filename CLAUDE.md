@@ -380,6 +380,15 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   (teste confere). Texto para a secretaria, em linguagem simples. 0.x = desenvolvimento; 1.0.0 = produção.
 - Versão nova não vista (por navegador, `localStorage`): selo "novo" ao lado da versão no rodapé do menu e aviso no Início.
 
+### RG unificado ao CPF e texto de autorização (17/11/2026)
+- **RG unificado ao CPF (CIN)**: chave no cadastro do aluno (`alunos.rg_unificado_cpf`, migração 0012). Ligada → RG = CPF
+  formatado (sincronizado ao salvar, `ajustarRgUnificado` em `src/lib/cpf.ts`); RG digitado/importado igual ao CPF liga a chave.
+  Órgão expedidor e UF continuam obrigatórios.
+- **Autorização do curso** (`cursos.texto_autorizacao`, migração 0013, Cursos e Matrizes → Dados do curso): texto livre, impresso
+  como digitado (uma linha por linha) no cabeçalho do certificado, abaixo de "Atos autorizativos vigentes", e no cabeçalho da
+  declaração/histórico. Vazio → só aviso. Guardado no snapshot (`instituicao.autorizacao`). Linhas extras são compensadas nos
+  respiros do título/verso (`espacosCabecalho` em `src/certificado/dados.ts`) para a folha A4 não transbordar.
+
 ### Prévia em tela com QR code de exemplo (16/11/2026)
 - Tela de emissão do certificado mostra a prévia (frente e verso) embutida ("Como vai ficar", `/admin/previa/{mat}/{mod}?embutida=1`)
   e botão "Ver em tela"; declaração e histórico idem (prévia embutida + "Ver em tela" + PDF de prévia).

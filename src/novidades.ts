@@ -35,6 +35,35 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.8.0',
+    data: '2026-11-17',
+    novidades: [
+      {
+        titulo: 'RG unificado ao CPF',
+        texto: 'no cadastro do aluno, uma chave ao lado do RG indica a nova Carteira de Identidade Nacional (CIN), em que o número do RG é o próprio CPF. ' +
+          'Com a chave ligada, o RG é preenchido com o CPF e sai assim no certificado. O órgão expedidor e a UF continuam sendo informados. ' +
+          'Na importação de planilhas, quando o RG vier igual ao CPF, a chave é ligada sozinha.',
+        href: '/admin/alunos',
+        perm: 'alunos.editar',
+      },
+      {
+        titulo: 'Texto de autorização do curso',
+        texto: 'em Cursos e Matrizes → Dados do curso, o novo campo "Autorização" guarda o texto que sai no cabeçalho do certificado, ' +
+          'logo abaixo de "Atos autorizativos vigentes", e também na declaração e no histórico. O que for digitado é o que sai, ' +
+          'uma linha por linha (ex.: autorização e, depois, reconhecimento). O curso atual já veio preenchido com a Deliberação CEE/MS nº 13.111.',
+        href: '/admin/cursos',
+        perm: 'cursos.editar',
+      },
+    ],
+    melhorias: [
+      {
+        titulo: 'Logo do Instituto Inovativa no Início',
+        texto: 'a tela inicial mostra o logo centralizado, como no sysGEP. No tema escuro, o logo aparece sobre um fundo branco.',
+        href: '/admin',
+      },
+    ],
+  },
+  {
     versao: '1.7.0',
     data: '2026-11-17',
     novidades: [
