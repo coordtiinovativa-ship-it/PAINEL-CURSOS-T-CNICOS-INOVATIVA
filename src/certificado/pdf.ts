@@ -225,9 +225,8 @@ function cabecalho(fo: Folha, s: SnapshotCertificado, logo: PDFImage): number {
   return y;
 }
 
-function marcaPrevia(fo: Folha) {
-  const t = 'PRÉVIA — SEM VALIDADE';
-  const size = 64;
+function marcaPrevia(fo: Folha, t: string) {
+  const size = Math.min(64, (W * 0.8) / fo.f.b.widthOfTextAtSize(t, 1));
   const w = fo.f.b.widthOfTextAtSize(t, size);
   const ang = 25 * (Math.PI / 180);
   fo.p.drawText(t, {
@@ -246,8 +245,10 @@ const localData = (local: string, iso: string | null) => (iso ? `${local}, ${dat
 export async function gerarPdfCertificado(
   s: SnapshotCertificado,
   rec: RecursosPdf,
-  opcoes: { previa?: boolean; qrExemplo?: string } = {},
+  /** marca: texto em marca d'água no documento emitido (ex.: ambiente de teste) */
+  opcoes: { previa?: boolean; qrExemplo?: string; marca?: string } = {},
 ): Promise<Uint8Array> {
+  const marca = opcoes.previa ? 'PRÉVIA — SEM VALIDADE' : opcoes.marca;
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   doc.setTitle(`Certificado ${s.validacao.codigo ?? '(prévia)'} — ${s.aluno.nome}`);
@@ -309,7 +310,7 @@ export async function gerarPdfCertificado(
 
     const cod = s.validacao.codigo ? `Validação: ${s.validacao.codigo}` : 'Validação: INV-AAAA-NNNNN (exemplo — gerado na emissão)';
     fo.texto(cod, MARGEM.esq, H - 6 * MM - 7 * LH_NORMAL, 7, f.r, 7 * LH_NORMAL, CINZA);
-    if (opcoes.previa) marcaPrevia(fo);
+    if (marca) marcaPrevia(fo, marca);
   }
 
   // =============================== VERSO ===============================
@@ -411,7 +412,7 @@ export async function gerarPdfCertificado(
       x: MARGEM.esq, y: H - fundoQuadro, width: LARG, height: fundoQuadro - topoQuadro, borderColor: PRETO, borderWidth: 0.75,
     });
     fo.linha(MARGEM.esq + colW, topoQuadro, MARGEM.esq + colW, fundoQuadro);
-    if (opcoes.previa) marcaPrevia(fo);
+    if (marca) marcaPrevia(fo, marca);
   }
 
   return doc.save();

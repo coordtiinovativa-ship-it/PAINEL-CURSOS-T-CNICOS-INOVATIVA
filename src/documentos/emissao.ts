@@ -1,3 +1,4 @@
+import { marcaDoAmbiente } from '../lib/ambiente';
 /**
  * Emissão de documentos acadêmicos (declaração de conclusão de módulo e histórico escolar).
  * Snapshot = layout completo + resumo; o PDF sai do snapshot e pode ser regerado idêntico.
@@ -64,7 +65,7 @@ export async function emitirDocumento(
   const snapshot: SnapshotDocumento = { versao: 1, resumo: p.resumo, layout: p.layout };
   const json = jsonCanonico(snapshot);
   const hash = await hashTexto(json);
-  const pdf = await gerarPdfDocumento(p.layout, await recursosDocumento(env, p.layout));
+  const pdf = await gerarPdfDocumento(p.layout, await recursosDocumento(env, p.layout), { marca: marcaDoAmbiente(env) });
   const chave = `documentos/${dataEmissao.slice(0, 4)}/${codigo}.pdf`;
   await env.ARQUIVOS.put(chave, pdf, {
     httpMetadata: { contentType: 'application/pdf', contentDisposition: `inline; filename="${codigo}.pdf"` },

@@ -1,3 +1,4 @@
+import { marcaDoAmbiente } from '../lib/ambiente';
 /**
  * Emissão de certificado de qualificação intermediária (um por módulo temático concluído).
  * Ordem: valida → reserva código → monta snapshot/hash → gera PDF → grava no R2 → registra no D1.
@@ -115,7 +116,7 @@ export async function emitirCertificado(
     sistecData: e.sistecData,
   });
   const hash = await hashSnapshot(snapshot);
-  const pdf = await gerarPdfCertificado(snapshot, await carregarRecursos(env, snapshot));
+  const pdf = await gerarPdfCertificado(snapshot, await carregarRecursos(env, snapshot), { marca: marcaDoAmbiente(env) });
   const chavePdf = `certificados/${ano}/${codigo}.pdf`;
   await env.ARQUIVOS.put(chavePdf, pdf, {
     httpMetadata: { contentType: 'application/pdf', contentDisposition: `inline; filename="${codigo}.pdf"` },

@@ -3,13 +3,14 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, UsuarioSessao } from '../tipos';
 import { ipDaRequisicao } from '../lib/auditoria';
+import { usaHttps } from '../lib/ambiente';
 import { pode, permissoesEfetivas, type AjustePermissao, type Permissao } from './permissoes';
 
 export const DURACAO_SESSAO_H = 8;
 export const MAX_TENTATIVAS = 5;
 export const BLOQUEIO_MIN = 15;
 
-const nomeCookie = (c: Context<Env>) => (c.env.AMBIENTE === 'production' ? '__Host-sessao' : 'sessao');
+const nomeCookie = (c: Context<Env>) => (usaHttps(c.env) ? '__Host-sessao' : 'sessao');
 
 async function sha256(texto: string): Promise<string> {
   const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texto));
@@ -31,7 +32,7 @@ export async function criarSessao(c: Context<Env>, usuarioId: number): Promise<v
     .run();
   setCookie(c, nomeCookie(c), token, {
     httpOnly: true,
-    secure: c.env.AMBIENTE === 'production',
+    secure: usaHttps(c.env),
     sameSite: 'Lax',
     path: '/',
     maxAge: DURACAO_SESSAO_H * 3600,
@@ -41,7 +42,7 @@ export async function criarSessao(c: Context<Env>, usuarioId: number): Promise<v
 export async function encerrarSessao(c: Context<Env>): Promise<void> {
   const token = getCookie(c, nomeCookie(c));
   if (token) await c.env.DB.prepare('DELETE FROM sessoes WHERE token_hash = ?').bind(await sha256(token)).run();
-  deleteCookie(c, nomeCookie(c), { path: '/', secure: c.env.AMBIENTE === 'production' });
+  deleteCookie(c, nomeCookie(c), { path: '/', secure: usaHttps(c.env) });
 }
 
 /** Encerra todas as sessões de um usuário (desativação, troca/reset de senha). */

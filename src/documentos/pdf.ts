@@ -38,6 +38,7 @@ interface Ctx {
   ass: Record<string, PDFImage>;
   layout: DocumentoLayout;
   previa: boolean;
+  marca?: string;
   qrExemplo?: string;
   pagina: PDFPage;
   y: number;
@@ -158,9 +159,9 @@ function rodape(ctx: Ctx) {
       ? ['PRÉVIA — o código de validação (INV-AAAA-NNNNN) e o QR code definitivo são gerados na emissão.', 'QR code de exemplo ao lado: no documento emitido, ele leva à página de validação.']
       : ['PRÉVIA — o código de validação e o QR code são gerados na emissão.'];
   linhas.forEach((l, i) => texto(ctx, l, X0, topo + 2 + i * 9.5, 7.5, i === 0 ? ctx.b : ctx.r, CINZA));
-  if (ctx.previa) {
-    const t = 'PRÉVIA — SEM VALIDADE';
-    const size = 54;
+  if (ctx.previa || ctx.marca) {
+    const t = ctx.previa ? 'PRÉVIA — SEM VALIDADE' : ctx.marca!;
+    const size = Math.min(54, (W * 0.85) / ctx.b.widthOfTextAtSize(t, 1));
     const w = ctx.b.widthOfTextAtSize(t, size);
     const a = (40 * Math.PI) / 180;
     ctx.pagina.drawText(t, { x: W / 2 - (w / 2) * Math.cos(a), y: H / 2 - (w / 2) * Math.sin(a), size, font: ctx.b, color: rgb(0.85, 0.2, 0.2), opacity: 0.16, rotate: degrees(40) });
@@ -342,7 +343,7 @@ function tabela(ctx: Ctx, bl: Extract<Bloco, { tipo: 'tabela' }>) {
 
 const ehPng = (b: Uint8Array) => b[0] === 0x89 && b[1] === 0x50;
 
-export async function gerarPdfDocumento(layout: DocumentoLayout, rec: RecursosDocumento, opcoes: { previa?: boolean; qrExemplo?: string } = {}): Promise<Uint8Array> {
+export async function gerarPdfDocumento(layout: DocumentoLayout, rec: RecursosDocumento, opcoes: { previa?: boolean; qrExemplo?: string; marca?: string } = {}): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   doc.setTitle(layout.titulo);
@@ -354,7 +355,7 @@ export async function gerarPdfDocumento(layout: DocumentoLayout, rec: RecursosDo
   const ass: Record<string, PDFImage> = {};
   for (const [k, v] of Object.entries(rec.assinaturas)) ass[k] = await emb(v);
   const ctx: Ctx = {
-    doc, layout, ass, previa: !!opcoes.previa, qrExemplo: opcoes.qrExemplo,
+    doc, layout, ass, previa: !!opcoes.previa, marca: opcoes.marca, qrExemplo: opcoes.qrExemplo,
     r: await doc.embedFont(rec.fonteRegular, OPCOES_FONTE),
     b: await doc.embedFont(rec.fonteNegrito, OPCOES_FONTE),
     logo: await emb(rec.logo),

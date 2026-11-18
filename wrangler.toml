@@ -76,3 +76,41 @@ simple = { limit = 20, period = 60 }
 name = "LIMITE_LOGIN"
 namespace_id = "742102"
 simple = { limit = 10, period = 60 }
+
+# ---------- ambiente de TESTE (homologação) — dados fictícios para a direção conhecer e testar ----------
+# Worker, banco D1 e arquivos R2 próprios: nada aqui toca a produção. Faixa "AMBIENTE DE TESTE" em todas as telas
+# e marca d'água "AMBIENTE DE TESTE — SEM VALIDADE" nos documentos emitidos (src/lib/ambiente.ts).
+# Publicar: npm run deploy:teste   ·   Recarregar dados fictícios: npm run teste:dados
+[env.teste]
+name = "certificados-iect-teste"
+account_id = "43c07b1adb4e7a883dee9ada17422bdc"
+routes = [{ pattern = "teste-certificados.institutoinovativa.org", zone_name = "institutoinovativa.org", custom_domain = true }]
+workers_dev = false
+preview_urls = false
+
+[env.teste.observability]
+enabled = true
+
+[env.teste.vars]
+AMBIENTE = "teste"
+URL_PUBLICA = "https://teste-certificados.institutoinovativa.org"
+
+[[env.teste.d1_databases]]
+binding = "DB"
+database_name = "certificados-iect-teste"
+database_id = "74ab38d5-aabd-4d76-a414-0b5f9984807d"  # criado em 18/11/2026 (região ENAM)
+migrations_dir = "migrations"
+
+[[env.teste.r2_buckets]]
+binding = "ARQUIVOS"
+bucket_name = "certificados-iect-teste"
+
+[[env.teste.ratelimits]]
+name = "LIMITE_VALIDACAO"
+namespace_id = "742103"
+simple = { limit = 20, period = 60 }
+
+[[env.teste.ratelimits]]
+name = "LIMITE_LOGIN"
+namespace_id = "742104"
+simple = { limit = 10, period = 60 }

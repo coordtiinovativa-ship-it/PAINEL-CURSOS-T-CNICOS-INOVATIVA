@@ -1,3 +1,4 @@
+import { usaHttps } from '../lib/ambiente';
 import { Hono } from 'hono';
 import type { Env } from '../tipos';
 import { getCookie, setCookie } from 'hono/cookie';
@@ -26,7 +27,7 @@ const temaValido = (t: unknown): Tema | null => (TEMAS.includes(t as Tema) ? (t 
 export const temaDoCookie = (c: any): Tema => temaValido(getCookie(c, COOKIE_TEMA)) ?? 'sistema';
 
 function gravarCookieTema(c: any, tema: Tema) {
-  setCookie(c, COOKIE_TEMA, tema, { path: '/', maxAge: 365 * 86400, sameSite: 'Lax', secure: c.env.AMBIENTE === 'production' });
+  setCookie(c, COOKIE_TEMA, tema, { path: '/', maxAge: 365 * 86400, sameSite: 'Lax', secure: usaHttps(c.env) });
 }
 
 /** Resposta após trocar o tema: 204 para o fetch do seletor; sem JS, volta à página anterior. */

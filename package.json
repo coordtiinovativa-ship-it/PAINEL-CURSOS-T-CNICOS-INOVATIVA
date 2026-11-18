@@ -9,6 +9,8 @@
     "local": "node scripts/ambiente-local.mjs",
     "local:zerar": "node scripts/ambiente-local.mjs --zerar",
     "deploy": "wrangler deploy --env production",
+    "deploy:teste": "wrangler deploy --env teste",
+    "teste:dados": "node scripts/ambiente-teste.mjs",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:prod": "wrangler d1 migrations apply DB --env production --remote",
     "db:ficticios:local": "wrangler d1 execute DB --local --file=seed/dev_alunos_ficticios.sql",

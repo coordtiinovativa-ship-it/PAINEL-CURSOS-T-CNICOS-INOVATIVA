@@ -21,6 +21,7 @@ import { rotasModelo } from './rotas/modelo';
 import { rotasPendentes } from './rotas/pendentes';
 import { rotasPublico } from './rotas/publico';
 import { limitarPorIP } from './lib/limite';
+import { faixaAmbienteTeste } from './lib/ambiente';
 import { rotasDocumentos } from './rotas/documentos';
 import { rotasImportacao } from './rotas/importacao';
 import { rotasRelatorios } from './rotas/relatorios';
@@ -39,6 +40,9 @@ const app = new Hono<Env>();
 app.use('*', secureHeaders({ xFrameOptions: 'SAMEORIGIN', crossOriginResourcePolicy: 'same-origin' }));
 // Bloqueia envio de formulário a partir de outro site (proteção CSRF por Origin)
 app.use('*', csrf());
+
+// Ambiente de teste: faixa fixa em todas as páginas (nada ali vale para a produção)
+app.use('*', faixaAmbienteTeste);
 
 app.get('/', (c) => c.redirect('/admin'));
 app.get('/saude', async (c) => {
