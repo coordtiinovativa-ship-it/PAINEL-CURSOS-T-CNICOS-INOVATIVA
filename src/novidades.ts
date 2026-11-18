@@ -35,6 +35,18 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.14.0',
+    data: '2026-11-18',
+    melhorias: [
+      {
+        titulo: 'Menu Gestão Pedagógica: Ano Letivo e Calendário Escolar primeiro',
+        texto: 'são a base de tudo (lotação, horário e chamada usam o calendário), por isso agora abrem o menu.',
+        href: '/admin/pedagogico/anos',
+        perm: 'pedagogico.gerenciar',
+      },
+    ],
+  },
+  {
     versao: '1.13.0',
     data: '2026-11-18',
     novidades: [

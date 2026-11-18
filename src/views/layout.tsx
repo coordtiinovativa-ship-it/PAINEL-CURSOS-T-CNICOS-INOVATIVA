@@ -245,14 +245,14 @@ export const SECOES_MENU: SecaoMenu[] = [
   {
     id: 'pedagogico', rotulo: 'Gestão Pedagógica', icone: 'pedagogico',
     itens: [
+      { href: '/admin/pedagogico/anos', rotulo: 'Ano Letivo', perm: 'pedagogico.gerenciar' },
+      { href: '/admin/pedagogico/calendario', rotulo: 'Calendário Escolar', perm: 'pedagogico.gerenciar' },
+      { separador: true },
       { href: '/admin/pedagogico/funcionarios', rotulo: 'Funcionários', perm: 'pedagogico.gerenciar' },
       { href: '/admin/pedagogico/lotacao', rotulo: 'Lotação de Professores', perm: 'pedagogico.gerenciar' },
       { href: '/admin/pedagogico/horario', rotulo: 'Horário do Professor', perm: 'pedagogico.gerenciar' },
       { href: '/admin/pedagogico/notas', rotulo: 'Lançamento de Notas', perm: 'resultados.lancar' },
       { href: '/admin/pedagogico/faltas', rotulo: 'Faltas do Aluno', perm: 'resultados.lancar' },
-      { separador: true },
-      { href: '/admin/pedagogico/anos', rotulo: 'Ano Letivo', perm: 'pedagogico.gerenciar' },
-      { href: '/admin/pedagogico/calendario', rotulo: 'Calendário Escolar', perm: 'pedagogico.gerenciar' },
     ],
   },
   {
