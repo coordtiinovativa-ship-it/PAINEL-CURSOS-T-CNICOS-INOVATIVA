@@ -89,16 +89,6 @@ export async function anoLetivo(db: D1Database, ano: number): Promise<AnoLetivo 
   return db.prepare('SELECT * FROM anos_letivos WHERE ano = ?').bind(ano).first<AnoLetivo>();
 }
 
-/** Datas não letivas do ano (feriado, recesso, ponto facultativo). */
-export async function diasNaoLetivos(db: D1Database, anoLetivoId: number): Promise<Map<string, string>> {
-  const evs = (await db.prepare(
-    `SELECT data_inicio, data_fim, descricao FROM calendario_eventos WHERE ano_letivo_id = ? AND tipo IN (${TIPOS_NAO_LETIVOS.map(() => '?').join(',')})`,
-  ).bind(anoLetivoId, ...TIPOS_NAO_LETIVOS).all<{ data_inicio: string; data_fim: string; descricao: string }>()).results;
-  const m = new Map<string, string>();
-  for (const e of evs) for (const d of diasEntre(e.data_inicio, e.data_fim)) m.set(d, e.descricao);
-  return m;
-}
-
 // ------------------------------------------------------------------ classificação dos dias (calendário visual, padrão sysGEP)
 export type CodigoDia = 'L' | 'D' | 'S' | 'SL' | 'DL' | 'F' | 'NL';
 /** [código, nome, é letivo?] — ordem da legenda */
@@ -227,7 +217,9 @@ async function aulasPrevistas(db: D1Database, filtro: { funcionarioId?: number; 
   ).bind(filtro.funcionarioId ?? filtro.turmaId, ano.ano)
     .all<AulaGrade & { professor: string; l_ini: string; l_fim: string | null; m_ini: string | null; m_fim: string | null; m_sit: string | null }>()).results;
   if (!grade.length) return [];
-  const nao = await diasNaoLetivos(db, ano.id);
+  // mesma regra do Calendário Escolar: só dias letivos (L, SL, DL) — sábado só entra se marcado como dia letivo extra
+  const evs = await eventosPorDia(db, ano.id);
+  const letivo = (d: string) => ehLetivo(classificarDia(d, ano, evs.get(d)));
   const out: AulaPrevista[] = [];
   for (const g of grade) {
     if (!g.m_sit || g.m_sit === 'planejado' || !g.m_ini) continue; // módulo sem início: sem aula
@@ -235,7 +227,7 @@ async function aulasPrevistas(db: D1Database, filtro: { funcionarioId?: number; 
     const fim = [ano.data_fim, g.l_fim ?? ano.data_fim, g.m_fim ?? ano.data_fim, ate].sort()[0];
     if (fim < ini) continue;
     for (const d of diasEntre(ini, fim)) {
-      if (diaDaSemana(d) !== g.dia_semana || nao.has(d)) continue;
+      if (diaDaSemana(d) !== g.dia_semana || !letivo(d)) continue;
       out.push({ data: d, turma_id: g.turma_id, turma: g.turma, componente_id: g.componente_id, componente: g.componente, lotacao_id: g.lotacao_id,
         funcionario_id: g.funcionario_id, professor: g.professor, tempo: g.tempo, hora_inicio: g.hora_inicio!, hora_fim: g.hora_fim!, duracao_min: minutosEntre(g.hora_inicio!, g.hora_fim!) });
     }

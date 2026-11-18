@@ -169,6 +169,14 @@ describe('lotação → horário → chamada → notas e faltas', () => {
     expect(datas.every((d) => diaDaSemana(d) === 1)).toBe(true);
     expect(datas).toHaveLength(8); // 03, 10, 17, 24, 31/08 · 14, 21, 28/09
 
+    // aula de sábado no horário: só entra na chamada no sábado marcado como dia letivo (SL) no calendário
+    j = await api(ana, { acao: 'incluir', lotacao_id: String(lotAna), dia: '6', tempo: '1' });
+    const aulaSab = j.estado.aulas[0].id as number;
+    expect((await aulasPrevistasDoProfessor(env.DB, ana, ano, '2026-09-30')).map((a) => a.data)).toEqual([]);
+    await c.post(`/admin/pedagogico/calendario/${ano.id}/eventos`, { tipo: 'dia_letivo_extra', data_inicio: '2026-08-08', descricao: 'Sábado letivo' });
+    expect((await aulasPrevistasDoProfessor(env.DB, ana, ano, '2026-09-30')).map((a) => a.data)).toEqual(['2026-08-08']);
+    await api(ana, { acao: 'remover', aula_id: String(aulaSab) });
+
     // chamada de 03/08: aluno da matrícula 1 faltou ao 1º tempo (45 min)
     const ch = await (await c.req(`/admin/pedagogico/faltas?ano=2026&prof=${lucas}&data=2026-08-03`)).text();
     expect(ch).toContain('Turma TIDC-2026-1');

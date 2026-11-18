@@ -129,7 +129,7 @@ export function criarRotasChamada(modo: Modo) {
               {datas.map((d) => <option value={d} selected={d === data}>{dataBR(d)} - {diaCurto(d)} {completa(d) ? '✓' : ''}</option>)}</select></label>
             <noscript><button class="sec">Abrir</button></noscript>
           </form>
-          <p class="muted" style="margin-bottom:0">As datas vêm do horário, dentro do período da lotação e do módulo, sem feriados e recessos do calendário. ✓ = chamada registrada.
+          <p class="muted" style="margin-bottom:0">As datas vêm do horário, dentro do período da lotação e do módulo, somente em dias letivos do Calendário Escolar (sábado só quando marcado como dia letivo). ✓ = chamada registrada.
             {modo === 'professor' ? ' Alunos com matrícula não ativa aparecem bloqueados: a correção é feita pela Secretaria.' : ' A Secretaria corrige qualquer aluno, inclusive com matrícula não ativa.'}
             {' '}Vale a última alteração salva.</p>
         </div>

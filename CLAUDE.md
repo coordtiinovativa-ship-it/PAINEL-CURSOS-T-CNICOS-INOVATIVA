@@ -384,7 +384,9 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   na turma (mesmo dia/tempo) nem no professor (sobreposição de horário). Turma precisa de turno.
 - **Calendário**: feriado/recesso/ponto facultativo = não letivo; "Incluir feriados nacionais" calcula a Páscoa.
 - **Chamada** (Faltas do Aluno, dia completo do professor): datas = grade × período da lotação × período do módulo
-  (em andamento/concluído) × ano letivo × dias letivos, até hoje. Grava `aulas` (turma+data+tempo, duração congelada) e
+  (em andamento/concluído) × ano letivo × dias letivos, até hoje. Dia letivo = mesma regra do calendário
+  (`classificarDia`/`ehLetivo`: L, SL, DL) — aula de sábado na grade só entra em sábado marcado como dia letivo extra
+  (decisão de 18/11/2026). Grava `aulas` (turma+data+tempo, duração congelada) e
   `faltas_aula`; recalcula `resultados.faltas` (nº de aulas) e `frequencia` = 100 × (1 − horas faltadas ÷ CH).
 - **Notas e Faltas**: professor = lotação; horário/tempo = grade (sem grade: tempo manual). Com chamada registrada, faltas
   vêm só dela (formulário e importação de planilha não alteram faltas/frequência). Sem chamada: lançamento manual do total.

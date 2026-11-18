@@ -70,6 +70,13 @@ export const VERSOES: Versao[] = [
         perm: 'pedagogico.gerenciar',
       },
       {
+        titulo: 'Chamada só em dias letivos do calendário',
+        texto: 'as datas da chamada vêm do horário do professor e passam pelo Calendário Escolar: só entram dias letivos. ' +
+          'Aula de sábado no horário só aparece na chamada nos sábados marcados como "dia letivo extra".',
+        href: '/admin/pedagogico/faltas',
+        perm: 'resultados.lancar',
+      },
+      {
         titulo: 'Vale a última digitação',
         texto: 'se a Secretaria e o professor estiverem lançando ao mesmo tempo, cada um só grava o que mudou na própria tela e prevalece quem salvou por último — ninguém desfaz o que o outro digitou. ' +
           'Cada nota e falta guarda quem alterou, quando, de onde (Gestão Pedagógica, Secretaria, chamada ou planilha) e o histórico das alterações. Os documentos usam sempre o valor mais recente.',
