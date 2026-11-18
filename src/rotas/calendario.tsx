@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import type { Env } from '../tipos';
 import { Campo, Icone, Pagina, Selecao } from '../views/layout';
 import { exigir } from '../auth/sessao';
+import { pode } from '../auth/permissoes';
 import { auditar } from '../lib/auditoria';
 import { ErroValidacao, inteiro, lerCorpo, texto } from '../lib/form';
 import { dataBR } from '../lib/datas';
@@ -151,6 +152,7 @@ rotasCalendario.get('/anos', async (c) => {
   ).all<AnoLetivo & { turmas: number; eventos: number }>()).results;
   const dias = await Promise.all(anos.map((a) => contarDiasLetivos(db, a)));
   const editar = anos.find((a) => a.id === Number(c.req.query('editar')));
+  const podeExcluir = pode(c.get('usuario').perfil, 'calendario.excluir');
   return c.html(
     <Pagina titulo="Ano letivo" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')} erro={c.req.query('erro')}>
       <h1>Ano letivo</h1>
@@ -182,6 +184,22 @@ rotasCalendario.get('/anos', async (c) => {
           <div class="largo acoes"><button><Icone nome="salvar" />Salvar</button>{editar && <a class="botao sec" href="/admin/pedagogico/anos">Cancelar</a>}</div>
         </form>
       </div>
+      {editar && podeExcluir && (
+        <details class="cartao" style="margin-top:1rem;border-left:4px solid var(--erro)">
+          <summary style="cursor:pointer;font-weight:650;color:var(--erro)"><Icone nome="excluir" />Excluir o ano letivo {editar.ano}</summary>
+          {editar.turmas
+            ? <p>Este ano letivo não pode ser excluído: tem <b>{editar.turmas}</b> turma(s) cadastrada(s) em {editar.ano}. Exclua ou mude o ano letivo
+                das turmas antes. Para só limpar feriados, eventos e ajustes, use "Excluir calendário" na tela do <a href={`/admin/pedagogico/calendario?ano=${editar.ano}`}>calendário</a>.</p>
+            : <>
+                <p>Apaga o ano letivo {editar.ano} e todo o calendário dele (<b>{editar.eventos}</b> evento(s)/feriado(s) e os dias ajustados à mão).
+                  Tudo fica registrado na auditoria. <b>Não há como desfazer.</b></p>
+                <form method="post" action={`/admin/pedagogico/anos/${editar.id}/excluir`} onsubmit="return confirm('Excluir definitivamente este ano letivo e o calendário?')">
+                  <label>Para confirmar, digite o ano ({editar.ano})<input name="confirmacao" required autocomplete="off" placeholder={String(editar.ano)} /></label>
+                  <div class="acoes" style="margin-top:.6rem"><button style="background:var(--erro);border-color:var(--erro)"><Icone nome="excluir" />Excluir ano letivo</button></div>
+                </form>
+              </>}
+        </details>
+      )}
     </Pagina>,
   );
 });
@@ -448,6 +466,18 @@ rotasCalendario.get('/calendario', async (c) => {
         ))}
       </table>
       {!eventos.length && <p class="muted">Nenhum evento cadastrado. Use "Gerar calendário automaticamente" e cadastre os feriados municipais/estaduais e recessos.</p>}
+      {pode(c.get('usuario').perfil, 'calendario.excluir') && (
+        <details class="cartao" style="margin-top:1.5rem;border-left:4px solid var(--erro)">
+          <summary style="cursor:pointer;font-weight:650;color:var(--erro)"><Icone nome="excluir" />Excluir o calendário de {anoNum}</summary>
+          <p>Apaga <b>todos</b> os feriados, recessos, eventos e dias ajustados à mão de {anoNum} ({eventos.length} evento(s), {totalAjustes} ajuste(s)).
+            O ano letivo continua: os dias voltam ao padrão (segunda a sexta letivos) até o calendário ser gerado de novo.
+            Se algum dia letivo com chamada deixar de ser letivo, o sistema avisa antes. Fica registrado na auditoria. <b>Não há como desfazer.</b></p>
+          <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/excluir`} onsubmit="return confirm('Excluir todo o calendário deste ano?')">
+            <label>Para confirmar, digite o ano ({anoNum})<input name="confirmacao" required autocomplete="off" placeholder={String(anoNum)} /></label>
+            <div class="acoes" style="margin-top:.6rem"><button style="background:var(--erro);border-color:var(--erro)"><Icone nome="excluir" />Excluir calendário</button></div>
+          </form>
+        </details>
+      )}
       <script dangerouslySetInnerHTML={{ __html: JS }} />
     </Pagina>,
   );
@@ -658,4 +688,54 @@ rotasCalendario.post('/calendario/eventos/:id{[0-9]+}/excluir', async (c) => {
   await c.env.DB.prepare('DELETE FROM calendario_eventos WHERE id = ?').bind(e.id).run();
   await auditar(c, 'excluir', 'calendario_evento', e.id, e, null);
   return c.redirect(`${volta}&ok=` + encodeURIComponent('Evento excluído.' + conf.msg));
+});
+
+// ------------------------------------------------------------------ exclusões (admin master e administrador)
+rotasCalendario.post('/calendario/:ano{[0-9]+}/excluir', exigir('calendario.excluir'), async (c) => {
+  const db = c.env.DB;
+  const a = await db.prepare('SELECT * FROM anos_letivos WHERE id = ?').bind(Number(c.req.param('ano'))).first<AnoLetivo>();
+  if (!a) return c.notFound();
+  const corpo = await lerCorpo(c);
+  const volta = `/admin/pedagogico/calendario?ano=${a.ano}`;
+  if ((texto(corpo, 'confirmacao') ?? '').trim() !== String(a.ano)) {
+    return c.redirect(`${volta}&erro=` + encodeURIComponent(`Calendário não excluído: digite o ano (${a.ano}) para confirmar.`));
+  }
+  // sem eventos nem ajustes, sábados/domingos letivos deixam de ser letivos
+  const porDia = await eventosPorDia(db, a.id);
+  const saem = [...porDia.keys()].filter((d) => ehLetivo(classificarDia(d, a, porDia.get(d))) && !ehLetivo(classificarDia(d, a, [])));
+  const conf = await conferirLancamentos(c, a, saem, corpo, `/admin/pedagogico/calendario/${a.id}/excluir`, `excluir o calendário de ${a.ano}`, volta);
+  if (conf.resposta) return conf.resposta;
+  const [eventos, ajustes] = await Promise.all([
+    db.prepare('SELECT * FROM calendario_eventos WHERE ano_letivo_id = ?').bind(a.id).all(),
+    db.prepare('SELECT * FROM calendario_dias WHERE ano_letivo_id = ?').bind(a.id).all(),
+  ]);
+  await db.batch([
+    db.prepare('DELETE FROM calendario_eventos WHERE ano_letivo_id = ?').bind(a.id),
+    db.prepare('DELETE FROM calendario_dias WHERE ano_letivo_id = ?').bind(a.id),
+    db.prepare('UPDATE anos_letivos SET calendario_gerado_em = NULL, calendario_gerado_por = NULL WHERE id = ?').bind(a.id),
+  ]);
+  await auditar(c, 'excluir_calendario', 'ano_letivo', a.id, { eventos: eventos.results, ajustes: ajustes.results }, null);
+  return c.redirect(`${volta}&ok=` + encodeURIComponent(
+    `Calendário de ${a.ano} excluído (${eventos.results.length} evento(s), ${ajustes.results.length} ajuste(s)). Use "Gerar calendário automaticamente" para montar de novo.${conf.msg}`));
+});
+
+rotasCalendario.post('/anos/:id{[0-9]+}/excluir', exigir('calendario.excluir'), async (c) => {
+  const db = c.env.DB;
+  const a = await db.prepare('SELECT * FROM anos_letivos WHERE id = ?').bind(Number(c.req.param('id'))).first<AnoLetivo>();
+  if (!a) return c.notFound();
+  const volta = (erro: string) => c.redirect(`/admin/pedagogico/anos?editar=${a.id}&erro=` + encodeURIComponent(erro));
+  if ((texto(await lerCorpo(c), 'confirmacao') ?? '').trim() !== String(a.ano)) return volta(`Ano letivo não excluído: digite o ano (${a.ano}) para confirmar.`);
+  const turmas = (await db.prepare('SELECT codigo FROM turmas WHERE ano_letivo = ? ORDER BY codigo').bind(a.ano).all<{ codigo: string }>()).results;
+  if (turmas.length) return volta(`Ano letivo não excluído: tem ${turmas.length} turma(s) em ${a.ano} (${turmas.map((t) => t.codigo).join(', ')}).`);
+  const [eventos, ajustes] = await Promise.all([
+    db.prepare('SELECT * FROM calendario_eventos WHERE ano_letivo_id = ?').bind(a.id).all(),
+    db.prepare('SELECT * FROM calendario_dias WHERE ano_letivo_id = ?').bind(a.id).all(),
+  ]);
+  await db.batch([
+    db.prepare('DELETE FROM calendario_eventos WHERE ano_letivo_id = ?').bind(a.id),
+    db.prepare('DELETE FROM calendario_dias WHERE ano_letivo_id = ?').bind(a.id),
+    db.prepare('DELETE FROM anos_letivos WHERE id = ?').bind(a.id),
+  ]);
+  await auditar(c, 'excluir', 'ano_letivo', a.id, { ano_letivo: a, eventos: eventos.results, ajustes: ajustes.results }, null);
+  return c.redirect('/admin/pedagogico/anos?ok=' + encodeURIComponent(`Ano letivo ${a.ano} e o calendário dele excluídos.`));
 });

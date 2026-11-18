@@ -33,6 +33,7 @@ export const PERMISSOES = {
   'resultados.lancar': { rotulo: 'Lançar notas e faltas (Gestão Pedagógica) — só alunos com matrícula ativa', perfis: TODOS },
   'resultados.corrigir': { rotulo: 'Secretaria: notas e faltas de qualquer aluno (inclusive matrícula não ativa)', perfis: SECRETARIA },
   'matriculas.status': { rotulo: 'Alterar o status da matrícula (transferência, desistência...)', perfis: SECRETARIA },
+  'calendario.excluir': { rotulo: 'Excluir o calendário de um ano letivo ou o ano letivo sem turmas', perfis: ADMINS },
   'pedagogico.gerenciar': { rotulo: 'Gestão pedagógica: funcionários, ano letivo, calendário, lotação e horário', perfis: TODOS },
   'relatorios.emitir': { rotulo: 'Emitir relatórios e prévias', perfis: TODOS },
   'certificados.emitir': { rotulo: 'Emitir certificados', perfis: TODOS },

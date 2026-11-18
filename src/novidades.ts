@@ -35,6 +35,25 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.13.0',
+    data: '2026-11-18',
+    novidades: [
+      {
+        titulo: 'Excluir calendário',
+        texto: 'apaga todos os feriados, recessos, eventos e ajustes à mão do ano (o ano letivo continua) — para refazer o calendário do zero. ' +
+          'Confirma digitando o ano; se algum dia com chamada deixar de ser letivo, o sistema avisa antes. Só admin master e administrador.',
+        href: '/admin/pedagogico/calendario',
+        perm: 'calendario.excluir',
+      },
+      {
+        titulo: 'Excluir ano letivo',
+        texto: 'em Ano Letivo → editar: apaga o ano e o calendário dele. Bloqueado se houver turmas no ano. Confirma digitando o ano; só admin master e administrador.',
+        href: '/admin/pedagogico/anos',
+        perm: 'calendario.excluir',
+      },
+    ],
+  },
+  {
     versao: '1.12.0',
     data: '2026-11-18',
     novidades: [

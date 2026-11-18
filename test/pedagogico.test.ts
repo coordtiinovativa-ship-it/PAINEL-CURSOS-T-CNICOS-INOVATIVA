@@ -91,7 +91,7 @@ describe('calendário', () => {
   });
 
   it('gera o calendário automaticamente e o responsável ajusta dia a dia (vale a última alteração)', async () => {
-    const { c, sqlite, env } = await pronto();
+    const { c, sqlite, env, criarUsuario, cliente } = await pronto();
     const ano = sqlite.prepare('SELECT * FROM anos_letivos WHERE ano = 2026').get() as unknown as AnoLetivo;
     const dia = (dados: Record<string, string>) => c.post(`/admin/pedagogico/calendario/${ano.id}/dia`, dados);
     const codigo = async (d: string) => {
@@ -141,10 +141,36 @@ describe('calendário', () => {
     expect(msg(r)).toContain('1 ajuste(s) à mão descartado(s)');
     expect(await codigo('2026-03-09')).toBe('L');
 
+    // excluir calendário: só admin master/administrador, confirmando o ano
+    r = await c.post(`/admin/pedagogico/calendario/${ano.id}/excluir`, { confirmacao: '2026' });
+    expect(r.status).toBe(403); // coordenador
+    await criarUsuario('adm@iect.test', 'administrador');
+    const adm = cliente(); await adm.entrar('adm@iect.test');
+    expect(await (await adm.req('/admin/pedagogico/calendario?ano=2026')).text()).toContain('Excluir o calendário de 2026');
+    expect(await (await c.req('/admin/pedagogico/calendario?ano=2026')).text()).not.toContain('Excluir o calendário de 2026');
+    await adm.post(`/admin/pedagogico/calendario/${ano.id}/dia`, { data: '2026-03-09', codigo: 'NL', descricao: 'Reunião' });
+    r = await adm.post(`/admin/pedagogico/calendario/${ano.id}/excluir`, { confirmacao: '2025' });
+    expect(msg(r)).toContain('digite o ano (2026)');
+    r = await adm.post(`/admin/pedagogico/calendario/${ano.id}/excluir`, { confirmacao: '2026' });
+    expect(msg(r)).toContain('Calendário de 2026 excluído');
+    expect(sqlite.prepare('SELECT (SELECT count(*) FROM calendario_eventos WHERE ano_letivo_id = ?1) AS ev, (SELECT count(*) FROM calendario_dias WHERE ano_letivo_id = ?1) AS aj, (SELECT calendario_gerado_em FROM anos_letivos WHERE id = ?1) AS g').get(ano.id))
+      .toEqual({ ev: 0, aj: 0, g: null });
+    expect(await codigo('2026-04-21')).toBe('L'); // sem feriados: volta ao padrão
+
+    // excluir ano letivo: bloqueado com turmas; sem turmas, apaga ano + calendário
+    r = await adm.post(`/admin/pedagogico/anos/${ano.id}/excluir`, { confirmacao: '2026' });
+    expect(msg(r)).toContain('tem 1 turma(s) em 2026 (TIDC-2026-1)');
+    expect(await (await adm.req(`/admin/pedagogico/anos?editar=${ano.id}`)).text()).toContain('não pode ser excluído');
+
     // ano letivo novo já nasce com o calendário gerado
     r = await c.post('/admin/pedagogico/anos', { ano: '2027', data_inicio: '2027-02-01', data_fim: '2027-12-17', situacao: 'aberto' });
     expect(msg(r)).toContain('Ano letivo 2027 cadastrado e calendário gerado (13 feriado(s)');
     expect(sqlite.prepare("SELECT count(*) AS n FROM calendario_eventos e JOIN anos_letivos a ON a.id = e.ano_letivo_id WHERE a.ano = 2027").get()).toEqual({ n: 13 });
+    const a27 = sqlite.prepare('SELECT id FROM anos_letivos WHERE ano = 2027').get() as { id: number };
+    r = await adm.post(`/admin/pedagogico/anos/${a27.id}/excluir`, { confirmacao: '2027' });
+    expect(msg(r)).toContain('Ano letivo 2027 e o calendário dele excluídos');
+    expect(sqlite.prepare('SELECT count(*) AS n FROM anos_letivos WHERE ano = 2027').get()).toEqual({ n: 0 });
+    expect(sqlite.prepare('SELECT count(*) AS n FROM calendario_eventos WHERE ano_letivo_id = ?').get(a27.id)).toEqual({ n: 0 });
   });
 });
 

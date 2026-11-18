@@ -392,6 +392,9 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   (editar dia, incluir/excluir evento, gerar novamente, encurtar o ano letivo) mostra antes a tela de confirmação com turmas/disciplinas
   afetadas e links do Controle de Faltas; confirmada, `removerAulasDaChamada` apaga a chamada desses dias e recalcula (disciplina sem
   nenhuma chamada fica com faltas/frequência em branco — refazer).
+- **Excluir calendário / ano letivo** (18/11/2026, permissão `calendario.excluir`: admin master e administrador; confirma digitando o ano;
+  auditoria guarda tudo no "antes"). Calendário: apaga eventos + ajustes e o "gerado em" (passa pelo alerta de lançamentos). Ano letivo:
+  bloqueado se houver turmas com esse `ano_letivo`; apaga calendário + ano.
 - **Relatórios Controle de Notas / Controle de Faltas** (padrão sysGEP, 18/11/2026): Secretaria → Relatórios, por turma + disciplina
   (`disc=c:<id>`) ou módulo (`disc=m:<id>`). Dados em `src/relatorios/controle.ts`, PDF A4 paisagem em `src/relatorios/controlePdf.ts`.
   N.C. = ordem de matrícula na turma; ID = RA; matrícula não ativa em cinza com "TRANSF. dd/mm/aaaa" (data do histórico de status).
