@@ -194,6 +194,26 @@ describe('funcionários', () => {
 });
 
 describe('lotação → horário → chamada → notas e faltas', () => {
+  it('lotação no padrão sysGEP: painel de atribuições, excluir só atribuição feita por engano', async () => {
+    const { c, sqlite, professor } = await pronto();
+    const lucas = await professor('Lucas Fictício Nunes', '529.982.247-25');
+    await c.post(`/admin/pedagogico/lotacao/atribuir${QS}`, { turma_id: '1', componente_id: '7', funcionario_id: String(lucas), data_inicio: '2026-08-03' });
+    const tela = await (await c.req(`/admin/pedagogico/lotacao${QS}`)).text();
+    expect(tela).toContain('Atribuições ativas');
+    expect(tela).toContain('LUCAS FICTÍCIO NUNES');
+    expect(tela).toContain('Histórico de atribuições');
+    const lot = (sqlite.prepare('SELECT id FROM lotacoes WHERE funcionario_id = ?').get(lucas) as { id: number }).id;
+    // com chamada registrada: não exclui
+    sqlite.prepare(`INSERT INTO aulas (turma_id, componente_id, lotacao_id, funcionario_id, data, tempo, duracao_min, registrado_por)
+      VALUES (1, 7, ?, ?, '2026-08-03', 1, 45, 't')`).run(lot, lucas);
+    let r = await c.post(`/admin/pedagogico/lotacao/${lot}/excluir${QS}`, {});
+    expect(msg(r)).toContain('Não é possível excluir');
+    sqlite.prepare('DELETE FROM aulas').run();
+    r = await c.post(`/admin/pedagogico/lotacao/${lot}/excluir${QS}`, {});
+    expect(msg(r)).toContain('excluída');
+    expect(sqlite.prepare('SELECT count(*) AS n FROM lotacoes').get()).toEqual({ n: 0 });
+  });
+
   it('fluxo completo, com regras de choque, calendário e recálculo da frequência', async () => {
     const { c, sqlite, env, professor, criarUsuario, cliente } = await pronto();
     const lucas = await professor('Lucas Fictício Nunes', '529.982.247-25');

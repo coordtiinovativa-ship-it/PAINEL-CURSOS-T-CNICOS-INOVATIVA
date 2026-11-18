@@ -231,6 +231,7 @@ const ICONES: Record<string, string> = {
   escuro: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
   senha: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>',
   voltar: '<path d="M15 18 9 12l6-6"/><path d="M9 12h11"/>',
+  bandeira: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
   sair: '<path d="M9 4H5v16h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
 };
 

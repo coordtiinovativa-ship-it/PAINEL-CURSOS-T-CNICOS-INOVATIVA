@@ -35,6 +35,34 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.17.0',
+    data: '2026-11-18',
+    melhorias: [
+      {
+        titulo: 'Lotação de Professores no padrão do sysGEP',
+        texto: 'filtros de Ano Letivo, Curso, Escola/Local, Qualificação e Turma; painel "Atribuições ativas" com Seq, ações (Trocar, ' +
+          'Encerrar com a bandeira e Excluir com a lixeira), Unidade Curricular, Professor e Data de início; botão + para incluir; ' +
+          'e painel "Histórico de atribuições" com detalhes, motivo, quem desativou e quando.',
+        href: '/admin/pedagogico/lotacao',
+        perm: 'pedagogico.gerenciar',
+      },
+    ],
+    novidades: [
+      {
+        titulo: 'Excluir atribuição feita por engano',
+        texto: 'a lixeira na lotação apaga a atribuição e o horário dela, desde que o professor não tenha chamada nem notas na disciplina ' +
+          '(nesses casos, use Encerrar ou Trocar — o histórico fica guardado).',
+        href: '/admin/pedagogico/lotacao',
+        perm: 'pedagogico.gerenciar',
+      },
+      {
+        titulo: 'Ambiente de teste para a direção',
+        texto: 'um endereço separado, com dados fictícios, para conhecer e testar todas as telas sem afetar o sistema oficial. ' +
+          'Lá aparece a faixa "AMBIENTE DE TESTE" e os documentos saem com a marca "SEM VALIDADE".',
+      },
+    ],
+  },
+  {
     versao: '1.16.0',
     data: '2026-11-18',
     novidades: [

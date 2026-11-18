@@ -343,6 +343,17 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   - Todo relatório traz **quem emitiu, data e hora** (cabeçalho do PDF/rodapé de todas as páginas) e vai para a auditoria.
   - Motor de documentos aceita `rodape` próprio (sem QR) e numera as páginas.
 
+### Ambiente de teste (homologação, 18/11/2026)
+- https://teste-certificados.institutoinovativa.org — `[env.teste]` no `wrangler.toml`: Worker `certificados-iect-teste`, D1 e R2
+  `certificados-iect-teste` próprios (mesma conta da produção). Nada ali toca a produção.
+- `AMBIENTE = "teste"` (`src/lib/ambiente.ts`): faixa "AMBIENTE DE TESTE" em todas as páginas e marca d'água
+  "AMBIENTE DE TESTE — SEM VALIDADE" nos PDFs emitidos; cookies seguros como na produção.
+- `npm run deploy:teste` publica; `npm run teste:dados` aplica migrações, carrega `seed/dev_*.sql` (se vazio), põe signatários fictícios
+  e cria/atualiza os usuários de teste (senha `IectTeste2026`): direcao@ (admin master), administrador@, coordenacao@, secretaria@ `teste.iect`.
+- Ao publicar em produção, publicar também no teste (`deploy:teste` + `teste:dados` para migrações novas).
+- 18/11/2026: dados de teste que tinham sido lançados em produção (1 aluno, turma "testte", ano letivo 2026) foram apagados
+  (backup antes). Produção ficou só com instituição, curso/matriz, signatários reais e o admin master.
+
 ### Produção (fase 7 — 16/11/2026)
 - No ar em https://certificadostecnicos.institutoinovativa.org, conta Cloudflare **Admin@institutoinovativa.org's
   Account** (`account_id` 43c07b1a… no `wrangler.toml`), onde está a zona institutoinovativa.org.
@@ -384,7 +395,9 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   (chamada: `resultados.lancar`). Rotas: `funcionarios.tsx`, `lotacao.tsx`, `horario.tsx`, `chamada.tsx`, `calendario.tsx`.
 - **Funcionários**: sem dados bancários, família e CNH do sysGEP (o sistema não usa — LGPD). Categorias (professor...);
   não inativa nem tira "professor" com lotação ativa.
-- **Lotação**: 1 ativa por disciplina da turma (índice único parcial). Trocar = encerra (data_fim = véspera, motivo) + abre nova
+- **Lotação** (tela no padrão sysGEP, 18/11/2026: filtros ano/curso/local/qualificação/turma, painel de atribuições ativas com
+  Trocar/Encerrar/Excluir em diálogos, histórico com detalhes). **Excluir** só atribuição feita por engano: sem aulas na chamada nem
+  notas com `professor_id` dele na disciplina (senão Encerrar/Trocar). 1 ativa por disciplina da turma (índice único parcial). Trocar = encerra (data_fim = véspera, motivo) + abre nova
   + passa a grade (se o novo professor não tiver choque). Histórico nunca é apagado.
 - **Horário**: `horario_tempos` por turno (editável em Tempos de aula) + `horario_aulas` (lotação, dia 1–6, tempo). Sem choque
   na turma (mesmo dia/tempo) nem no professor (sobreposição de horário). Turma precisa de turno.
