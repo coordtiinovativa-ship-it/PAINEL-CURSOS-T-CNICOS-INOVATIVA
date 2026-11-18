@@ -14,6 +14,7 @@ import { arquivo, ErroValidacao, lerCorpo, texto, type Corpo } from '../lib/form
 import { ajustarRgUnificado, formatarCPF, somenteDigitos, validarCPF } from '../lib/cpf';
 import { salvarArquivo, TIPOS_IMAGEM, TIPOS_PDF, urlArquivo } from '../lib/arquivos';
 import { dataBR } from '../lib/datas';
+import { classeStatus, ROTULO_STATUS } from '../lib/matricula';
 import { CAMPOS_ALUNO, CAMPOS_ALUNO_SIM_NAO, nomeDoAluno, OBRIGATORIOS_ALUNO, type Aluno, type CampoAluno } from '../certificado/dados';
 
 export const rotasAlunos = new Hono<Env>();
@@ -250,7 +251,7 @@ const Moldura: FC<{
 };
 
 interface PreviaOpcao { matricula_id: number; modulo_id: number; rotulo: string }
-interface MatriculaAluno { id: number; turma_id: number; turma: string; curso: string; situacao: string; data_inicio: string | null; data_fim: string | null }
+interface MatriculaAluno { id: number; turma_id: number; turma: string; curso: string; situacao: string; status: string; ultimo_status: string | null; data_inicio: string | null; data_fim: string | null }
 interface DocumentoAluno { id: number; descricao: string; nome_arquivo: string; r2_key: string; tipo: string; tamanho: number; enviado_por: string; criado_em: string }
 
 const tamanho = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1).replace('.', ',')} MB`);
@@ -361,7 +362,8 @@ async function dadosDoAluno(db: D1Database, id: number) {
         WHERE m.aluno_id = ? ORDER BY t.data_inicio DESC, mt.ordem`,
     ).bind(id).all<PreviaOpcao>(),
     db.prepare(
-      `SELECT m.id, m.turma_id, t.codigo AS turma, cu.nome AS curso, m.situacao, t.data_inicio, t.data_fim
+      `SELECT m.id, m.turma_id, t.codigo AS turma, cu.nome AS curso, m.situacao, m.status, t.data_inicio, t.data_fim,
+              (SELECT h.data || ' · ' || coalesce(h.motivo, '') FROM matricula_status_historico h WHERE h.matricula_id = m.id ORDER BY h.id DESC LIMIT 1) AS ultimo_status
          FROM matriculas m JOIN turmas t ON t.id = m.turma_id JOIN cursos cu ON cu.id = t.curso_id WHERE m.aluno_id = ? ORDER BY t.data_inicio DESC`,
     ).bind(id).all<MatriculaAluno>(),
     db.prepare('SELECT * FROM aluno_documentos WHERE aluno_id = ? AND excluido_em IS NULL ORDER BY id').bind(id).all<DocumentoAluno>(),
@@ -386,12 +388,14 @@ async function telaAluno(c: any, id: number, opcoes: { erro?: string; rascunho?:
       </section>
       <section class="painel" id="aba-matriculas">
         <table>
-          <tr><th>Turma</th><th>Curso</th><th>Período</th><th>Situação</th><th></th></tr>
+          <tr><th>Turma</th><th>Curso</th><th>Período</th><th>Status</th><th>Situação</th><th></th></tr>
           {d.matriculas.map((m) => (
             <tr>
               <td><a href={`/admin/turmas/${m.turma_id}`}>{m.turma}</a></td>
               <td>{m.curso}</td>
               <td>{m.data_inicio ? dataBR(m.data_inicio) : '?'} a {m.data_fim ? dataBR(m.data_fim) : '?'}</td>
+              <td><span class={`tag ${classeStatus(m.status)}`}>{ROTULO_STATUS[m.status] ?? m.status}</span>
+                {m.ultimo_status && <div class="muted" style="font-size:.74rem">desde {dataBR(m.ultimo_status.slice(0, 10))}{m.ultimo_status.slice(13) ? ` — ${m.ultimo_status.slice(13)}` : ''}</div>}</td>
               <td><span class="tag">{m.situacao}</span></td>
               <td><a href={`/admin/turmas/${m.turma_id}`}>resultados</a></td>
             </tr>

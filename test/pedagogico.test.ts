@@ -82,7 +82,7 @@ describe('funcionários', () => {
 
 describe('lotação → horário → chamada → notas e faltas', () => {
   it('fluxo completo, com regras de choque, calendário e recálculo da frequência', async () => {
-    const { c, sqlite, env, professor } = await pronto();
+    const { c, sqlite, env, professor, criarUsuario, cliente } = await pronto();
     const lucas = await professor('Lucas Fictício Nunes', '529.982.247-25');
     const ana = await professor('Ana Fictícia Prado', '111.444.777-35');
 
@@ -145,30 +145,59 @@ describe('lotação → horário → chamada → notas e faltas', () => {
     const ch = await (await c.req(`/admin/pedagogico/faltas?ano=2026&prof=${lucas}&data=2026-08-03`)).text();
     expect(ch).toContain('Turma TIDC-2026-1');
     expect(ch).toContain('Ana Beatriz Fictícia Souza');
-    r = await c.post(`/admin/pedagogico/faltas?ano=2026&prof=${lucas}&data=2026-08-03`, { aula: '1:1', falta_1_1_1: '1' });
-    expect(msg(r)).toContain('1 aula(s), 1 falta(s)');
+    const CH = `/admin/pedagogico/faltas?ano=2026&prof=${lucas}&data=2026-08-03`;
+    r = await c.post(CH, { aula: '1:1', falta_1_1_1: '1' }); // aula nova: grava o estado inteiro
+    expect(msg(r)).toContain('1 aula(s), 1 alteração(ões)');
     const res = (m: number) => sqlite.prepare('SELECT faltas, frequencia FROM resultados WHERE matricula_id = ? AND componente_id = 7').get(m);
     expect(res(1)).toEqual({ faltas: 1, frequencia: 99.06 }); // 100 × (1 − 0,75 h ÷ 80 h)
     expect(res(2)).toEqual({ faltas: 0, frequencia: 100 });
+    expect(sqlite.prepare('SELECT origem, professor_id, atualizado_por FROM resultados WHERE matricula_id = 1 AND componente_id = 7').get())
+      .toEqual({ origem: 'chamada', professor_id: lucas, atualizado_por: 'coord@iect.test' });
     // aula fora da grade não é aceita
     r = await c.post(`/admin/pedagogico/faltas?ano=2026&prof=${lucas}&data=2026-08-04`, { aula: '1:1' });
     expect(msg(r)).toContain('Nenhuma aula prevista');
-    // regravar a chamada sem a falta zera
-    await c.post(`/admin/pedagogico/faltas?ano=2026&prof=${lucas}&data=2026-08-03`, { aula: '1:1' });
+    // tirar a falta (célula mostrada como F, enviada como P)
+    await c.post(CH, { aula: '1:1', o_falta_1_1_1: '1', o_falta_1_1_2: '0', o_falta_1_1_3: '0' });
     expect(res(1)).toEqual({ faltas: 0, frequencia: 100 });
-    await c.post(`/admin/pedagogico/faltas?ano=2026&prof=${lucas}&data=2026-08-03`, { aula: '1:1', falta_1_1_1: '1' });
+    // vale a última digitação: tela aberta com o aluno 1 presente; enquanto isso a secretaria marcou falta no aluno 2;
+    // o professor marca falta no aluno 1 e salva sem mexer no aluno 2 → as duas faltas ficam
+    const SEC = `/admin/faltas?ano=2026&turma=1&data=2026-08-03`;
+    sqlite.exec(`INSERT INTO faltas_aula (aula_id, matricula_id) SELECT id, 2 FROM aulas WHERE turma_id = 1 AND data = '2026-08-03' AND tempo = 1`);
+    await c.post(CH, { aula: '1:1', o_falta_1_1_1: '0', falta_1_1_1: '1', o_falta_1_1_2: '0', o_falta_1_1_3: '0' });
+    expect(res(1)).toEqual({ faltas: 1, frequencia: 99.06 });
+    expect(res(2)).toEqual({ faltas: 1, frequencia: 99.06 }); // a falta lançada pela outra pessoa não foi desfeita
+    // Secretaria → Faltas (por turma e dia) corrige; coordenador não acessa
+    expect((await c.req(SEC)).status).toBe(403);
+    await criarUsuario('sec@iect.test', 'secretaria');
+    const sec = cliente(); await sec.entrar('sec@iect.test');
+    const telaSec = await (await sec.req(SEC)).text();
+    expect(telaSec).toContain('Lucas Fictício Nunes'); // professor da aula aparece para a secretaria
+    r = await sec.post(SEC, { aula: '1:1', o_falta_1_1_2: '1' }); // tirou a falta do aluno 2
+    expect(msg(r)).toContain('1 alteração(ões)');
+    expect(res(2)).toEqual({ faltas: 0, frequencia: 100 });
+    expect(sqlite.prepare('SELECT origem, atualizado_por FROM resultados WHERE matricula_id = 2 AND componente_id = 7').get())
+      .toEqual({ origem: 'secretaria', atualizado_por: 'sec@iect.test' });
 
-    // Notas e Faltas: professor da lotação, horário da grade, faltas da chamada (não digitáveis)
-    const lista = await (await c.req('/admin/diario/1/2')).text();
-    expect(lista).toContain('Lucas Fictício Nunes');
-    expect(lista).toContain('Seg 1º');
-    expect(lista).toContain('45 min');
-    const disc = await (await c.req('/admin/diario/1/2/7')).text();
-    expect(disc).toContain('vêm da <a href="/admin/pedagogico/faltas">chamada</a>');
-    expect(disc).not.toContain('name="faltas_1"');
-    r = await c.post('/admin/diario/1/2/7', { faltas_1: '30', nota_1: '8' });
-    expect(res(1)).toEqual({ faltas: 1, frequencia: 99.06 }); // faltas digitadas ignoradas
-    expect((sqlite.prepare('SELECT nota FROM resultados WHERE matricula_id = 1 AND componente_id = 7').get() as any).nota).toBe(8);
+    // aluno com matrícula não ativa: bloqueado na chamada do professor (falta enviada é ignorada); a secretaria corrige
+    sqlite.exec(`UPDATE matriculas SET status = 'transferido' WHERE id = 3`);
+    const telaProf = await (await c.req(CH)).text();
+    expect(telaProf).toContain('só a Secretaria corrige');
+    expect(telaProf).not.toContain('name="falta_1_1_3"');
+    await c.post(CH, { aula: '1:1', o_falta_1_1_3: '0', falta_1_1_3: '1' });
+    expect(res(3)).toEqual({ faltas: 0, frequencia: 100 });
+    expect(await (await sec.req(SEC)).text()).toContain('name="falta_1_1_3"');
+    await sec.post(SEC, { aula: '1:1', o_falta_1_1_3: '0', falta_1_1_3: '1' });
+    expect(res(3)).toEqual({ faltas: 1, frequencia: 99.06 });
+
+    // Notas (Gestão Pedagógica): professor da lotação; faltas vêm da chamada (só leitura); nota vinculada ao professor
+    const NT = '/admin/pedagogico/notas?ano=2026&turma=1&modulo=2&disciplina=7';
+    const telaNotas = await (await c.req(NT)).text();
+    expect(telaNotas).toContain('Lucas Fictício Nunes');
+    expect(telaNotas).toContain('da chamada (1 aula(s))');
+    expect(telaNotas).not.toContain('name="faltas_1"');
+    r = await c.post(NT, { o_nota_1: '', nota_1: '8', faltas_1: '30' });
+    expect(res(1)).toEqual({ faltas: 1, frequencia: 99.06 }); // faltas no formulário são ignoradas
+    expect(sqlite.prepare('SELECT nota, professor_id FROM resultados WHERE matricula_id = 1 AND componente_id = 7').get()).toEqual({ nota: 8, professor_id: lucas });
 
     // trocar professor: encerra a lotação, abre outra e passa o horário
     r = await c.post(`/admin/pedagogico/lotacao/${lotLucas}/trocar${QS}`, { funcionario_id: String(ana), data: '2026-09-14', motivo: 'licença' });

@@ -17,6 +17,8 @@ export const ROTULO_PERFIL: Record<Perfil, string> = {
 const TODOS: Perfil[] = PERFIS;
 const ADMINS: Perfil[] = ['admin_master', 'administrador'];
 const MASTER: Perfil[] = ['admin_master'];
+/** Secretaria escolar (e os administradores): correções e vida acadêmica do aluno */
+const SECRETARIA: Perfil[] = ['admin_master', 'administrador', 'secretaria'];
 
 export const PERMISSOES = {
   'usuarios.gerenciar': { rotulo: 'Gerenciar usuários e perfis', perfis: MASTER },
@@ -28,7 +30,9 @@ export const PERMISSOES = {
   'alunos.excluir': { rotulo: 'Excluir aluno sem matrícula', perfis: ADMINS },
   'turmas.editar': { rotulo: 'Cadastrar turmas e matricular alunos', perfis: TODOS },
   'turmas.excluir': { rotulo: 'Excluir turma cadastrada por engano (sem documentos emitidos)', perfis: ADMINS },
-  'resultados.lancar': { rotulo: 'Lançar notas e frequência', perfis: TODOS },
+  'resultados.lancar': { rotulo: 'Lançar notas e faltas (Gestão Pedagógica) — só alunos com matrícula ativa', perfis: TODOS },
+  'resultados.corrigir': { rotulo: 'Secretaria: notas e faltas de qualquer aluno (inclusive matrícula não ativa)', perfis: SECRETARIA },
+  'matriculas.status': { rotulo: 'Alterar o status da matrícula (transferência, desistência...)', perfis: SECRETARIA },
   'pedagogico.gerenciar': { rotulo: 'Gestão pedagógica: funcionários, ano letivo, calendário, lotação e horário', perfis: TODOS },
   'relatorios.emitir': { rotulo: 'Emitir relatórios e prévias', perfis: TODOS },
   'certificados.emitir': { rotulo: 'Emitir certificados', perfis: TODOS },

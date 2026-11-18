@@ -39,7 +39,7 @@ export async function listarPendentes(db: D1Database, turmaId?: number): Promise
          JOIN alunos a ON a.id = m.aluno_id
          JOIN modulos_tematicos mt ON mt.matriz_id = t.matriz_id AND mt.tem_terminalidade = 1
          JOIN turma_modulos tm ON tm.turma_id = t.id AND tm.modulo_id = mt.id AND tm.situacao <> 'planejado'
-        WHERE m.situacao <> 'desistente' ${filtroTurma}
+        WHERE m.status <> 'cancelada' ${filtroTurma}
         ORDER BY t.codigo, mt.ordem, CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`,
     ).bind(...binds).all<Record<string, any>>(),
     db.prepare('SELECT id, modulo_id, nome FROM componentes_curriculares WHERE modulo_id IS NOT NULL ORDER BY ordem').all<{ id: number; modulo_id: number; nome: string }>(),

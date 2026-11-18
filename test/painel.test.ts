@@ -190,26 +190,33 @@ describe('cadastros com auditoria', () => {
     expect(amb.auditoria().filter((a) => a.acao === 'atualizar_parametros')).toHaveLength(2);
   });
 
-  it('lançar notas grava resultado AP/RP e audita as alterações', async () => {
+  it('lançar notas (Secretaria → Notas) grava resultado AP/RP, vincula o professor e audita as alterações', async () => {
     const amb = await criarAmbiente({ ficticios: true });
+    // professor lotado em Design Thinking (disciplina 7, módulo 2) e frequência já apurada
+    amb.sqlite.exec(`INSERT INTO funcionarios (id, nome, cpf) VALUES (1, 'Prof. Fictício', '52998224725');
+      INSERT INTO funcionario_categorias VALUES (1, 'professor');
+      INSERT INTO lotacoes (turma_id, componente_id, funcionario_id, data_inicio) VALUES (1, 7, 1, '2026-08-03');
+      INSERT INTO resultados (matricula_id, componente_id, frequencia) VALUES (1, 7, 90), (2, 7, 80);`);
     await amb.criarUsuario('sec@iect.test', 'secretaria');
     const c = amb.cliente();
     await c.entrar('sec@iect.test');
-    const r = await c.post('/admin/turmas/1/modulos/2/disciplinas/7', {
-      nota_1: '8,5', freq_1: '90', nota_2: '5', exame_2: '4', freq_2: '80', nota_3: '', freq_3: '',
+    // antes da antiga tela por disciplina: agora leva para Notas
+    expect((await c.req('/admin/turmas/1/modulos/2/disciplinas/7')).headers.get('Location')).toBe('/admin/notas?turma=1&modulo=2&disciplina=7');
+    const r = await c.post('/admin/notas?ano=2026&turma=1&modulo=2&disciplina=7', {
+      o_nota_1: '', nota_1: '8,5', o_nota_2: '', nota_2: '5', o_exame_2: '', exame_2: '4', o_nota_3: '', nota_3: '',
     });
-    expect(r.status).toBe(302);
-    const res = amb.sqlite.prepare('SELECT matricula_id, nota, resultado FROM resultados WHERE componente_id = 7 ORDER BY matricula_id').all();
+    expect(decodeURIComponent(r.headers.get('Location')!)).toContain('2 aluno(s) atualizado(s)');
+    const res = amb.sqlite.prepare('SELECT matricula_id, nota, resultado, professor_id, origem, atualizado_por FROM resultados WHERE componente_id = 7 ORDER BY matricula_id').all();
     expect(res.map((x: any) => ({ ...x }))).toEqual([
-      { matricula_id: 1, nota: 8.5, resultado: 'AP' },
-      { matricula_id: 2, nota: 5, resultado: 'RP' },
+      { matricula_id: 1, nota: 8.5, resultado: 'AP', professor_id: 1, origem: 'secretaria', atualizado_por: 'sec@iect.test' },
+      { matricula_id: 2, nota: 5, resultado: 'RP', professor_id: 1, origem: 'secretaria', atualizado_por: 'sec@iect.test' },
     ]);
     const a = amb.auditoria().at(-1)!;
-    expect(a.acao).toBe('lancar_resultados');
+    expect(a.acao).toBe('lancar_notas');
     expect(JSON.parse(a.depois_json!).alteracoes).toHaveLength(2);
     // nota fora do intervalo
-    const r2 = await c.post('/admin/turmas/1/modulos/2/disciplinas/7', { nota_1: '11' });
-    expect(r2.headers.get('Location')).toMatch(/erro=/);
+    const r2 = await c.post('/admin/notas?ano=2026&turma=1&modulo=2&disciplina=7', { o_nota_1: '8,5', nota_1: '11' });
+    expect(decodeURIComponent(r2.headers.get('Location')!)).toContain('fora do intervalo 0–10');
   });
 });
 

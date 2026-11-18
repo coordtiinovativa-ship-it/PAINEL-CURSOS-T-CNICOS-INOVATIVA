@@ -163,6 +163,7 @@ export async function validarAulaGrade(db: D1Database, lotacaoId: number, dia: n
 // ------------------------------------------------------------------ datas de aula (chamada)
 export interface AulaPrevista {
   data: string; turma_id: number; turma: string; componente_id: number; componente: string; lotacao_id: number;
+  funcionario_id: number; professor: string;
   tempo: number; hora_inicio: string; hora_fim: string; duracao_min: number;
 }
 
@@ -171,16 +172,28 @@ export interface AulaPrevista {
  * encerradas) dentro dos períodos da lotação e do módulo da turma (em andamento/concluído), em dias letivos.
  */
 export async function aulasPrevistasDoProfessor(db: D1Database, funcionarioId: number, ano: AnoLetivo, ate: string): Promise<AulaPrevista[]> {
+  return aulasPrevistas(db, { funcionarioId }, ano, ate);
+}
+
+/** Aulas previstas da turma (todos os professores) — usada na correção de faltas pela Secretaria. */
+export async function aulasPrevistasDaTurma(db: D1Database, turmaId: number, ano: AnoLetivo, ate: string): Promise<AulaPrevista[]> {
+  return aulasPrevistas(db, { turmaId }, ano, ate);
+}
+
+async function aulasPrevistas(db: D1Database, filtro: { funcionarioId?: number; turmaId?: number }, ano: AnoLetivo, ate: string): Promise<AulaPrevista[]> {
   const grade = (await db.prepare(
     `SELECT ha.lotacao_id, ha.dia_semana, ha.tempo, l.turma_id, t.codigo AS turma, l.componente_id, cc.nome AS componente,
+            l.funcionario_id, f.nome AS professor,
             ht.hora_inicio, ht.hora_fim, l.data_inicio AS l_ini, l.data_fim AS l_fim,
             tm.data_inicio AS m_ini, tm.data_fim AS m_fim, tm.situacao AS m_sit
        FROM horario_aulas ha JOIN lotacoes l ON l.id = ha.lotacao_id JOIN turmas t ON t.id = l.turma_id
+       JOIN funcionarios f ON f.id = l.funcionario_id
        JOIN componentes_curriculares cc ON cc.id = l.componente_id
        JOIN horario_tempos ht ON ht.turno = t.turno AND ht.numero = ha.tempo
        LEFT JOIN turma_modulos tm ON tm.turma_id = l.turma_id AND tm.modulo_id = cc.modulo_id
-      WHERE l.funcionario_id = ? AND t.ano_letivo = ?`,
-  ).bind(funcionarioId, ano.ano).all<AulaGrade & { l_ini: string; l_fim: string | null; m_ini: string | null; m_fim: string | null; m_sit: string | null }>()).results;
+      WHERE ${filtro.funcionarioId ? 'l.funcionario_id' : 'l.turma_id'} = ? AND t.ano_letivo = ?`,
+  ).bind(filtro.funcionarioId ?? filtro.turmaId, ano.ano)
+    .all<AulaGrade & { professor: string; l_ini: string; l_fim: string | null; m_ini: string | null; m_fim: string | null; m_sit: string | null }>()).results;
   if (!grade.length) return [];
   const nao = await diasNaoLetivos(db, ano.id);
   const out: AulaPrevista[] = [];
@@ -192,7 +205,7 @@ export async function aulasPrevistasDoProfessor(db: D1Database, funcionarioId: n
     for (const d of diasEntre(ini, fim)) {
       if (diaDaSemana(d) !== g.dia_semana || nao.has(d)) continue;
       out.push({ data: d, turma_id: g.turma_id, turma: g.turma, componente_id: g.componente_id, componente: g.componente, lotacao_id: g.lotacao_id,
-        tempo: g.tempo, hora_inicio: g.hora_inicio!, hora_fim: g.hora_fim!, duracao_min: minutosEntre(g.hora_inicio!, g.hora_fim!) });
+        funcionario_id: g.funcionario_id, professor: g.professor, tempo: g.tempo, hora_inicio: g.hora_inicio!, hora_fim: g.hora_fim!, duracao_min: minutosEntre(g.hora_inicio!, g.hora_fim!) });
     }
   }
   return out.sort((a, b) => a.data.localeCompare(b.data) || a.hora_inicio.localeCompare(b.hora_inicio) || a.turma.localeCompare(b.turma));
@@ -203,7 +216,10 @@ export async function aulasPrevistasDoProfessor(db: D1Database, funcionarioId: n
  * Recalcula faltas e frequência da disciplina na turma a partir da chamada. Sem nenhuma aula registrada na chamada,
  * não mexe em nada (vale o lançamento manual/importação). Devolve o nº de alunos atualizados.
  */
-export async function recalcularFrequenciaDaChamada(db: D1Database, turmaId: number, componenteId: number): Promise<number> {
+export async function recalcularFrequenciaDaChamada(
+  db: D1Database, turmaId: number, componenteId: number,
+  quem: { usuario: string; origem?: string; professorId?: number | null } = { usuario: 'sistema' },
+): Promise<number> {
   const registradas = await db.prepare('SELECT count(*) AS n FROM aulas WHERE turma_id = ? AND componente_id = ?').bind(turmaId, componenteId).first<{ n: number }>();
   if (!registradas?.n) return 0;
   const [cc, curso, linhas] = await Promise.all([
@@ -224,11 +240,20 @@ export async function recalcularFrequenciaDaChamada(db: D1Database, turmaId: num
     const freq = Math.max(0, Math.round(100 * (1 - l.minutos / 60 / cc.ch) * 100) / 100);
     if (l.resultado_id && l.faltas_antes === l.faltas && l.freq_antes === freq) continue;
     const av = avaliarDisciplina({ componente: cc.nome, nota: l.nota ?? null, notaExameFinal: l.nota_exame_final ?? null, frequencia: freq }, criterios);
+    const origem = quem.origem ?? 'chamada';
     cmds.push(db.prepare(
-      `INSERT INTO resultados (matricula_id, componente_id, faltas, frequencia, resultado) VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO resultados (matricula_id, componente_id, faltas, frequencia, resultado, atualizado_por, origem, professor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (matricula_id, componente_id) DO UPDATE SET faltas = excluded.faltas, frequencia = excluded.frequencia,
-         resultado = excluded.resultado, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
-    ).bind(l.matricula_id, componenteId, l.faltas, freq, av.resultado === 'PENDENTE' ? null : av.resultado));
+         resultado = excluded.resultado, atualizado_por = excluded.atualizado_por, origem = excluded.origem,
+         professor_id = coalesce(excluded.professor_id, resultados.professor_id), atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
+    ).bind(l.matricula_id, componenteId, l.faltas, freq, av.resultado === 'PENDENTE' ? null : av.resultado, quem.usuario, origem, quem.professorId ?? null));
+    // histórico do que mudou (vale a última chamada salva)
+    for (const [campo, a, n] of [['faltas', l.faltas_antes ?? null, l.faltas], ['frequencia', l.freq_antes ?? null, freq]] as const) {
+      if (a === n) continue;
+      cmds.push(db.prepare(
+        'INSERT INTO resultados_historico (matricula_id, componente_id, campo, valor_anterior, valor_novo, origem, professor_id, usuario) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      ).bind(l.matricula_id, componenteId, campo, a, n, origem, quem.professorId ?? null, quem.usuario));
+    }
   }
   if (cmds.length) await db.batch(cmds);
   return cmds.length;

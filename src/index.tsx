@@ -24,13 +24,13 @@ import { limitarPorIP } from './lib/limite';
 import { rotasDocumentos } from './rotas/documentos';
 import { rotasImportacao } from './rotas/importacao';
 import { rotasRelatorios } from './rotas/relatorios';
-import { rotasDiario } from './rotas/diario';
+import { rotasFaltasTotal, rotasNotasProfessor, rotasNotasSecretaria } from './rotas/lancamentos';
 import { rotasNovidades } from './rotas/novidades';
 import { rotasFuncionarios } from './rotas/funcionarios';
 import { rotasCalendario } from './rotas/calendario';
 import { rotasLotacao } from './rotas/lotacao';
 import { rotasHorario } from './rotas/horario';
-import { rotasChamada } from './rotas/chamada';
+import { rotasChamada, rotasFaltasSecretaria } from './rotas/chamada';
 
 export type { Env } from './tipos';
 
@@ -80,13 +80,20 @@ app.route('/admin/modelo', rotasModelo);
 app.route('/admin/documentos', rotasDocumentos);
 app.route('/admin/importacao', rotasImportacao);
 app.route('/admin/relatorios', rotasRelatorios);
-app.route('/admin/diario', rotasDiario);
+// Secretaria → Notas / Faltas (a antiga "Notas e Faltas" foi desmembrada em 18/11/2026)
+app.route('/admin/notas', rotasNotasSecretaria);
+app.route('/admin/faltas/total', rotasFaltasTotal);
+app.route('/admin/faltas', rotasFaltasSecretaria);
+app.get('/admin/diario', (c) => c.redirect('/admin/notas'));
+app.get('/admin/diario/:turma{[0-9]+}/:modulo{[0-9]+}/:comp{[0-9]+}?', (c) =>
+  c.redirect(`/admin/notas?turma=${c.req.param('turma')}&modulo=${c.req.param('modulo')}&disciplina=${c.req.param('comp') ?? ''}`));
 app.route('/admin/novidades', rotasNovidades);
 // Gestão Pedagógica
 app.route('/admin/pedagogico/funcionarios', rotasFuncionarios);
 app.route('/admin/pedagogico/lotacao', rotasLotacao);
 app.route('/admin/pedagogico/horario', rotasHorario);
 app.route('/admin/pedagogico/faltas', rotasChamada);
+app.route('/admin/pedagogico/notas', rotasNotasProfessor);
 app.route('/admin/pedagogico', rotasCalendario); // /anos e /calendario
 
 // Arquivos privados do R2 (logos, assinaturas, portarias) — somente usuários logados

@@ -35,6 +35,40 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.11.0',
+    data: '2026-11-18',
+    novidades: [
+      {
+        titulo: 'Lançamento de Notas (Gestão Pedagógica)',
+        texto: 'o coordenador escolhe a turma, o módulo e a disciplina e lança as notas de todos os alunos. Toda nota fica vinculada ao professor da disciplina (lotação). ' +
+          'Alunos com matrícula não ativa aparecem bloqueados: a correção deles é só pela Secretaria.',
+        href: '/admin/pedagogico/notas',
+        perm: 'resultados.lancar',
+      },
+      {
+        titulo: 'Status da matrícula',
+        texto: 'Ativa, Desistente, Transferido, Matrícula cancelada, Falecido(a) e Transferência interna. Todo aluno entra como Ativa; ' +
+          'a Secretaria altera na tela da turma (botão Status), informando a data e o motivo, e o histórico fica guardado.',
+        href: '/admin/turmas',
+        perm: 'matriculas.status',
+      },
+    ],
+    melhorias: [
+      {
+        titulo: 'Secretaria: Notas e Faltas separados',
+        texto: 'o antigo "Notas e Faltas" virou dois itens. Em Faltas, a Secretaria corrige a chamada por turma e dia ou, em disciplina sem chamada, o total de faltas. ' +
+          'A Secretaria corrige qualquer aluno, inclusive com matrícula não ativa.',
+        href: '/admin/notas',
+        perm: 'resultados.corrigir',
+      },
+      {
+        titulo: 'Vale a última digitação',
+        texto: 'se a Secretaria e o professor estiverem lançando ao mesmo tempo, cada um só grava o que mudou na própria tela e prevalece quem salvou por último — ninguém desfaz o que o outro digitou. ' +
+          'Cada nota e falta guarda quem alterou, quando, de onde (Gestão Pedagógica, Secretaria, chamada ou planilha) e o histórico das alterações. Os documentos usam sempre o valor mais recente.',
+      },
+    ],
+  },
+  {
     versao: '1.10.0',
     data: '2026-11-17',
     melhorias: [

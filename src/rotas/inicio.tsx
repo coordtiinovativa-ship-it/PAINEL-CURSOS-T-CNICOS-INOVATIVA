@@ -24,7 +24,7 @@ rotasInicio.get('/', async (c) => {
   const [contagens, alunosIncompletos, signatarios, inst] = await Promise.all([
     db.prepare(
       `SELECT (SELECT count(*) FROM alunos) AS alunos, (SELECT count(*) FROM turmas) AS turmas,
-              (SELECT count(*) FROM matriculas WHERE situacao = 'cursando') AS cursando,
+              (SELECT count(*) FROM matriculas WHERE status = 'ativa') AS cursando,
               (SELECT count(*) FROM certificados WHERE status = 'válido') AS certificados`,
     ).first<Record<string, number>>(),
     db.prepare(`SELECT count(*) AS n FROM alunos WHERE ${condFaltante}`).first<{ n: number }>(),

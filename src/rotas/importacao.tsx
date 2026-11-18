@@ -339,7 +339,7 @@ rotasImportacao.post('/:id{[0-9]+}/aplicar', async (c) => {
       detalhes = al.linhas.filter((l) => l.acao === 'novo' || l.acao === 'atualizar').map((l) => ({ cpf: l.cpf, acao: l.acao, mudancas: l.mudancas }));
     } else {
       const an = a as AnaliseNotas;
-      await aplicarNotas(db, an, await criteriosDaTurma(db, imp.turma_id!));
+      await aplicarNotas(db, an, await criteriosDaTurma(db, imp.turma_id!), c.get('usuario').email);
       const validas = an.linhas.filter((l) => !l.erros.length);
       resumo = { alunos: validas.filter((l) => l.alteracoes.length).length, disciplinas_alteradas: validas.reduce((s, l) => s + l.alteracoes.length, 0), linhas_com_erro: an.linhas.length - validas.length };
       detalhes = validas.filter((l) => l.alteracoes.length).map((l) => ({ matricula_id: l.matriculaId, aluno: l.aluno, alteracoes: l.alteracoes }));

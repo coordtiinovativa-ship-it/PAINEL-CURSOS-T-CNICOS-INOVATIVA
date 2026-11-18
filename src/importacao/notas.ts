@@ -20,7 +20,7 @@ const SUFIXOS: [RegExp, Campo][] = [
 const campoPorTexto = (s: string): Campo | null => SUFIXOS.find(([re]) => re.test(s))?.[1] ?? null;
 
 interface Componente { id: number; nome: string; ch: number }
-interface Matricula { id: number; aluno_id: number; cpf: string; ra: string | null; nome_civil: string; nome_social: string | null; usar_nome_social: number }
+interface Matricula { id: number; aluno_id: number; status: string; cpf: string; ra: string | null; nome_civil: string; nome_social: string | null; usar_nome_social: number }
 type Valores = { nota: number | null; exame: number | null; freq: number | null };
 
 export interface Alteracao { componenteId: number; disciplina: string; antes: Valores; depois: Valores }
@@ -48,8 +48,9 @@ async function contexto(db: D1Database, turmaId: number, moduloId: number) {
   if (!turma) throw new ErroValidacao('Turma ou módulo inválido.');
   const [comps, mats, res] = await Promise.all([
     db.prepare('SELECT id, nome, carga_horaria_total AS ch FROM componentes_curriculares WHERE modulo_id = ? ORDER BY ordem').bind(moduloId).all<Componente>(),
-    db.prepare(`SELECT m.id, m.aluno_id, a.cpf, a.ra, a.nome_civil, a.nome_social, a.usar_nome_social FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
-                 WHERE m.turma_id = ? AND m.situacao <> 'desistente' ORDER BY CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`).bind(turmaId).all<Matricula>(),
+    // a importação é da Secretaria: entram todos os alunos da turma, inclusive com matrícula não ativa
+    db.prepare(`SELECT m.id, m.aluno_id, m.status, a.cpf, a.ra, a.nome_civil, a.nome_social, a.usar_nome_social FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
+                 WHERE m.turma_id = ? ORDER BY CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`).bind(turmaId).all<Matricula>(),
     db.prepare(`SELECT r.* FROM resultados r JOIN matriculas m ON m.id = r.matricula_id WHERE m.turma_id = ?
                  AND r.componente_id IN (SELECT id FROM componentes_curriculares WHERE modulo_id = ?)`).bind(turmaId, moduloId).all<Record<string, any>>(),
   ]);
@@ -180,7 +181,7 @@ export async function analisarNotas(db: D1Database, tabela: Tabela, turmaId: num
   }
 
   const linhas = [...linhasPorMat.values(), ...semAluno].sort((a, b) => a.linha - b.linha);
-  const ausentes = mats.filter((m) => !linhasPorMat.has(m.id)).map(nomeDe);
+  const ausentes = mats.filter((m) => !linhasPorMat.has(m.id) && m.status === 'ativa').map(nomeDe);
   const comAval = linhas.filter((l) => l.avaliacao);
   return {
     formato: iDisc >= 0 ? 'longo' : 'largo',
@@ -199,19 +200,36 @@ export async function analisarNotas(db: D1Database, tabela: Tabela, turmaId: num
 }
 
 /** Grava as alterações (linhas sem erro), recalculando AP/RP, em um lote atômico. */
-export async function aplicarNotas(db: D1Database, analise: AnaliseNotas, criterios: CriteriosAprovacao) {
+export async function aplicarNotas(db: D1Database, analise: AnaliseNotas, criterios: CriteriosAprovacao, usuario = 'importacao') {
   const cmds: D1PreparedStatement[] = [];
+  // professor da disciplina (lotação ativa) para vincular o lançamento, como nas telas
+  const turmaId = analise.linhas.find((l) => l.matriculaId)?.matriculaId
+    ? (await db.prepare('SELECT turma_id FROM matriculas WHERE id = ?').bind(analise.linhas.find((l) => l.matriculaId)!.matriculaId).first<{ turma_id: number }>())?.turma_id
+    : null;
+  const professores = new Map(turmaId
+    ? (await db.prepare('SELECT componente_id, funcionario_id FROM lotacoes WHERE turma_id = ? AND data_fim IS NULL').bind(turmaId)
+        .all<{ componente_id: number; funcionario_id: number }>()).results.map((x) => [x.componente_id, x.funcionario_id])
+    : []);
   for (const l of analise.linhas) {
     if (l.erros.length || !l.matriculaId) continue;
     for (const a of l.alteracoes) {
       const av = avaliarDisciplina({ componente: a.disciplina, nota: a.depois.nota, notaExameFinal: a.depois.exame, frequencia: a.depois.freq }, criterios);
+      const prof = professores.get(a.componenteId) ?? null;
       cmds.push(
         db.prepare(
-          `INSERT INTO resultados (matricula_id, componente_id, nota, nota_exame_final, frequencia, resultado) VALUES (?, ?, ?, ?, ?, ?)
+          `INSERT INTO resultados (matricula_id, componente_id, nota, nota_exame_final, frequencia, resultado, atualizado_por, origem, professor_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'importacao', ?)
            ON CONFLICT (matricula_id, componente_id) DO UPDATE SET nota = excluded.nota, nota_exame_final = excluded.nota_exame_final,
-             frequencia = excluded.frequencia, resultado = excluded.resultado, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
-        ).bind(l.matriculaId, a.componenteId, a.depois.nota, a.depois.exame, a.depois.freq, av.resultado === 'PENDENTE' ? null : av.resultado),
+             frequencia = excluded.frequencia, resultado = excluded.resultado, atualizado_por = excluded.atualizado_por, origem = excluded.origem,
+             professor_id = coalesce(excluded.professor_id, resultados.professor_id), atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
+        ).bind(l.matriculaId, a.componenteId, a.depois.nota, a.depois.exame, a.depois.freq, av.resultado === 'PENDENTE' ? null : av.resultado, usuario, prof),
       );
+      for (const [campo, antes, depois] of [['nota', a.antes.nota, a.depois.nota], ['exame', a.antes.exame, a.depois.exame], ['frequencia', a.antes.freq, a.depois.freq]] as const) {
+        if (antes === depois) continue;
+        cmds.push(db.prepare(
+          `INSERT INTO resultados_historico (matricula_id, componente_id, campo, valor_anterior, valor_novo, origem, professor_id, usuario) VALUES (?, ?, ?, ?, ?, 'importacao', ?, ?)`,
+        ).bind(l.matriculaId, a.componenteId, campo, antes, depois, prof, usuario));
+      }
     }
   }
   if (cmds.length) await db.batch(cmds);

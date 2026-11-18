@@ -8,14 +8,16 @@ import { ErroValidacao, inteiro, lerCorpo, numBR, numero, texto } from '../lib/f
 import { dataBR } from '../lib/datas';
 import { formatarCPF } from '../lib/cpf';
 import { avaliarDisciplina, criteriosDoCurso, ROTULO_METODO } from '../lib/aprovacao';
-import { nomeDoAluno } from '../certificado/dados';
+import { hojeMS, nomeDoAluno } from '../certificado/dados';
+import { alterarStatus, classeStatus, ROTULO_STATUS, STATUS_MATRICULA } from '../lib/matricula';
 import { exigirModuloIniciado, garantirModulosDaTurma, modulosDaTurma, moduloNaTurma, ROTULO_SITUACAO, validarMudanca, type SituacaoModulo } from '../lib/turmaModulos';
 
 export const rotasTurmas = new Hono<Env>();
 rotasTurmas.use('*', exigir('turmas.editar'));
 
 const TURNOS: [string, string][] = [['matutino', 'Matutino'], ['vespertino', 'Vespertino'], ['noturno', 'Noturno'], ['integral', 'Integral']];
-const SITUACOES: [string, string][] = [['cursando', 'Cursando'], ['concluído', 'Concluído'], ['reprovado', 'Reprovado'], ['desistente', 'Desistente']];
+/** Situação acadêmica (o vínculo — ativa, desistente, transferido... — é o STATUS da matrícula, src/lib/matricula.ts). */
+const SITUACOES: [string, string][] = [['cursando', 'Cursando'], ['concluído', 'Concluído'], ['reprovado', 'Reprovado']];
 
 rotasTurmas.get('/', async (c) => {
   const turmas = (
@@ -169,6 +171,10 @@ span.botao.desligado{background:var(--superficie-2);color:var(--texto-2);border:
 .sit{display:inline-block;padding:.1rem .55rem;border-radius:999px;font-size:.76rem;font-weight:650}
 .sit.cursando{background:rgba(37,160,220,.15);color:var(--link)} .sit.concluído{background:var(--ok-bg);color:var(--ok)}
 .sit.reprovado{background:var(--erro-bg);color:var(--erro)} .sit.desistente{background:var(--th);color:var(--texto-2)}
+details.status-mat{display:inline-block;margin-right:.3rem;vertical-align:top}
+details.status-mat summary{list-style:none;padding:.3rem .7rem;font-size:.82rem}
+details.status-mat summary::-webkit-details-marker{display:none}
+details.status-mat form{display:grid;gap:.4rem;margin-top:.4rem;padding:.6rem;border:1px solid var(--borda);border-radius:10px;background:var(--superficie-2);min-width:240px}
 .linha-acoes{display:flex;gap:.35rem;align-items:center;justify-content:flex-end}
 .linha-acoes form{margin:0;display:flex;gap:.35rem;align-items:center}
 .linha-acoes select{padding:.28rem .4rem;font-size:.84rem}
@@ -204,8 +210,10 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
   const db = c.env.DB;
   const matriculas = (
     await db.prepare(
-      `SELECT m.*, a.nome_civil, a.nome_social, a.usar_nome_social, a.cpf, a.ra FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
-        WHERE m.turma_id = ? ORDER BY CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`,
+      `SELECT m.*, a.nome_civil, a.nome_social, a.usar_nome_social, a.cpf, a.ra,
+              (SELECT h.data || ' · ' || coalesce(h.motivo, '') FROM matricula_status_historico h WHERE h.matricula_id = m.id ORDER BY h.id DESC LIMIT 1) AS ultimo_status
+         FROM matriculas m JOIN alunos a ON a.id = m.aluno_id
+        WHERE m.turma_id = ? ORDER BY m.status <> 'ativa', CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END`,
     ).bind(t.id).all<Record<string, any>>()
   ).results;
   const disponiveis = (
@@ -219,7 +227,8 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
   const editar = pode(u.perfil, 'turmas.editar');
   const atual = modulos.find((m) => m.situacao === 'em_andamento');
   const concluidos = modulos.filter((m) => m.situacao === 'concluido').length;
-  const ativos = matriculas.filter((m) => m.situacao === 'cursando').length;
+  const ativos = matriculas.filter((m) => m.status === 'ativa').length;
+  const podeStatus = pode(u.perfil, 'matriculas.status');
   const turnos: Record<string, string> = Object.fromEntries(TURNOS);
   const { emitidos, qtdResultados } = await contarVinculos(db, t.id);
 
@@ -246,7 +255,7 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
       </div>
 
       <div class="resumo-turma">
-        <div class="cartao"><span>Alunos matriculados</span><b>{matriculas.length}</b><span>{ativos} cursando</span></div>
+        <div class="cartao"><span>Alunos matriculados</span><b>{matriculas.length}</b><span>{ativos} com matrícula ativa</span></div>
         <div class="cartao"><span>Módulo atual</span><b>{atual ? `${atual.ordem}. ${atual.nome}` : concluidos === modulos.length && modulos.length ? 'Curso concluído' : '—'}</b>
           <span>{atual ? periodoTexto(atual.data_inicio, atual.data_fim) : ''}</span></div>
         <div class="cartao"><span>Módulos concluídos</span><b>{concluidos} de {modulos.length}</b><span>certificados liberados nos concluídos</span></div>
@@ -303,14 +312,27 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
       </div>
       {matriculas.length ? (
         <table>
-          <tr><th>Aluno</th><th>CPF</th><th>RA</th><th>Situação</th><th class="n">Ações</th></tr>
+          <tr><th>Aluno</th><th>CPF</th><th>RA</th><th>Status</th><th>Situação</th><th class="n">Ações</th></tr>
           {matriculas.map((m) => (
             <tr>
               <td><a class="aluno-cel" href={`/admin/alunos/${m.aluno_id}`}><span class="iniciais">{iniciais(nomeDoAluno(m))}</span>{nomeDoAluno(m)}</a></td>
               <td style="white-space:nowrap">{formatarCPF(m.cpf)}</td>
               <td>{m.ra ?? '—'}</td>
+              <td><span class={`tag ${classeStatus(m.status)}`}>{ROTULO_STATUS[m.status] ?? m.status}</span>
+                {m.ultimo_status && <div class="muted" style="font-size:.74rem">desde {dataBR(String(m.ultimo_status).slice(0, 10))}{String(m.ultimo_status).slice(13) ? ` — ${String(m.ultimo_status).slice(13)}` : ''}</div>}</td>
               <td><span class={`sit ${m.situacao}`}>{SITUACOES.find(([v]) => v === m.situacao)?.[1] ?? m.situacao}</span></td>
               <td>
+                {podeStatus && (
+                  <details class="status-mat">
+                    <summary class="botao sec">Status</summary>
+                    <form method="post" action={`/admin/turmas/${t.id}/matriculas/${m.id}/status`}>
+                      <label>Novo status<select name="status" required>{STATUS_MATRICULA.map(([v, r]) => <option value={v} selected={m.status === v}>{r}</option>)}</select></label>
+                      <label>A partir de<input type="date" name="data" value={hojeMS()} required /></label>
+                      <label>Motivo<input name="motivo" placeholder="Ex.: transferido para a escola X" /></label>
+                      <button>Salvar status</button>
+                    </form>
+                  </details>
+                )}
                 {editar && (
                   <div class="linha-acoes">
                     <form method="post" action={`/admin/turmas/${t.id}/matriculas/${m.id}`}>
@@ -432,6 +454,22 @@ rotasTurmas.post('/:id{[0-9]+}/matriculas/:mid{[0-9]+}', async (c) => {
   return c.redirect(`/admin/turmas/${tid}?ok=` + encodeURIComponent('Situação atualizada.'));
 });
 
+rotasTurmas.post('/:id{[0-9]+}/matriculas/:mid{[0-9]+}/status', exigir('matriculas.status'), async (c) => {
+  const mid = Number(c.req.param('mid'));
+  const tid = Number(c.req.param('id'));
+  if (!(await c.env.DB.prepare('SELECT 1 FROM matriculas WHERE id = ? AND turma_id = ?').bind(mid, tid).first())) return c.notFound();
+  const corpo = await lerCorpo(c);
+  try {
+    const dados = { status: texto(corpo, 'status'), data: texto(corpo, 'data'), motivo: texto(corpo, 'motivo') };
+    const r = await alterarStatus(c.env.DB, mid, dados, c.get('usuario').email);
+    await auditar(c, 'alterar_status', 'matricula', mid, { status: r.antes }, { status: r.depois, data: dados.data, motivo: dados.motivo });
+    return c.redirect(`/admin/turmas/${tid}?ok=` + encodeURIComponent(`Status alterado para "${ROTULO_STATUS[r.depois]}".`));
+  } catch (e) {
+    if (e instanceof ErroValidacao) return c.redirect(`/admin/turmas/${tid}?erro=` + encodeURIComponent(e.message));
+    throw e;
+  }
+});
+
 rotasTurmas.post('/:id{[0-9]+}/matriculas/:mid{[0-9]+}/remover', async (c) => {
   const mid = Number(c.req.param('mid'));
   const tid = Number(c.req.param('id'));
@@ -442,9 +480,13 @@ rotasTurmas.post('/:id{[0-9]+}/matriculas/:mid{[0-9]+}/remover', async (c) => {
     `SELECT 1 FROM resultados WHERE matricula_id = ?1 UNION ALL SELECT 1 FROM certificados WHERE matricula_id = ?1 LIMIT 1`,
   ).bind(mid).first();
   if (temDados) {
-    return c.redirect(`/admin/turmas/${tid}?erro=` + encodeURIComponent('Matrícula com resultados lançados: altere a situação para "desistente" em vez de remover.'));
+    return c.redirect(`/admin/turmas/${tid}?erro=` + encodeURIComponent('Matrícula com resultados lançados: altere o status (ex.: desistente, transferido) em vez de remover.'));
   }
-  await db.prepare('DELETE FROM matriculas WHERE id = ?').bind(mid).run();
+  await db.batch([
+    db.prepare('DELETE FROM matricula_status_historico WHERE matricula_id = ?').bind(mid),
+    db.prepare('DELETE FROM faltas_aula WHERE matricula_id = ?').bind(mid),
+    db.prepare('DELETE FROM matriculas WHERE id = ?').bind(mid),
+  ]);
   await auditar(c, 'excluir', 'matricula', mid, m, null);
   return c.redirect(`/admin/turmas/${tid}?ok=` + encodeURIComponent('Matrícula removida.'));
 });
@@ -480,6 +522,13 @@ rotasTurmas.post('/:id{[0-9]+}/excluir', exigir('turmas.excluir'), async (c) => 
 
   const sub = 'SELECT id FROM matriculas WHERE turma_id = ?';
   await db.batch([
+    // Gestão Pedagógica: chamada, grade e lotações da turma; históricos de notas e de status
+    db.prepare('DELETE FROM faltas_aula WHERE aula_id IN (SELECT id FROM aulas WHERE turma_id = ?)').bind(t.id),
+    db.prepare('DELETE FROM aulas WHERE turma_id = ?').bind(t.id),
+    db.prepare('DELETE FROM horario_aulas WHERE lotacao_id IN (SELECT id FROM lotacoes WHERE turma_id = ?)').bind(t.id),
+    db.prepare('DELETE FROM lotacoes WHERE turma_id = ?').bind(t.id),
+    db.prepare(`DELETE FROM resultados_historico WHERE matricula_id IN (${sub})`).bind(t.id),
+    db.prepare(`DELETE FROM matricula_status_historico WHERE matricula_id IN (${sub})`).bind(t.id),
     db.prepare(`DELETE FROM resultados WHERE matricula_id IN (${sub})`).bind(t.id),
     db.prepare('DELETE FROM matriculas WHERE turma_id = ?').bind(t.id),
     db.prepare('DELETE FROM turma_modulos WHERE turma_id = ?').bind(t.id),
@@ -506,7 +555,7 @@ async function contextoModulo(c: any) {
   const componentes = (await db.prepare('SELECT * FROM componentes_curriculares WHERE modulo_id = ? ORDER BY ordem').bind(modulo.id).all<Record<string, any>>()).results;
   const matriculas = (
     await db.prepare(
-      `SELECT m.id, m.situacao, CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END AS nome, a.id AS aluno_id
+      `SELECT m.id, m.situacao, m.status, CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END AS nome, a.id AS aluno_id
          FROM matriculas m JOIN alunos a ON a.id = m.aluno_id WHERE m.turma_id = ? ORDER BY 3`,
     ).bind(t.id).all<Record<string, any>>()
   ).results;
@@ -554,7 +603,7 @@ table.resultados-modulo .docs{display:flex;flex-direction:column;gap:.15rem;font
             <th>Aluno</th>
             {componentes.map((cc) => (
               <th class="c" style="min-width:78px">
-                <a href={`/admin/diario/${t.id}/${modulo.id}/${cc.id}`} title="Lançar notas e faltas">{cc.nome}</a>
+                <a href={telaDeNotas(c, t.id, modulo.id, cc.id)} title="Lançar notas">{cc.nome}</a>
                 <div class="muted">{cc.carga_horaria_total} h</div>
               </th>
             ))}
@@ -573,7 +622,7 @@ table.resultados-modulo .docs{display:flex;flex-direction:column;gap:.15rem;font
             const status = av.some((a) => a.resultado === 'RP') ? 'RP' : av.some((a) => a.resultado === 'PENDENTE') ? 'PENDENTE' : 'AP';
             return (
               <tr>
-                <td class="aluno">{m.nome}{m.situacao !== 'cursando' && <div class="muted">{m.situacao}</div>}</td>
+                <td class="aluno">{m.nome}{m.status !== 'ativa' && <div><span class={`tag ${classeStatus(m.status)}`}>{ROTULO_STATUS[m.status] ?? m.status}</span></div>}</td>
                 {av.map((a) => (
                   <td class="c" title={a.motivos.join('\n')}>
                     <span class={`tag ${a.resultado}`}>{a.resultado === 'PENDENTE' ? '—' : a.resultado}</span>
@@ -610,94 +659,30 @@ table.resultados-modulo .docs{display:flex;flex-direction:column;gap:.15rem;font
   );
 });
 
+/** Lançamento antigo por disciplina: agora em Secretaria → Notas (ou Gestão Pedagógica → Lançamento de Notas). */
+function telaDeNotas(c: any, turmaId: number, moduloId: number, compId: number) {
+  const base = pode(c.get('usuario').perfil, 'resultados.corrigir') ? '/admin/notas' : '/admin/pedagogico/notas';
+  return `${base}?turma=${turmaId}&modulo=${moduloId}&disciplina=${compId}`;
+}
+
 rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}/disciplinas/:comp{[0-9]+}', exigir('resultados.lancar'), async (c) => {
   const ctx = await contextoModulo(c);
   if (!ctx) return c.notFound();
-  const { t, modulo, componentes, matriculas, porChave, chave, criterios } = ctx;
+  const { t, modulo, componentes } = ctx;
   const cc = componentes.find((x) => x.id === Number(c.req.param('comp')));
   if (!cc) return c.notFound();
   if (ctx.mt.situacao === 'planejado') {
     return c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(`O módulo ${modulo.nome} ainda está "planejado": inicie-o em Módulos da turma antes de lançar notas.`));
   }
-  // o lançamento passou para Secretaria → Notas e Faltas (faltas em nº de aulas, professor e horário)
-  if (c.req.query('antigo') !== '1') return c.redirect(`/admin/diario/${t.id}/${modulo.id}/${cc.id}`);
-  return c.html(
-    <Pagina voltar={`/admin/turmas/${t.id}/modulos/${modulo.id}`} titulo={`${cc.nome} — ${t.codigo}`} usuario={c.get('usuario')} caminho={c.req.path} erro={c.req.query('erro')}>
-      <h1>{cc.nome}</h1>
-      <p class="muted">Turma {t.codigo} · {cc.carga_horaria_total} h · notas de 0 a 10 (use vírgula ou ponto) · frequência em %</p>
-      <form method="post">
-        <table>
-          <tr><th>Aluno</th><th class="n">Média</th><th class="n">Exame final</th><th class="n">Frequência (%)</th><th class="c">Resultado atual</th></tr>
-          {matriculas.map((m) => {
-            const r = porChave.get(chave(m.id, cc.id));
-            const av = avaliarDisciplina({ componente: cc.nome, nota: r?.nota ?? null, notaExameFinal: r?.nota_exame_final ?? null, frequencia: r?.frequencia ?? null }, criterios);
-            return (
-              <tr>
-                <td>{m.nome}</td>
-                <td class="n"><input class="mini" name={`nota_${m.id}`} value={numBR(r?.nota, 2)} inputmode="decimal" /></td>
-                <td class="n"><input class="mini" name={`exame_${m.id}`} value={numBR(r?.nota_exame_final, 2)} inputmode="decimal" /></td>
-                <td class="n"><input class="mini" name={`freq_${m.id}`} value={numBR(r?.frequencia, 2)} inputmode="decimal" /></td>
-                <td class="c" title={av.motivos.join('\n')}><span class={`tag ${av.resultado}`}>{av.resultado === 'PENDENTE' ? '—' : av.resultado}</span></td>
-              </tr>
-            );
-          })}
-        </table>
-        <div class="acoes"><button>Salvar lançamentos</button></div>
-      </form>
-    </Pagina>,
-  );
+  return c.redirect(telaDeNotas(c, t.id, modulo.id, cc.id));
 });
 
 rotasTurmas.post('/:id{[0-9]+}/modulos/:mod{[0-9]+}/disciplinas/:comp{[0-9]+}', exigir('resultados.lancar'), async (c) => {
   const ctx = await contextoModulo(c);
   if (!ctx) return c.notFound();
-  const { t, modulo, componentes, matriculas, porChave, chave, criterios } = ctx;
-  const cc = componentes.find((x) => x.id === Number(c.req.param('comp')));
-  if (!cc) return c.notFound();
-  try {
-    await exigirModuloIniciado(c.env.DB, t.id, modulo.id, modulo.nome);
-  } catch (e) {
-    if (e instanceof ErroValidacao) return c.redirect(`/admin/turmas/${t.id}?erro=` + encodeURIComponent(e.message));
-    throw e;
+  if (ctx.mt.situacao === 'planejado') {
+    return c.redirect(`/admin/turmas/${ctx.t.id}?erro=` + encodeURIComponent(`O módulo ${ctx.modulo.nome} ainda está "planejado": inicie-o em Módulos da turma antes de lançar notas.`));
   }
-  const corpo = await lerCorpo(c);
-  const url = `/admin/turmas/${t.id}/modulos/${modulo.id}/disciplinas/${cc.id}`;
-  const comandos: D1PreparedStatement[] = [];
-  const alteracoes: Record<string, unknown>[] = [];
-  try {
-    for (const m of matriculas) {
-      const nota = numero(corpo, `nota_${m.id}`, `Média de ${m.nome}`);
-      const exame = numero(corpo, `exame_${m.id}`, `Exame de ${m.nome}`);
-      const freq = numero(corpo, `freq_${m.id}`, `Frequência de ${m.nome}`);
-      for (const [v, r, max] of [[nota, 'Média', 10], [exame, 'Exame', 10], [freq, 'Frequência', 100]] as const) {
-        if (v != null && (v < 0 || v > max)) throw new ErroValidacao(`${r} de ${m.nome} fora do intervalo 0–${max}.`);
-      }
-      const antes = porChave.get(chave(m.id, cc.id));
-      const igual = (antes?.nota ?? null) === nota && (antes?.nota_exame_final ?? null) === exame && (antes?.frequencia ?? null) === freq;
-      if (igual || (!antes && nota == null && exame == null && freq == null)) continue;
-      const av = avaliarDisciplina({ componente: cc.nome, nota, notaExameFinal: exame, frequencia: freq }, criterios);
-      const resultado = av.resultado === 'PENDENTE' ? null : av.resultado;
-      comandos.push(
-        c.env.DB.prepare(
-          `INSERT INTO resultados (matricula_id, componente_id, nota, nota_exame_final, frequencia, resultado)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT (matricula_id, componente_id) DO UPDATE SET nota = excluded.nota, nota_exame_final = excluded.nota_exame_final,
-             frequencia = excluded.frequencia, resultado = excluded.resultado, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now')`,
-        ).bind(m.id, cc.id, nota, exame, freq, resultado),
-      );
-      alteracoes.push({
-        matricula_id: m.id, aluno: m.nome,
-        antes: antes ? { nota: antes.nota, exame: antes.nota_exame_final, frequencia: antes.frequencia } : null,
-        depois: { nota, exame, frequencia: freq, resultado },
-      });
-    }
-  } catch (e) {
-    if (e instanceof ErroValidacao) return c.redirect(`${url}?erro=` + encodeURIComponent(e.message));
-    throw e;
-  }
-  if (comandos.length) {
-    await c.env.DB.batch(comandos);
-    await auditar(c, 'lancar_resultados', 'componente_curricular', cc.id, null, { turma: t.codigo, disciplina: cc.nome, alteracoes });
-  }
-  return c.redirect(`/admin/turmas/${t.id}/modulos/${modulo.id}?ok=` + encodeURIComponent(`${cc.nome}: ${comandos.length} lançamento(s) salvo(s).`));
+  return c.redirect(telaDeNotas(c, ctx.t.id, ctx.modulo.id, Number(c.req.param('comp'))) + '&erro=' +
+    encodeURIComponent('O lançamento passou para Notas (com professor da lotação e histórico). Lance por esta tela.'));
 });

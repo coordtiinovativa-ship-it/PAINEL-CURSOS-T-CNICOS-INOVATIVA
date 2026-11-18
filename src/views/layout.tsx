@@ -231,7 +231,8 @@ export const SECOES_MENU: SecaoMenu[] = [
     itens: [
       { href: '/admin/alunos', rotulo: 'Alunos', perm: 'alunos.editar' },
       { href: '/admin/turmas', rotulo: 'Turmas e resultados', perm: 'turmas.editar' },
-      { href: '/admin/diario', rotulo: 'Notas e Faltas', perm: 'resultados.lancar' },
+      { href: '/admin/notas', rotulo: 'Notas', perm: 'resultados.corrigir' },
+      { href: '/admin/faltas', rotulo: 'Faltas', perm: 'resultados.corrigir' },
       { href: '/admin/importacao', rotulo: 'Importar Planilhas', perm: 'alunos.editar' },
       { separador: true },
       { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
@@ -247,6 +248,7 @@ export const SECOES_MENU: SecaoMenu[] = [
       { href: '/admin/pedagogico/funcionarios', rotulo: 'Funcionários', perm: 'pedagogico.gerenciar' },
       { href: '/admin/pedagogico/lotacao', rotulo: 'Lotação de Professores', perm: 'pedagogico.gerenciar' },
       { href: '/admin/pedagogico/horario', rotulo: 'Horário do Professor', perm: 'pedagogico.gerenciar' },
+      { href: '/admin/pedagogico/notas', rotulo: 'Lançamento de Notas', perm: 'resultados.lancar' },
       { href: '/admin/pedagogico/faltas', rotulo: 'Faltas do Aluno', perm: 'resultados.lancar' },
       { separador: true },
       { href: '/admin/pedagogico/anos', rotulo: 'Ano Letivo', perm: 'pedagogico.gerenciar' },
@@ -392,7 +394,7 @@ const Head: FC<{ titulo: string }> = ({ titulo }) => (
 const TELAS = [
   /^\/admin$/, /^\/admin\/(alunos|turmas|certificados|documentos|importacao|modelo|signatarios|instituicao|cursos|usuarios|auditoria|relatorios|diario|novidades)$/,
   /^\/admin\/(alunos|turmas|certificados|documentos|importacao|signatarios|cursos|usuarios)\/\d+$/,
-  /^\/admin\/pedagogico\/(funcionarios|lotacao|horario|faltas|anos|calendario)$/, /^\/admin\/pedagogico\/funcionarios\/\d+$/,
+  /^\/admin\/pedagogico\/(funcionarios|lotacao|horario|faltas|notas|anos|calendario)$/, /^\/admin\/(notas|faltas)$/, /^\/admin\/pedagogico\/funcionarios\/\d+$/,
   /^\/admin\/turmas\/\d+\/modulos\/\d+$/, /^\/admin\/diario\/\d+\/\d+$/, /^\/admin\/cursos\/\d+\/matrizes\/\d+$/, /^\/admin\/certificados\/pendentes$/,
 ];
 /** Destino padrão do "Voltar": o nível acima que seja uma tela existente. */

@@ -392,6 +392,25 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - **Ambiente local**: `npm run local` (ver README) — login teste@local.test / TesteLocal2026; seeds `seed/dev_*.sql`.
 - Pendente: vincular Signatários a Funcionários; rematrícula com aproveitamento; relatório de frequência por aula.
 
+### Notas, faltas e status da matrícula (18/11/2026)
+- **Status da matrícula** (`matriculas.status`, migração 0016; `src/lib/matricula.ts`): ativa | desistente | transferido |
+  cancelada | falecido | transferencia_interna. Separado da **situação acadêmica** (cursando/concluído/reprovado; "desistente" saiu
+  da situação e virou status). Todo aluno entra "ativa"; só a Secretaria muda (permissão `matriculas.status`: secretaria,
+  administrador, admin master), com data e motivo, em `matricula_status_historico`. Tela da turma → botão Status.
+- **Aluno não ativo**: notas e faltas só pela Secretaria (`resultados.corrigir`). As telas da Gestão Pedagógica mostram o aluno
+  bloqueado e o servidor ignora o que vier para ele.
+- **Menus**: Gestão Pedagógica → **Lançamento de Notas** (`/admin/pedagogico/notas`, `resultados.lancar`, coordenador) e
+  Faltas do Aluno (chamada do professor). Secretaria → **Notas** (`/admin/notas`) e **Faltas** (`/admin/faltas`: chamada por
+  turma e dia; `/admin/faltas/total`: total por disciplina sem chamada), permissão `resultados.corrigir` (o coordenador não
+  acessa). A antiga "Notas e Faltas" (`/admin/diario`, `diario.tsx`) foi removida — redireciona para `/admin/notas`; a tela
+  antiga por disciplina da turma também redireciona.
+- **Nota vinculada ao professor**: sem lotação ativa da disciplina, não lança (tela e servidor). `resultados.professor_id`.
+- **Vale a última digitação** (`src/lib/resultados.ts`): o formulário envia o valor mostrado (`o_<campo>_<matrícula>`;
+  na chamada `o_falta_...`) e só o que a pessoa mudou é gravado — um não desfaz o que o outro digitou; apagar valor é alteração.
+  Cada gravação registra `atualizado_por`, `origem` (professor | secretaria | chamada | importacao) e `professor_id`, e cada
+  campo alterado vai para `resultados_historico`. Documentos usam o valor atual.
+- Exclusão de turma passou a apagar também chamada, grade, lotações e históricos da turma.
+
 ### Novidades do Sistema (17/11/2026)
 - Sistema → **Novidades do Sistema** (`/admin/novidades`, todos os perfis), no estilo do "Sobre o sistema" do sysGEP:
   versão atual, busca (sem acento) e cada versão com Novidades / Melhorias / Correções e links para as telas
