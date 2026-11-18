@@ -35,6 +35,33 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.12.0',
+    data: '2026-11-18',
+    novidades: [
+      {
+        titulo: 'Gerar calendário automaticamente',
+        texto: 'um clique monta o ano inteiro: segunda a sexta letivos, sábados e domingos, e os feriados nacionais (Carnaval e Corpus Christi como ponto facultativo). ' +
+          'Ano letivo novo já nasce com o calendário gerado. Depois é só ajustar os dias diferentes.',
+        href: '/admin/pedagogico/calendario',
+        perm: 'pedagogico.gerenciar',
+      },
+      {
+        titulo: 'Editar o dia no calendário',
+        texto: 'clique num dia para trocar o código (L, F, NL, SL...) com uma descrição, ou voltar ao automático. Dias ajustados à mão ficam marcados com ✎ e já valem para a chamada.',
+        href: '/admin/pedagogico/calendario',
+        perm: 'pedagogico.gerenciar',
+      },
+    ],
+    melhorias: [
+      {
+        titulo: 'Calendário de janeiro a dezembro',
+        texto: 'os 12 meses aparecem sempre; os dias fora do período do ano letivo ficam esmaecidos (férias).',
+        href: '/admin/pedagogico/calendario',
+        perm: 'pedagogico.gerenciar',
+      },
+    ],
+  },
+  {
     versao: '1.11.0',
     data: '2026-11-18',
     novidades: [

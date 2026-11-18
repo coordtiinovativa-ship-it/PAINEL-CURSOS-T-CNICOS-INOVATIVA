@@ -383,6 +383,11 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
 - **Horário**: `horario_tempos` por turno (editável em Tempos de aula) + `horario_aulas` (lotação, dia 1–6, tempo). Sem choque
   na turma (mesmo dia/tempo) nem no professor (sobreposição de horário). Turma precisa de turno.
 - **Calendário**: feriado/recesso/ponto facultativo = não letivo; "Incluir feriados nacionais" calcula a Páscoa.
+  Decisão de 18/11/2026: tela mostra **janeiro a dezembro** sempre (fora do período do ano letivo = esmaecido, NL/S/D/F).
+  **Gerar calendário automaticamente** (`gerarCalendario`: feriados nacionais + `anos_letivos.calendario_gerado_em/por`); ano letivo
+  novo já nasce gerado. **Ajuste dia a dia** (clique no dia) em `calendario_dias` (migração 0017) — vale sobre o cálculo
+  (`classificarDia`, tipo 'ajuste' em `eventosPorDia`); descrição obrigatória exceto L/S/D; fora do período só códigos não letivos.
+  Incluir evento/período depois substitui os ajustes desses dias (vale a última alteração); "Gerar novamente" pode descartá-los.
 - **Chamada** (Faltas do Aluno, dia completo do professor): datas = grade × período da lotação × período do módulo
   (em andamento/concluído) × ano letivo × dias letivos, até hoje. Dia letivo = mesma regra do calendário
   (`classificarDia`/`ehLetivo`: L, SL, DL) — aula de sábado na grade só entra em sábado marcado como dia letivo extra

@@ -61,8 +61,10 @@ describe('calendário', () => {
     const html = await (await c.req('/admin/pedagogico/calendario?ano=2026')).text();
     expect(html).toContain('Fevereiro/2026');
     expect(html).toContain('Dezembro/2026');
-    expect(html).not.toContain('Janeiro/2026'); // só os meses do período
+    expect(html).toContain('Janeiro/2026'); // janeiro a dezembro, sempre
+    expect(html).toMatch(/data-data="2026-01-05"[^>]*class="[^"]*fora-periodo|class="[^"]*fora-periodo[^"]*"[^>]*data-data="2026-01-05"/); // férias, esmaecido
     expect(html).toContain('<b>321</b> dias'); // 01/02 a 18/12
+    expect(html).toContain('ainda não foi gerado');
     expect(html).toMatch(/data-data="2026-02-28"[^>]*>[\s\S]*?<small>SL<\/small>/);
     expect(html).toContain('Ver legendas do mês');
     expect(html).toContain('SÁBADO LETIVO');
@@ -86,6 +88,63 @@ describe('calendário', () => {
     expect(cal).toContain('Tiradentes');
     r = await c.post(`/admin/pedagogico/calendario/${ano.id}/eventos`, { tipo: 'feriado', data_inicio: '2026-05-10', data_fim: '2026-05-01', descricao: 'x' });
     expect(msg(r)).toContain('O término deve ser igual ou depois do início');
+  });
+
+  it('gera o calendário automaticamente e o responsável ajusta dia a dia (vale a última alteração)', async () => {
+    const { c, sqlite, env } = await pronto();
+    const ano = sqlite.prepare('SELECT * FROM anos_letivos WHERE ano = 2026').get() as unknown as AnoLetivo;
+    const dia = (dados: Record<string, string>) => c.post(`/admin/pedagogico/calendario/${ano.id}/dia`, dados);
+    const codigo = async (d: string) => {
+      const html = await (await c.req('/admin/pedagogico/calendario?ano=2026')).text();
+      return html.match(new RegExp(`data-data="${d}" data-codigo="(\\w+)"`))?.[1];
+    };
+
+    let r = await c.post(`/admin/pedagogico/calendario/${ano.id}/gerar`, {});
+    expect(msg(r)).toContain('Calendário de 2026 gerado: 13 feriado(s)');
+    expect(sqlite.prepare('SELECT calendario_gerado_em FROM anos_letivos WHERE id = ?').get(ano.id)).toMatchObject({ calendario_gerado_em: expect.any(String) });
+    expect(await codigo('2026-04-21')).toBe('F'); // Tiradentes
+    expect(await codigo('2026-01-05')).toBe('NL'); // janeiro, fora do período: férias
+
+    // segunda letiva vira não letiva (reunião), com descrição obrigatória
+    r = await dia({ data: '2026-03-09', codigo: 'NL', descricao: '' });
+    expect(msg(r)).toContain('Informe a descrição');
+    r = await dia({ data: '2026-03-09', codigo: 'NL', descricao: 'Reunião pedagógica' });
+    expect(msg(r)).toContain('09/03/2026 agora é NL');
+    expect(await codigo('2026-03-09')).toBe('NL');
+    // sábado vira letivo; código de sábado não serve para segunda
+    r = await dia({ data: '2026-03-14', codigo: 'SL', descricao: 'Reposição' });
+    expect(await codigo('2026-03-14')).toBe('SL');
+    r = await dia({ data: '2026-03-10', codigo: 'SL', descricao: 'x' });
+    expect(msg(r)).toContain('Escolha um código válido');
+    // fora do período do ano letivo não pode ser letivo
+    r = await dia({ data: '2026-01-10', codigo: 'SL', descricao: 'x' });
+    expect(msg(r)).toContain('fora do período do ano letivo');
+    // feriado vira letivo (L) sem descrição; e volta ao automático
+    r = await dia({ data: '2026-04-21', codigo: 'L', descricao: '' });
+    expect(await codigo('2026-04-21')).toBe('L');
+    r = await dia({ data: '2026-04-21', acao: 'automatico' });
+    expect(msg(r)).toContain('voltou ao automático (F');
+    expect(await codigo('2026-04-21')).toBe('F');
+
+    // a chamada usa os ajustes: segunda 09/03 sai, sábado 14/03 entra
+    const evs = (await import('../src/lib/pedagogico')).eventosPorDia;
+    const porDia = await evs(env.DB, ano.id);
+    expect(classificarDia('2026-03-09', ano, porDia.get('2026-03-09'))).toBe('NL');
+    expect(classificarDia('2026-03-14', ano, porDia.get('2026-03-14'))).toBe('SL');
+
+    // incluir um período depois substitui o ajuste à mão desses dias
+    r = await c.post(`/admin/pedagogico/calendario/${ano.id}/eventos`, { tipo: 'recesso', data_inicio: '2026-03-13', data_fim: '2026-03-14', descricao: 'Recesso' });
+    expect(msg(r)).toContain('1 ajuste(s) à mão nesses dias foram substituídos');
+    expect(await codigo('2026-03-14')).toBe('NL');
+    // gerar de novo descartando os ajustes
+    r = await c.post(`/admin/pedagogico/calendario/${ano.id}/gerar`, { descartar: '1' });
+    expect(msg(r)).toContain('1 ajuste(s) à mão descartado(s)');
+    expect(await codigo('2026-03-09')).toBe('L');
+
+    // ano letivo novo já nasce com o calendário gerado
+    r = await c.post('/admin/pedagogico/anos', { ano: '2027', data_inicio: '2027-02-01', data_fim: '2027-12-17', situacao: 'aberto' });
+    expect(msg(r)).toContain('Ano letivo 2027 cadastrado e calendário gerado (13 feriado(s)');
+    expect(sqlite.prepare("SELECT count(*) AS n FROM calendario_eventos e JOIN anos_letivos a ON a.id = e.ano_letivo_id WHERE a.ano = 2027").get()).toEqual({ n: 13 });
   });
 });
 

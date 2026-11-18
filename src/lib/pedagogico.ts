@@ -83,7 +83,10 @@ export function feriadosNacionais(ano: number): { data: string; tipo: string; de
   ].sort((a, b) => a.data.localeCompare(b.data));
 }
 
-export interface AnoLetivo { id: number; ano: number; data_inicio: string; data_fim: string; situacao: string; observacao: string | null }
+export interface AnoLetivo {
+  id: number; ano: number; data_inicio: string; data_fim: string; situacao: string; observacao: string | null;
+  calendario_gerado_em?: string | null; calendario_gerado_por?: string | null;
+}
 
 export async function anoLetivo(db: D1Database, ano: number): Promise<AnoLetivo | null> {
   return db.prepare('SELECT * FROM anos_letivos WHERE ano = ?').bind(ano).first<AnoLetivo>();
@@ -97,14 +100,43 @@ export const CODIGOS_DIA: [CodigoDia, string, boolean][] = [
   ['S', 'Sábado', false], ['SL', 'Sábado letivo', true], ['DL', 'Domingo letivo', true],
 ];
 
-export interface EventoDia { tipo: string; descricao: string }
+/** Evento do dia; `tipo: 'ajuste'` = código trocado à mão no calendário (tabela calendario_dias), vale sobre o cálculo. */
+export interface EventoDia { tipo: string; descricao: string | null; codigo?: CodigoDia }
+type Periodo = { data_inicio: string; data_fim: string };
+const LETIVOS: CodigoDia[] = ['L', 'SL', 'DL'];
 
 /**
- * Código do dia: evento não letivo vence (feriado → F; recesso/ponto facultativo → NL); dia letivo extra torna letivo
- * o sábado (SL) e o domingo (DL); sem evento: segunda a sexta L, sábado S, domingo D. Fora do ano letivo: null.
+ * Código do dia: ajuste manual vence; depois evento não letivo (feriado → F; recesso/ponto facultativo → NL); dia letivo
+ * extra torna letivo o sábado (SL) e o domingo (DL); sem evento: segunda a sexta L, sábado S, domingo D.
+ * Fora do ano letivo: null (não há aula).
  */
-export function classificarDia(d: string, ano: { data_inicio: string; data_fim: string }, eventos: EventoDia[] = []): CodigoDia | null {
+export function classificarDia(d: string, ano: Periodo, eventos: EventoDia[] = []): CodigoDia | null {
   if (d < ano.data_inicio || d > ano.data_fim) return null;
+  const aj = eventos.find((e) => e.tipo === 'ajuste')?.codigo;
+  if (aj) return aj;
+  return codigoAutomatico(d, eventos);
+}
+
+/** Código para mostrar no calendário (janeiro a dezembro): fora do período do ano letivo o dia é de férias (NL), salvo F/S/D. */
+export function codigoParaExibir(d: string, ano: Periodo, eventos: EventoDia[] = []): CodigoDia {
+  const c = classificarDia(d, ano, eventos);
+  if (c) return c;
+  const aj = eventos.find((e) => e.tipo === 'ajuste')?.codigo;
+  if (aj) return aj;
+  if (eventos.some((e) => e.tipo === 'feriado')) return 'F';
+  const dia = diaDaSemana(d);
+  return dia === 6 ? 'S' : dia === 7 ? 'D' : 'NL';
+}
+
+/** Códigos que o responsável pode escolher para o dia (pelo dia da semana; fora do período, só não letivos). */
+export function codigosPermitidos(d: string, ano: Periodo): CodigoDia[] {
+  const dia = diaDaSemana(d);
+  const base: CodigoDia[] = dia === 6 ? ['S', 'SL', 'F', 'NL'] : dia === 7 ? ['D', 'DL', 'F', 'NL'] : ['L', 'F', 'NL'];
+  return d < ano.data_inicio || d > ano.data_fim ? base.filter((c) => !LETIVOS.includes(c)) : base;
+}
+
+/** Código calculado (sem ajuste manual), dentro do período. */
+export function codigoAutomatico(d: string, eventos: EventoDia[] = []): CodigoDia {
   if (eventos.some((e) => e.tipo === 'feriado')) return 'F';
   if (eventos.some((e) => TIPOS_NAO_LETIVOS.includes(e.tipo))) return 'NL';
   const dia = diaDaSemana(d);
@@ -113,15 +145,39 @@ export function classificarDia(d: string, ano: { data_inicio: string; data_fim: 
   if (dia === 7) return extra ? 'DL' : 'D';
   return 'L';
 }
-export const ehLetivo = (c: CodigoDia | null) => c === 'L' || c === 'SL' || c === 'DL';
+export const ehLetivo = (c: CodigoDia | null) => c !== null && LETIVOS.includes(c);
 
-/** Eventos do calendário por dia (um evento de período vale em todos os seus dias). */
+/** Eventos do calendário por dia (um evento de período vale em todos os seus dias) + ajustes manuais (`tipo: 'ajuste'`). */
 export async function eventosPorDia(db: D1Database, anoLetivoId: number): Promise<Map<string, (EventoDia & { id: number })[]>> {
-  const evs = (await db.prepare('SELECT id, data_inicio, data_fim, tipo, descricao FROM calendario_eventos WHERE ano_letivo_id = ? ORDER BY data_inicio, id')
-    .bind(anoLetivoId).all<{ id: number; data_inicio: string; data_fim: string; tipo: string; descricao: string }>()).results;
+  const [evs, ajustes] = await Promise.all([
+    db.prepare('SELECT id, data_inicio, data_fim, tipo, descricao FROM calendario_eventos WHERE ano_letivo_id = ? ORDER BY data_inicio, id')
+      .bind(anoLetivoId).all<{ id: number; data_inicio: string; data_fim: string; tipo: string; descricao: string }>(),
+    db.prepare('SELECT data, codigo, descricao FROM calendario_dias WHERE ano_letivo_id = ?').bind(anoLetivoId)
+      .all<{ data: string; codigo: CodigoDia; descricao: string | null }>(),
+  ]);
   const m = new Map<string, (EventoDia & { id: number })[]>();
-  for (const e of evs) for (const d of diasEntre(e.data_inicio, e.data_fim)) m.set(d, [...(m.get(d) ?? []), { id: e.id, tipo: e.tipo, descricao: e.descricao }]);
+  for (const e of evs.results) for (const d of diasEntre(e.data_inicio, e.data_fim)) m.set(d, [...(m.get(d) ?? []), { id: e.id, tipo: e.tipo, descricao: e.descricao }]);
+  for (const a of ajustes.results) m.set(a.data, [...(m.get(a.data) ?? []), { id: 0, tipo: 'ajuste', descricao: a.descricao, codigo: a.codigo }]);
   return m;
+}
+
+/**
+ * Gera o calendário do ano automaticamente: inclui os feriados nacionais que faltam (Carnaval e Corpus Christi como
+ * ponto facultativo); segunda a sexta ficam letivos, sábado e domingo não. `descartarAjustes` apaga os ajustes feitos à mão.
+ */
+export async function gerarCalendario(db: D1Database, a: AnoLetivo, usuario: string, descartarAjustes = false) {
+  const existentes = new Set((await db.prepare('SELECT data_inicio FROM calendario_eventos WHERE ano_letivo_id = ?').bind(a.id)
+    .all<{ data_inicio: string }>()).results.map((e) => e.data_inicio));
+  const novos = feriadosNacionais(a.ano).filter((f) => !existentes.has(f.data));
+  const ajustes = descartarAjustes
+    ? (await db.prepare('SELECT count(*) AS n FROM calendario_dias WHERE ano_letivo_id = ?').bind(a.id).first<{ n: number }>())?.n ?? 0 : 0;
+  await db.batch([
+    ...novos.map((f) => db.prepare('INSERT INTO calendario_eventos (ano_letivo_id, data_inicio, data_fim, tipo, descricao) VALUES (?, ?, ?, ?, ?)')
+      .bind(a.id, f.data, f.data, f.tipo, f.descricao)),
+    ...(descartarAjustes ? [db.prepare('DELETE FROM calendario_dias WHERE ano_letivo_id = ?').bind(a.id)] : []),
+    db.prepare("UPDATE anos_letivos SET calendario_gerado_em = datetime('now'), calendario_gerado_por = ? WHERE id = ?").bind(usuario, a.id),
+  ]);
+  return { feriados: novos, ajustesDescartados: ajustes };
 }
 
 /** Dias letivos do ano: segunda a sexta + dias letivos extras, menos feriados/recessos/pontos facultativos. */

@@ -10,8 +10,8 @@ import { auditar } from '../lib/auditoria';
 import { ErroValidacao, inteiro, lerCorpo, texto } from '../lib/form';
 import { dataBR } from '../lib/datas';
 import {
-  classificarDia, CODIGOS_DIA, contarDiasLetivos, diaDaSemana, diasEntre, ehLetivo, eventosPorDia, feriadosNacionais, ROTULO_EVENTO, TIPOS_EVENTO,
-  TIPOS_NAO_LETIVOS, type AnoLetivo, type CodigoDia,
+  classificarDia, CODIGOS_DIA, codigoParaExibir, codigosPermitidos, contarDiasLetivos, diaDaSemana, diasEntre, ehLetivo, eventosPorDia,
+  gerarCalendario, ROTULO_EVENTO, TIPOS_EVENTO, TIPOS_NAO_LETIVOS, type AnoLetivo, type CodigoDia,
 } from '../lib/pedagogico';
 
 export const rotasCalendario = new Hono<Env>();
@@ -71,19 +71,55 @@ details.legendas .nome{flex:1;color:var(--texto-2);font-size:.78rem}
 details.legendas .tipo{font-size:.66rem;font-weight:800;padding:.1rem .45rem;border-radius:6px}
 details.legendas .tipo.sim{background:var(--ok-bg);color:var(--ok)} details.legendas .tipo.nao{background:var(--erro-bg);color:var(--erro)}
 details.legendas ul.eventos-mes{border-top:1px dashed var(--borda)} details.legendas ul.eventos-mes li{display:block}
+.dia.fora-periodo{opacity:.45}
+.dia.ajustado::before{content:"✎";position:absolute;top:2px;left:4px;font-size:.62rem;opacity:.75}
+.aviso-gerar{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;border-left:4px solid var(--ciano)}
+.aviso-gerar p{margin:0;flex:1;min-width:240px}
+.descartar{flex-direction:row !important;align-items:center;gap:.35rem;font-size:.84rem;margin:0}
+.gerado{font-size:.84rem;color:var(--texto-2);margin:.2rem 0 0}
+dialog#editar-dia{border:1px solid var(--borda);border-radius:14px;padding:0;max-width:440px;width:calc(100% - 32px);background:var(--superficie);color:var(--texto);box-shadow:var(--sombra)}
+dialog#editar-dia::backdrop{background:rgba(0,0,0,.45)}
+dialog#editar-dia header{padding:.8rem 1rem;background:linear-gradient(90deg,#2563eb,#6d4fe6);color:#fff;font-weight:700}
+dialog#editar-dia form{padding:1rem;display:grid;gap:.8rem}
+.codigos{display:flex;flex-wrap:wrap;gap:.45rem}
+.codigos .op-codigo{flex-direction:row;margin:0}
+.op-codigo{display:flex;align-items:center;gap:.4rem;padding:.35rem .6rem;border-radius:9px;cursor:pointer;font-size:.85rem;font-weight:650;border:2px solid transparent}
+.op-codigo input{margin:0}
+.op-codigo:has(input:checked){border-color:var(--texto)}
+.op-codigo[hidden]{display:none}
+.auto-info{font-size:.82rem;color:var(--texto-2);margin:0}
+dialog#editar-dia .acoes{display:flex;gap:.5rem;flex-wrap:wrap}
 .vista-mes{max-width:760px}
 .vista-mes .nav-mes{display:flex;justify-content:space-between;margin-bottom:.6rem}
 .mes-cal.grande .dia{min-height:74px;font-size:1rem} .mes-cal.grande .dia small{font-size:.8rem}
 @media (max-width:600px){.grade-meses{grid-template-columns:1fr} .resumo-cal{margin-left:0}}
 `;
 
-/** Clicar num dia preenche a data no formulário de inclusão. */
+/** Clicar num dia abre a edição do dia; "Incluir período" leva a data para o formulário de evento. */
 const JS = `
-document.addEventListener('click',function(e){
-  var d=e.target.closest('.dia[data-data]'); if(!d) return;
+function paraPeriodo(data){
   var f=document.getElementById('form-evento'); if(!f) return;
-  f.data_inicio.value=d.dataset.data; f.data_fim.value='';
+  f.data_inicio.value=data; f.data_fim.value='';
   document.getElementById('incluir').scrollIntoView({behavior:'smooth'}); setTimeout(function(){f.descricao.focus()},350);
+}
+document.addEventListener('click',function(e){
+  if(e.target.closest('[data-fechar]')){ e.target.closest('dialog').close(); return; }
+  var p=e.target.closest('[data-periodo]');
+  if(p){ var dlg0=p.closest('dialog'); var dt=dlg0.querySelector('form').data.value; dlg0.close(); paraPeriodo(dt); return; }
+  var d=e.target.closest('.dia[data-data]'); if(!d) return;
+  var dlg=document.getElementById('editar-dia');
+  if(!dlg||!dlg.showModal){ paraPeriodo(d.dataset.data); return; }
+  var f=dlg.querySelector('form'), ok=d.dataset.ok.split(',');
+  f.data.value=d.dataset.data;
+  dlg.querySelector('.titulo-dia').textContent=d.dataset.rotulo;
+  dlg.querySelector('.auto-info').textContent=d.dataset.auto;
+  f.querySelectorAll('.op-codigo').forEach(function(l){
+    var i=l.querySelector('input'), v=ok.indexOf(i.value)>=0;
+    l.hidden=!v; i.disabled=!v; i.checked=v&&i.value===d.dataset.codigo;
+  });
+  f.descricao.value=d.dataset.desc||'';
+  f.querySelector('button[value=automatico]').hidden=d.dataset.manual!=='1';
+  dlg.showModal();
 });`;
 
 // ------------------------------------------------------------------ ano letivo
@@ -157,7 +193,11 @@ rotasCalendario.post('/anos', async (c) => {
   const r = await c.env.DB.prepare('INSERT INTO anos_letivos (ano, data_inicio, data_fim, situacao, observacao) VALUES (?, ?, ?, ?, ?) RETURNING id')
     .bind(d.ano, d.data_inicio, d.data_fim, d.situacao, d.observacao).first<{ id: number }>();
   await auditar(c, 'criar', 'ano_letivo', r!.id, null, d);
-  return c.redirect('/admin/pedagogico/anos?ok=' + encodeURIComponent(`Ano letivo ${d.ano} cadastrado. Inclua os feriados e recessos no calendário.`));
+  // o calendário já nasce gerado: o responsável só ajusta o que for diferente
+  const g = await gerarCalendario(c.env.DB, { ...d, id: r!.id } as AnoLetivo, c.get('usuario').email);
+  await auditar(c, 'gerar_calendario', 'ano_letivo', r!.id, null, { feriados_incluidos: g.feriados });
+  return c.redirect(`/admin/pedagogico/calendario?ano=${d.ano}&ok=` + encodeURIComponent(
+    `Ano letivo ${d.ano} cadastrado e calendário gerado (${g.feriados.length} feriado(s) nacional(is)). Inclua os feriados municipais/estaduais e recessos e clique num dia para ajustá-lo.`));
 });
 
 rotasCalendario.post('/anos/:id{[0-9]+}', async (c) => {
@@ -207,28 +247,40 @@ rotasCalendario.get('/calendario', async (c) => {
   const porDia = await eventosPorDia(db, atual.id);
   const anoNum = atual.ano;
 
-  // meses do período do ano letivo, com cada dia classificado
-  const mesIni = Number(atual.data_inicio.slice(5, 7)) - 1;
-  const mesFim = atual.data_fim.slice(0, 4) === String(anoNum) ? Number(atual.data_fim.slice(5, 7)) - 1 : 11;
-  const meses = Array.from({ length: mesFim - mesIni + 1 }, (_, i) => mesIni + i).map((m) => {
+  // janeiro a dezembro, sempre; fora do período do ano letivo o dia aparece esmaecido (férias)
+  const nomeCodigo = Object.fromEntries(CODIGOS_DIA.map(([cod, nome]) => [cod, nome])) as Record<CodigoDia, string>;
+  const meses = Array.from({ length: 12 }, (_, m) => m).map((m) => {
     const primeiro = `${anoNum}-${String(m + 1).padStart(2, '0')}-01`;
     const ultimo = new Date(Date.UTC(anoNum, m + 1, 0)).toISOString().slice(0, 10);
-    const dias = [...diasEntre(primeiro, ultimo)].map((d) => ({ d, codigo: classificarDia(d, atual, porDia.get(d)), eventos: porDia.get(d) ?? [] }));
+    const dias = [...diasEntre(primeiro, ultimo)].map((d) => {
+      const evs = porDia.get(d) ?? [];
+      const ajuste = evs.find((e) => e.tipo === 'ajuste');
+      const semAjuste = evs.filter((e) => e.tipo !== 'ajuste');
+      return {
+        d, evs, ajuste,
+        codigo: codigoParaExibir(d, atual, evs),
+        auto: codigoParaExibir(d, atual, semAjuste),
+        noPeriodo: classificarDia(d, atual) !== null,
+      };
+    });
     const cont = new Map<CodigoDia, number>();
-    for (const x of dias) if (x.codigo) cont.set(x.codigo, (cont.get(x.codigo) ?? 0) + 1);
+    for (const x of dias) cont.set(x.codigo, (cont.get(x.codigo) ?? 0) + 1);
     const letivos = dias.filter((x) => ehLetivo(x.codigo)).length;
-    const naoLetivos = dias.filter((x) => x.codigo && !ehLetivo(x.codigo)).length;
     const evMes = eventos.filter((e) => e.data_inicio <= ultimo && e.data_fim >= primeiro);
-    return { m, primeiro, dias, cont, letivos, naoLetivos, evMes };
+    const ajustesMes = dias.filter((x) => x.ajuste);
+    return { m, primeiro, dias, cont, letivos, naoLetivos: dias.length - letivos, evMes, ajustesMes };
   });
-  const totalDias = [...diasEntre(atual.data_inicio, atual.data_fim)].length;
-  const letivos = meses.reduce((s, x) => s + x.letivos, 0);
-  const naoLetivos = meses.reduce((s, x) => s + x.naoLetivos, 0);
+  const doPeriodo = meses.flatMap((x) => x.dias).filter((x) => x.noPeriodo);
+  const totalDias = doPeriodo.length;
+  const letivos = doPeriodo.filter((x) => ehLetivo(x.codigo)).length;
+  const naoLetivos = totalDias - letivos;
+  const totalAjustes = meses.reduce((s, x) => s + x.ajustesMes.length, 0);
   const vista = c.req.query('vista') === 'mes' ? 'mes' : 'ano';
   const mesSel = meses.find((x) => x.m === Number(c.req.query('mes')) - 1)
     ?? meses.find((x) => x.primeiro.slice(0, 7) === new Date().toISOString().slice(0, 7)) ?? meses[0];
   const base = `/admin/pedagogico/calendario?ano=${anoNum}`;
-  const nomeCodigo = Object.fromEntries(CODIGOS_DIA.map(([cod, nome]) => [cod, nome]));
+  const volta = vista === 'mes' ? `&vista=mes&mes=${mesSel.m + 1}` : '';
+  const DIAS_LONGOS = ['', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'];
 
   const CartaoMes = ({ x, grande }: { x: (typeof meses)[number]; grande?: boolean }) => {
     const vazios = diaDaSemana(x.primeiro) % 7; // semana começa no domingo
@@ -244,14 +296,21 @@ rotasCalendario.get('/calendario', async (c) => {
         </header>
         <div class="semana">{['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((d, i) => <span class={i === 0 ? 'dom' : ''}>{d}</span>)}</div>
         <div class="dias">
-          {celulas.map((x2) => !x2 ? <span class="dia vazio" />
-            : !x2.codigo ? <span class="dia fora" title="fora do ano letivo">{Number(x2.d.slice(8))}</span>
-            : (
-              <button type="button" class={`dia c-${x2.codigo}${x2.eventos.some((e) => e.tipo === 'evento') ? ' tem-evento' : ''}`} data-data={x2.d}
-                title={[`${dataBR(x2.d)} — ${nomeCodigo[x2.codigo]}`, ...x2.eventos.map((e) => `${ROTULO_EVENTO[e.tipo]}: ${e.descricao}`)].join('\n')}>
-                <b>{Number(x2.d.slice(8))}</b><small>{x2.codigo}</small>
-              </button>
-            ))}
+          {celulas.map((x2) => !x2 ? <span class="dia vazio" /> : (
+            <button type="button"
+              class={`dia c-${x2.codigo}${x2.evs.some((e) => e.tipo === 'evento') ? ' tem-evento' : ''}${x2.ajuste ? ' ajustado' : ''}${x2.noPeriodo ? '' : ' fora-periodo'}`}
+              data-data={x2.d} data-codigo={x2.codigo} data-ok={codigosPermitidos(x2.d, atual).join(',')}
+              data-rotulo={`${dataBR(x2.d)} (${DIAS_LONGOS[diaDaSemana(x2.d)]})`}
+              data-auto={`Automático: ${x2.auto} — ${nomeCodigo[x2.auto]}${x2.noPeriodo ? '' : ' (fora do período do ano letivo: férias)'}`}
+              data-desc={x2.ajuste?.descricao ?? ''} data-manual={x2.ajuste ? '1' : '0'}
+              title={[
+                `${dataBR(x2.d)} — ${nomeCodigo[x2.codigo]}${x2.noPeriodo ? '' : ' (fora do período do ano letivo)'}`,
+                ...x2.evs.map((e) => e.tipo === 'ajuste' ? `Ajustado à mão${e.descricao ? `: ${e.descricao}` : ''}` : `${ROTULO_EVENTO[e.tipo]}: ${e.descricao}`),
+                'Clique para editar o dia',
+              ].join('\n')}>
+              <b>{Number(x2.d.slice(8))}</b><small>{x2.codigo}</small>
+            </button>
+          ))}
         </div>
         <details class="legendas" open={grande}>
           <summary><Icone nome="documento" />Ver legendas do mês <span class="muted">({legendas.length})</span></summary>
@@ -261,9 +320,10 @@ rotasCalendario.get('/calendario', async (c) => {
                 <span class={`tipo ${letivo ? 'sim' : 'nao'}`}>{letivo ? 'LETIVO' : 'NÃO LETIVO'}</span></li>
             ))}
           </ul>
-          {x.evMes.length > 0 && (
+          {(x.evMes.length > 0 || x.ajustesMes.length > 0) && (
             <ul class="eventos-mes">
               {x.evMes.map((e) => <li><b>{dataBR(e.data_inicio).slice(0, 5)}{e.data_fim !== e.data_inicio && <>–{dataBR(e.data_fim).slice(0, 5)}</>}</b> {e.descricao} <span class="muted">({ROTULO_EVENTO[e.tipo].toLowerCase()})</span></li>)}
+              {x.ajustesMes.map((a) => <li><b>{dataBR(a.d).slice(0, 5)}</b> {a.ajuste!.descricao ?? nomeCodigo[a.codigo]} <span class="muted">(ajuste: {a.codigo})</span></li>)}
             </ul>
           )}
         </details>
@@ -279,17 +339,27 @@ rotasCalendario.get('/calendario', async (c) => {
         <form method="get" style="margin:0">
           <label>Ano letivo<select name="ano" onchange="this.form.submit()">{anos.map((a) => <option value={a.ano} selected={a.id === atual.id}>{a.ano}</option>)}</select></label>
         </form>
-        <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/feriados`} style="margin:0"
-          onsubmit="return confirm('Incluir os feriados nacionais (e Carnaval/Corpus Christi como ponto facultativo) deste ano? Datas já cadastradas não se repetem.')">
-          <button class="sec"><Icone nome="incluir" />Incluir feriados nacionais</button>
+        <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/gerar`} style="margin:0;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap"
+          onsubmit={`return confirm('${atual.calendario_gerado_em ? 'Gerar de novo' : 'Gerar'} o calendário de ${anoNum}? Segunda a sexta ficam letivos, sábado e domingo não, e os feriados nacionais que faltam são incluídos (Carnaval e Corpus Christi como ponto facultativo).')`}>
+          <button class={atual.calendario_gerado_em ? 'sec' : ''}><Icone nome="incluir" />{atual.calendario_gerado_em ? 'Gerar novamente' : 'Gerar calendário automaticamente'}</button>
+          {totalAjustes > 0 && <label class="descartar"><input type="checkbox" name="descartar" value="1" />descartar os {totalAjustes} ajuste(s) feitos à mão</label>}
         </form>
-        <a class="botao sec" href="#incluir"><Icone nome="incluir" />Incluir evento</a>
+        <a class="botao sec" href="#incluir"><Icone nome="incluir" />Incluir período ou evento</a>
         <div class="resumo-cal">
           <span class="chip periodo"><Icone nome="valido" />Período: <b>{dataBR(atual.data_inicio)}</b> a <b>{dataBR(atual.data_fim)}</b> · <b>{totalDias}</b> dias</span>
           <span class="chip letivos"><Icone nome="pedagogico" />Letivos: <b>{letivos}</b></span>
           <span class="chip nao"><Icone nome="cancelar" />Não letivos: <b>{naoLetivos}</b></span>
         </div>
       </div>
+      {atual.calendario_gerado_em
+        ? <p class="gerado">Calendário gerado automaticamente em {dataBR(atual.calendario_gerado_em.slice(0, 10))}{atual.calendario_gerado_por ? ` por ${atual.calendario_gerado_por}` : ''}
+          {totalAjustes > 0 ? ` · ${totalAjustes} dia(s) ajustado(s) à mão (✎)` : ''}. Clique em um dia para editá-lo.</p>
+        : (
+          <div class="cartao aviso-gerar">
+            <p><b>O calendário de {anoNum} ainda não foi gerado.</b> Clique em "Gerar calendário automaticamente": o sistema monta janeiro a dezembro com
+              os dias letivos e os feriados nacionais. Depois é só clicar nos dias que forem diferentes para ajustar.</p>
+          </div>
+        )}
 
       <div class="titulo-cal">
         <h2>Calendário {anoNum}</h2>
@@ -309,9 +379,32 @@ rotasCalendario.get('/calendario', async (c) => {
             <CartaoMes x={mesSel} grande />
           </div>
         )}
-      <p class="muted">Clique em um dia para preenchê-lo no formulário abaixo. Fora do período do ano letivo os dias ficam apagados.</p>
+      <p class="muted">Clique em um dia para trocar o código (✎ = ajustado à mão). Fora do período do ano letivo ({dataBR(atual.data_inicio)} a {dataBR(atual.data_fim)})
+        os dias ficam esmaecidos e não têm aula; o período se altera em <a href="/admin/pedagogico/anos">Ano Letivo</a>.</p>
 
-      <h2 id="incluir">Incluir no calendário</h2>
+      <dialog id="editar-dia">
+        <header>Editar dia — <span class="titulo-dia" /></header>
+        <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/dia`}>
+          <input type="hidden" name="data" />
+          <input type="hidden" name="volta" value={volta} />
+          <p class="auto-info" />
+          <div class="codigos">
+            {CODIGOS_DIA.map(([cod, nome, letivo]) => (
+              <label class={`op-codigo c-${cod}`} title={letivo ? 'letivo' : 'não letivo'}><input type="radio" name="codigo" value={cod} required /><b>{cod}</b> {nome}</label>
+            ))}
+          </div>
+          <label>Descrição<input name="descricao" maxlength={120} placeholder="Ex.: Aniversário de Campo Grande, Reunião pedagógica, Reposição" /></label>
+          <div class="acoes">
+            <button name="acao" value="salvar"><Icone nome="salvar" />Salvar</button>
+            <button name="acao" value="automatico" class="sec" formnovalidate>Voltar ao automático</button>
+            <button type="button" class="sec" data-periodo>Incluir período a partir deste dia</button>
+            <button type="button" class="sec" data-fechar>Cancelar</button>
+          </div>
+        </form>
+      </dialog>
+
+      <h2 id="incluir">Incluir período ou evento</h2>
+      <p class="muted" style="margin-top:-.4rem">Para vários dias de uma vez (recesso, férias) ou eventos informativos. Incluir aqui substitui os ajustes à mão feitos nesses dias.</p>
       <div class="cartao">
         <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/eventos`} class="grade" id="form-evento">
           <Selecao nome="tipo" rotulo="Tipo" valor="feriado" opcoes={TIPOS_EVENTO.map(([t, r]) => [t, r] as [string, string])} obrigatorio />
@@ -335,7 +428,7 @@ rotasCalendario.get('/calendario', async (c) => {
           </tr>
         ))}
       </table>
-      {!eventos.length && <p class="muted">Nenhum evento cadastrado. Use "Incluir feriados nacionais" e cadastre os feriados municipais/estaduais e recessos.</p>}
+      {!eventos.length && <p class="muted">Nenhum evento cadastrado. Use "Gerar calendário automaticamente" e cadastre os feriados municipais/estaduais e recessos.</p>}
       <script dangerouslySetInnerHTML={{ __html: JS }} />
     </Pagina>,
   );
@@ -364,28 +457,89 @@ rotasCalendario.post('/calendario/:ano{[0-9]+}/eventos', async (c) => {
     if (e instanceof ErroValidacao) return c.redirect(`${volta}&erro=` + encodeURIComponent(e.message));
     throw e;
   }
-  const r = await db.prepare('INSERT INTO calendario_eventos (ano_letivo_id, data_inicio, data_fim, tipo, descricao) VALUES (?, ?, ?, ?, ?) RETURNING id')
-    .bind(a.id, d.data_inicio, d.data_fim, d.tipo, d.descricao).first<{ id: number }>();
-  await auditar(c, 'criar', 'calendario_evento', r!.id, null, d);
+  // vale a última alteração: o evento novo substitui os ajustes à mão feitos nesses dias (exceto evento informativo)
+  const ajustes = d.tipo === 'evento' ? [] : (await db.prepare('SELECT * FROM calendario_dias WHERE ano_letivo_id = ? AND data BETWEEN ? AND ?')
+    .bind(a.id, d.data_inicio, d.data_fim).all<Record<string, any>>()).results;
+  const id = (await db.prepare('INSERT INTO calendario_eventos (ano_letivo_id, data_inicio, data_fim, tipo, descricao) VALUES (?, ?, ?, ?, ?) RETURNING id')
+    .bind(a.id, d.data_inicio, d.data_fim, d.tipo, d.descricao).first<{ id: number }>())!.id;
+  if (ajustes.length) await db.prepare('DELETE FROM calendario_dias WHERE ano_letivo_id = ? AND data BETWEEN ? AND ?').bind(a.id, d.data_inicio, d.data_fim).run();
+  await auditar(c, 'criar', 'calendario_evento', id, ajustes.length ? { ajustes_substituidos: ajustes } : null, d);
   const chamadas = TIPOS_NAO_LETIVOS.includes(d.tipo) ? await chamadasEmDatas(db, d.data_inicio, d.data_fim) : 0;
-  const msg = chamadas
-    ? `Incluído. Atenção: já há ${chamadas} aula(s) com chamada registrada nessas datas — confira em Faltas do Aluno.`
-    : 'Incluído no calendário.';
+  const msg = 'Incluído no calendário.'
+    + (ajustes.length ? ` ${ajustes.length} ajuste(s) à mão nesses dias foram substituídos.` : '')
+    + (chamadas ? ` Atenção: já há ${chamadas} aula(s) com chamada registrada nessas datas — confira em Faltas do Aluno.` : '');
   return c.redirect(`${volta}&ok=` + encodeURIComponent(msg));
 });
 
-rotasCalendario.post('/calendario/:ano{[0-9]+}/feriados', async (c) => {
+// gerar o calendário automaticamente (/feriados = endereço antigo do botão "Incluir feriados nacionais")
+for (const caminho of ['/calendario/:ano{[0-9]+}/gerar', '/calendario/:ano{[0-9]+}/feriados']) {
+  rotasCalendario.post(caminho, async (c) => {
+    const db = c.env.DB;
+    const a = await db.prepare('SELECT * FROM anos_letivos WHERE id = ?').bind(Number(c.req.param('ano'))).first<AnoLetivo>();
+    if (!a) return c.notFound();
+    const corpo = await lerCorpo(c);
+    const g = await gerarCalendario(db, a, c.get('usuario').email, texto(corpo, 'descartar') === '1');
+    await auditar(c, 'gerar_calendario', 'ano_letivo', a.id, null, { feriados_incluidos: g.feriados, ajustes_descartados: g.ajustesDescartados });
+    const msg = `Calendário de ${a.ano} gerado: ${g.feriados.length} feriado(s) nacional(is) incluído(s)`
+      + (g.ajustesDescartados ? `, ${g.ajustesDescartados} ajuste(s) à mão descartado(s)` : '')
+      + '. Inclua os feriados municipais/estaduais e recessos e clique num dia para ajustá-lo.';
+    return c.redirect(`/admin/pedagogico/calendario?ano=${a.ano}&ok=` + encodeURIComponent(msg));
+  });
+}
+
+// editar um dia: troca o código (ajuste manual) ou volta ao automático
+rotasCalendario.post('/calendario/:ano{[0-9]+}/dia', async (c) => {
   const db = c.env.DB;
   const a = await db.prepare('SELECT * FROM anos_letivos WHERE id = ?').bind(Number(c.req.param('ano'))).first<AnoLetivo>();
   if (!a) return c.notFound();
-  const existentes = new Set((await db.prepare('SELECT data_inicio FROM calendario_eventos WHERE ano_letivo_id = ?').bind(a.id).all<{ data_inicio: string }>()).results.map((e) => e.data_inicio));
-  const novos = feriadosNacionais(a.ano).filter((f) => !existentes.has(f.data));
-  if (novos.length) {
-    await db.batch(novos.map((f) => db.prepare('INSERT INTO calendario_eventos (ano_letivo_id, data_inicio, data_fim, tipo, descricao) VALUES (?, ?, ?, ?, ?)')
-      .bind(a.id, f.data, f.data, f.tipo, f.descricao)));
-    await auditar(c, 'incluir_feriados_nacionais', 'ano_letivo', a.id, null, { incluidos: novos });
+  const corpo = await lerCorpo(c);
+  const voltaQs = /^&vista=mes&mes=\d{1,2}$/.test(texto(corpo, 'volta') ?? '') ? texto(corpo, 'volta')! : '';
+  const volta = `/admin/pedagogico/calendario?ano=${a.ano}${voltaQs}`;
+  const data = texto(corpo, 'data') ?? '';
+  try {
+    if (!ISO.test(data) || data.slice(0, 4) !== String(a.ano)) throw new ErroValidacao(`Escolha um dia de ${a.ano}.`);
+    const antes = await db.prepare('SELECT * FROM calendario_dias WHERE ano_letivo_id = ? AND data = ?').bind(a.id, data).first<Record<string, any>>();
+    const auto = codigoParaExibir(data, a, ((await eventosPorDia(db, a.id)).get(data) ?? []).filter((e) => e.tipo !== 'ajuste'));
+    const nome = Object.fromEntries(CODIGOS_DIA.map(([cod, n]) => [cod, n])) as Record<CodigoDia, string>;
+    const apagar = db.prepare('DELETE FROM calendario_dias WHERE ano_letivo_id = ? AND data = ?').bind(a.id, data);
+
+    if (texto(corpo, 'acao') === 'automatico') {
+      if (antes) {
+        await apagar.run();
+        await auditar(c, 'ajustar_dia', 'calendario_dia', a.id, antes, { data, automatico: auto });
+      }
+      return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)} voltou ao automático (${auto} — ${nome[auto]}).`));
+    }
+
+    const codigo = (texto(corpo, 'codigo') ?? '') as CodigoDia;
+    const permitidos = codigosPermitidos(data, a);
+    if (!permitidos.includes(codigo)) {
+      throw new ErroValidacao(nome[codigo] && classificarDia(data, a) === null
+        ? `${dataBR(data)} está fora do período do ano letivo (${dataBR(a.data_inicio)} a ${dataBR(a.data_fim)}): não pode ser letivo. Ajuste o período em Ano Letivo.`
+        : `Escolha um código válido para ${dataBR(data)}: ${permitidos.join(', ')}.`);
+    }
+    const descricao = texto(corpo, 'descricao');
+    if (codigo === auto && !descricao) {
+      // igual ao automático: não precisa de ajuste
+      if (antes) await apagar.run();
+      if (antes) await auditar(c, 'ajustar_dia', 'calendario_dia', a.id, antes, { data, automatico: auto });
+      return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)}: ${codigo} — ${nome[codigo]} (automático).`));
+    }
+    if (!descricao && !['L', 'S', 'D'].includes(codigo)) throw new ErroValidacao(`Informe a descrição de ${dataBR(data)} (ex.: Aniversário de Campo Grande, Reunião pedagógica).`);
+    const usuario = c.get('usuario').email;
+    await db.prepare(
+      `INSERT INTO calendario_dias (ano_letivo_id, data, codigo, descricao, atualizado_por, atualizado_em) VALUES (?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT (ano_letivo_id, data) DO UPDATE SET codigo = excluded.codigo, descricao = excluded.descricao,
+         atualizado_por = excluded.atualizado_por, atualizado_em = excluded.atualizado_em`,
+    ).bind(a.id, data, codigo, descricao, usuario).run();
+    await auditar(c, 'ajustar_dia', 'calendario_dia', a.id, antes, { data, codigo, descricao, automatico: auto });
+    const chamadas = !ehLetivo(codigo) && classificarDia(data, a) !== null ? await chamadasEmDatas(db, data, data) : 0;
+    return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)} agora é ${codigo} — ${nome[codigo]}.`
+      + (chamadas ? ` Atenção: já há ${chamadas} aula(s) com chamada registrada nesse dia — confira em Faltas do Aluno.` : '')));
+  } catch (e) {
+    if (e instanceof ErroValidacao) return c.redirect(`${volta}&erro=` + encodeURIComponent(e.message));
+    throw e;
   }
-  return c.redirect(`/admin/pedagogico/calendario?ano=${a.ano}&ok=` + encodeURIComponent(`${novos.length} feriado(s) nacional(is) incluído(s). Cadastre também os municipais e estaduais.`));
 });
 
 rotasCalendario.post('/calendario/eventos/:id{[0-9]+}/excluir', async (c) => {
