@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { criarAmbiente } from './ambiente';
-import { aulasPrevistasDoProfessor, diaDaSemana, feriadosNacionais, pascoa, type AnoLetivo } from '../src/lib/pedagogico';
+import { aulasPrevistasDoProfessor, classificarDia, diaDaSemana, feriadosNacionais, pascoa, type AnoLetivo } from '../src/lib/pedagogico';
 import { sigla } from '../src/rotas/horario';
 
 describe('sigla da disciplina no quadro de horário', () => {
@@ -41,6 +41,34 @@ describe('calendário', () => {
     expect(diaDaSemana('2026-08-03')).toBe(1); // segunda
     expect(diaDaSemana('2026-09-07')).toBe(1); // Independência cai numa segunda
     expect(diaDaSemana('2026-11-22')).toBe(7); // domingo
+  });
+
+  it('classifica cada dia como no sysGEP (L, D, S, SL, F, NL) e a tela mostra os totais do período', async () => {
+    const ano = { data_inicio: '2026-02-01', data_fim: '2026-12-18' };
+    expect(classificarDia('2026-01-31', ano)).toBeNull(); // fora do ano letivo
+    expect(classificarDia('2026-02-02', ano)).toBe('L'); // segunda
+    expect(classificarDia('2026-02-07', ano)).toBe('S');
+    expect(classificarDia('2026-02-08', ano)).toBe('D');
+    expect(classificarDia('2026-02-28', ano, [{ tipo: 'dia_letivo_extra', descricao: 'Sábado letivo' }])).toBe('SL');
+    expect(classificarDia('2026-04-21', ano, [{ tipo: 'feriado', descricao: 'Tiradentes' }])).toBe('F');
+    expect(classificarDia('2026-02-16', ano, [{ tipo: 'ponto_facultativo', descricao: 'Carnaval' }])).toBe('NL');
+    expect(classificarDia('2026-07-13', ano, [{ tipo: 'recesso', descricao: 'Recesso' }, { tipo: 'dia_letivo_extra', descricao: 'x' }])).toBe('NL'); // não letivo vence
+    expect(classificarDia('2026-03-10', ano, [{ tipo: 'evento', descricao: 'Feira' }])).toBe('L');
+
+    const { c, sqlite } = await pronto();
+    const ano26 = sqlite.prepare('SELECT id FROM anos_letivos WHERE ano = 2026').get() as { id: number };
+    await c.post(`/admin/pedagogico/calendario/${ano26.id}/eventos`, { tipo: 'dia_letivo_extra', data_inicio: '2026-02-28', descricao: 'Sábado letivo' });
+    const html = await (await c.req('/admin/pedagogico/calendario?ano=2026')).text();
+    expect(html).toContain('Fevereiro/2026');
+    expect(html).toContain('Dezembro/2026');
+    expect(html).not.toContain('Janeiro/2026'); // só os meses do período
+    expect(html).toContain('<b>321</b> dias'); // 01/02 a 18/12
+    expect(html).toMatch(/data-data="2026-02-28"[^>]*>[\s\S]*?<small>SL<\/small>/);
+    expect(html).toContain('Ver legendas do mês');
+    expect(html).toContain('SÁBADO LETIVO');
+    const mes = await (await c.req('/admin/pedagogico/calendario?ano=2026&vista=mes&mes=2')).text();
+    expect(mes).toContain('mes-cal grande');
+    expect(mes).toContain('Março ›');
   });
 
   it('ano letivo e calendário: inclui feriados nacionais sem repetir, conta dias letivos e exclui evento', async () => {

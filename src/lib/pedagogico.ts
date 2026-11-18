@@ -99,14 +99,46 @@ export async function diasNaoLetivos(db: D1Database, anoLetivoId: number): Promi
   return m;
 }
 
+// ------------------------------------------------------------------ classificação dos dias (calendário visual, padrão sysGEP)
+export type CodigoDia = 'L' | 'D' | 'S' | 'SL' | 'DL' | 'F' | 'NL';
+/** [código, nome, é letivo?] — ordem da legenda */
+export const CODIGOS_DIA: [CodigoDia, string, boolean][] = [
+  ['D', 'Domingo', false], ['F', 'Feriado', false], ['L', 'Letivo', true], ['NL', 'Não letivo', false],
+  ['S', 'Sábado', false], ['SL', 'Sábado letivo', true], ['DL', 'Domingo letivo', true],
+];
+
+export interface EventoDia { tipo: string; descricao: string }
+
+/**
+ * Código do dia: evento não letivo vence (feriado → F; recesso/ponto facultativo → NL); dia letivo extra torna letivo
+ * o sábado (SL) e o domingo (DL); sem evento: segunda a sexta L, sábado S, domingo D. Fora do ano letivo: null.
+ */
+export function classificarDia(d: string, ano: { data_inicio: string; data_fim: string }, eventos: EventoDia[] = []): CodigoDia | null {
+  if (d < ano.data_inicio || d > ano.data_fim) return null;
+  if (eventos.some((e) => e.tipo === 'feriado')) return 'F';
+  if (eventos.some((e) => TIPOS_NAO_LETIVOS.includes(e.tipo))) return 'NL';
+  const dia = diaDaSemana(d);
+  const extra = eventos.some((e) => e.tipo === 'dia_letivo_extra');
+  if (dia === 6) return extra ? 'SL' : 'S';
+  if (dia === 7) return extra ? 'DL' : 'D';
+  return 'L';
+}
+export const ehLetivo = (c: CodigoDia | null) => c === 'L' || c === 'SL' || c === 'DL';
+
+/** Eventos do calendário por dia (um evento de período vale em todos os seus dias). */
+export async function eventosPorDia(db: D1Database, anoLetivoId: number): Promise<Map<string, (EventoDia & { id: number })[]>> {
+  const evs = (await db.prepare('SELECT id, data_inicio, data_fim, tipo, descricao FROM calendario_eventos WHERE ano_letivo_id = ? ORDER BY data_inicio, id')
+    .bind(anoLetivoId).all<{ id: number; data_inicio: string; data_fim: string; tipo: string; descricao: string }>()).results;
+  const m = new Map<string, (EventoDia & { id: number })[]>();
+  for (const e of evs) for (const d of diasEntre(e.data_inicio, e.data_fim)) m.set(d, [...(m.get(d) ?? []), { id: e.id, tipo: e.tipo, descricao: e.descricao }]);
+  return m;
+}
+
 /** Dias letivos do ano: segunda a sexta + dias letivos extras, menos feriados/recessos/pontos facultativos. */
 export async function contarDiasLetivos(db: D1Database, a: AnoLetivo): Promise<number> {
-  const nao = await diasNaoLetivos(db, a.id);
-  const extras = (await db.prepare(`SELECT data_inicio, data_fim FROM calendario_eventos WHERE ano_letivo_id = ? AND tipo = 'dia_letivo_extra'`)
-    .bind(a.id).all<{ data_inicio: string; data_fim: string }>()).results;
-  const extra = new Set(extras.flatMap((e) => [...diasEntre(e.data_inicio, e.data_fim)]));
+  const evs = await eventosPorDia(db, a.id);
   let n = 0;
-  for (const d of diasEntre(a.data_inicio, a.data_fim)) if (!nao.has(d) && (diaDaSemana(d) <= 5 || extra.has(d))) n++;
+  for (const d of diasEntre(a.data_inicio, a.data_fim)) if (ehLetivo(classificarDia(d, a, evs.get(d)))) n++;
   return n;
 }
 

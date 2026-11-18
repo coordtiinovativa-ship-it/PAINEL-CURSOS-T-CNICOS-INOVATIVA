@@ -9,7 +9,10 @@ import { exigir } from '../auth/sessao';
 import { auditar } from '../lib/auditoria';
 import { ErroValidacao, inteiro, lerCorpo, texto } from '../lib/form';
 import { dataBR } from '../lib/datas';
-import { contarDiasLetivos, diaDaSemana, diasEntre, feriadosNacionais, ROTULO_EVENTO, TIPOS_EVENTO, TIPOS_NAO_LETIVOS, type AnoLetivo } from '../lib/pedagogico';
+import {
+  classificarDia, CODIGOS_DIA, contarDiasLetivos, diaDaSemana, diasEntre, ehLetivo, eventosPorDia, feriadosNacionais, ROTULO_EVENTO, TIPOS_EVENTO,
+  TIPOS_NAO_LETIVOS, type AnoLetivo, type CodigoDia,
+} from '../lib/pedagogico';
 
 export const rotasCalendario = new Hono<Env>();
 // montado em /admin/pedagogico junto com outras telas: a permissão vale só para os caminhos deste arquivo
@@ -18,23 +21,70 @@ for (const p of ['/anos', '/anos/*', '/calendario', '/calendario/*']) rotasCalen
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
+/* Calendário no padrão do sysGEP: cada dia é um bloco colorido com o código (L, D, S, SL, F, NL) */
 const CSS = `
-.meses{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.8rem}
-.mes{background:var(--superficie);border:1px solid var(--borda);border-radius:12px;padding:.6rem .7rem;box-shadow:var(--sombra)}
-.mes h3{margin:0 0 .4rem;font-size:.9rem;color:var(--titulo)}
-.mes table{box-shadow:none;border:0;font-size:.76rem}
-.mes th,.mes td{padding:.18rem 0;text-align:center;border:0}
-.mes th{background:none}
-.mes td.fora{color:transparent}
-.mes td.fds{color:var(--texto-2);opacity:.6}
-.mes td.nao{background:var(--erro-bg);color:var(--erro);font-weight:700;border-radius:6px}
-.mes td.extra{background:var(--ok-bg);color:var(--ok);font-weight:700;border-radius:6px}
-.mes td.evento{outline:1px dashed var(--ciano);border-radius:6px}
-.mes td.fora-ano{opacity:.25}
-.legenda{display:flex;gap:.8rem;flex-wrap:wrap;font-size:.8rem;color:var(--texto-2);margin:.4rem 0 .8rem}
-.legenda span{display:inline-flex;align-items:center;gap:.3rem}
-.legenda i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.acoes-cal{display:flex;gap:.7rem;flex-wrap:wrap;align-items:flex-end}
+.resumo-cal{display:flex;gap:.5rem;flex-wrap:wrap;margin-left:auto}
+.resumo-cal .chip{display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .8rem;border-radius:999px;font-size:.84rem;border:1px solid}
+.resumo-cal .chip svg{width:16px;height:16px}
+.resumo-cal .periodo{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-borda)}
+.resumo-cal .letivos{background:rgba(37,99,235,.12);color:#2563eb;border-color:rgba(37,99,235,.35)}
+html[data-tema="escuro"] .resumo-cal .letivos{color:#93b4ff}
+.resumo-cal .nao{background:var(--superficie-2);color:var(--texto-2);border-color:var(--borda)}
+.titulo-cal{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:1.2rem 0 .7rem}
+.titulo-cal h2{margin:0;font-size:1.5rem;background:linear-gradient(90deg,#2d7bb9,#7c5cf0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.vistas{display:flex;background:var(--superficie);border:1px solid var(--borda);border-radius:10px;padding:3px}
+.vistas a{padding:.35rem .9rem;border-radius:8px;text-decoration:none;color:var(--texto-2);font-weight:600;font-size:.88rem}
+.vistas a.ativa{background:var(--primaria);color:var(--primaria-texto)}
+.grade-meses{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:1rem;align-items:start}
+.mes-cal{background:var(--superficie);border:1px solid var(--borda);border-radius:14px;box-shadow:var(--sombra);overflow:hidden}
+.mes-cal header{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.45rem .6rem;background:linear-gradient(90deg,#2563eb,#6d4fe6)}
+.mes-cal header a{color:#fff;font-weight:700;text-decoration:none;font-size:.92rem}
+.mes-cal header a:hover{text-decoration:underline}
+.pilula{font-size:.78rem;font-weight:800;padding:.12rem .6rem;border-radius:999px;background:rgba(255,255,255,.92)}
+.pilula.l{color:#1d4ed8} .pilula.nl{color:#9d174d}
+.semana{display:grid;grid-template-columns:repeat(7,1fr);padding:.35rem .4rem 0;font-size:.66rem;font-weight:700;color:var(--texto-2);text-align:center}
+.semana .dom{color:#e11d48}
+.dias{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:.4rem}
+.dia{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:space-between;min-height:46px;padding:.25rem 0 .15rem;
+  border-radius:7px;border:0;font:inherit;font-size:.8rem;line-height:1.1;cursor:pointer;box-shadow:inset 0 -2px 0 rgba(0,0,0,.08)}
+.dia b{font-weight:600} .dia small{font-size:.68rem;font-weight:800}
+.dia:hover{filter:brightness(1.06);outline:2px solid var(--ciano);outline-offset:1px}
+.dia.vazio{background:repeating-linear-gradient(135deg,var(--superficie-2) 0 6px,transparent 6px 12px);cursor:default;box-shadow:none;min-height:46px}
+.dia.fora{background:var(--superficie-2);color:var(--texto-2);opacity:.45;cursor:default;justify-content:center}
+.dia.tem-evento::after{content:"";position:absolute;top:4px;right:5px;width:6px;height:6px;border-radius:50%;background:#2563eb}
+.c-L{background:#86efac;color:#14532d} .c-D{background:#fda4af;color:#881337} .c-S{background:#fde047;color:#713f12}
+.c-SL{background:#5eead4;color:#134e4a} .c-DL{background:#99f6e4;color:#134e4a} .c-F{background:#fb923c;color:#431407} .c-NL{background:#f472b6;color:#500724}
+details.legendas{border-top:1px solid var(--borda)}
+details.legendas summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.45rem;padding:.55rem .8rem;font-size:.84rem;font-weight:650;background:var(--th)}
+details.legendas summary::-webkit-details-marker{display:none}
+details.legendas summary::after{content:"⌄";margin-left:auto;transition:transform .15s}
+details.legendas[open] summary::after{transform:rotate(180deg)}
+details.legendas summary svg{width:16px;height:16px}
+details.legendas ul{list-style:none;margin:0;padding:.3rem .8rem .5rem}
+details.legendas li{display:flex;align-items:center;gap:.55rem;padding:.3rem 0;font-size:.82rem;border-bottom:1px solid var(--borda)}
+details.legendas li:last-child{border-bottom:0}
+details.legendas li i{width:13px;height:13px;border-radius:3px;flex:none}
+details.legendas .qtd{min-width:1.8rem;text-align:center;font-size:.72rem;font-weight:800;padding:.05rem .4rem;border-radius:999px;background:#2563eb;color:#fff}
+details.legendas li b{min-width:1.6rem}
+details.legendas .nome{flex:1;color:var(--texto-2);font-size:.78rem}
+details.legendas .tipo{font-size:.66rem;font-weight:800;padding:.1rem .45rem;border-radius:6px}
+details.legendas .tipo.sim{background:var(--ok-bg);color:var(--ok)} details.legendas .tipo.nao{background:var(--erro-bg);color:var(--erro)}
+details.legendas ul.eventos-mes{border-top:1px dashed var(--borda)} details.legendas ul.eventos-mes li{display:block}
+.vista-mes{max-width:760px}
+.vista-mes .nav-mes{display:flex;justify-content:space-between;margin-bottom:.6rem}
+.mes-cal.grande .dia{min-height:74px;font-size:1rem} .mes-cal.grande .dia small{font-size:.8rem}
+@media (max-width:600px){.grade-meses{grid-template-columns:1fr} .resumo-cal{margin-left:0}}
 `;
+
+/** Clicar num dia preenche a data no formulário de inclusão. */
+const JS = `
+document.addEventListener('click',function(e){
+  var d=e.target.closest('.dia[data-data]'); if(!d) return;
+  var f=document.getElementById('form-evento'); if(!f) return;
+  f.data_inicio.value=d.dataset.data; f.data_fim.value='';
+  document.getElementById('incluir').scrollIntoView({behavior:'smooth'}); setTimeout(function(){f.descricao.focus()},350);
+});`;
 
 // ------------------------------------------------------------------ ano letivo
 const lerAno = (corpo: Record<string, any>) => {
@@ -154,67 +204,116 @@ rotasCalendario.get('/calendario', async (c) => {
   }
   const eventos = (await db.prepare('SELECT * FROM calendario_eventos WHERE ano_letivo_id = ? ORDER BY data_inicio, id').bind(atual.id)
     .all<{ id: number; data_inicio: string; data_fim: string; tipo: string; descricao: string }>()).results;
-  const porDia = new Map<string, { tipo: string; descricao: string }[]>();
-  for (const e of eventos) for (const d of diasEntre(e.data_inicio, e.data_fim)) porDia.set(d, [...(porDia.get(d) ?? []), e]);
-  const diasLetivos = await contarDiasLetivos(db, atual);
+  const porDia = await eventosPorDia(db, atual.id);
   const anoNum = atual.ano;
 
-  const Mes = ({ m }: { m: number }) => {
+  // meses do período do ano letivo, com cada dia classificado
+  const mesIni = Number(atual.data_inicio.slice(5, 7)) - 1;
+  const mesFim = atual.data_fim.slice(0, 4) === String(anoNum) ? Number(atual.data_fim.slice(5, 7)) - 1 : 11;
+  const meses = Array.from({ length: mesFim - mesIni + 1 }, (_, i) => mesIni + i).map((m) => {
     const primeiro = `${anoNum}-${String(m + 1).padStart(2, '0')}-01`;
     const ultimo = new Date(Date.UTC(anoNum, m + 1, 0)).toISOString().slice(0, 10);
-    const dias = [...diasEntre(primeiro, ultimo)];
-    const vazios = diaDaSemana(primeiro) - 1; // semana começando na segunda
-    const celulas = [...Array(vazios).fill(null), ...dias];
-    const semanas: (string | null)[][] = [];
-    for (let i = 0; i < celulas.length; i += 7) semanas.push(celulas.slice(i, i + 7));
+    const dias = [...diasEntre(primeiro, ultimo)].map((d) => ({ d, codigo: classificarDia(d, atual, porDia.get(d)), eventos: porDia.get(d) ?? [] }));
+    const cont = new Map<CodigoDia, number>();
+    for (const x of dias) if (x.codigo) cont.set(x.codigo, (cont.get(x.codigo) ?? 0) + 1);
+    const letivos = dias.filter((x) => ehLetivo(x.codigo)).length;
+    const naoLetivos = dias.filter((x) => x.codigo && !ehLetivo(x.codigo)).length;
+    const evMes = eventos.filter((e) => e.data_inicio <= ultimo && e.data_fim >= primeiro);
+    return { m, primeiro, dias, cont, letivos, naoLetivos, evMes };
+  });
+  const totalDias = [...diasEntre(atual.data_inicio, atual.data_fim)].length;
+  const letivos = meses.reduce((s, x) => s + x.letivos, 0);
+  const naoLetivos = meses.reduce((s, x) => s + x.naoLetivos, 0);
+  const vista = c.req.query('vista') === 'mes' ? 'mes' : 'ano';
+  const mesSel = meses.find((x) => x.m === Number(c.req.query('mes')) - 1)
+    ?? meses.find((x) => x.primeiro.slice(0, 7) === new Date().toISOString().slice(0, 7)) ?? meses[0];
+  const base = `/admin/pedagogico/calendario?ano=${anoNum}`;
+  const nomeCodigo = Object.fromEntries(CODIGOS_DIA.map(([cod, nome]) => [cod, nome]));
+
+  const CartaoMes = ({ x, grande }: { x: (typeof meses)[number]; grande?: boolean }) => {
+    const vazios = diaDaSemana(x.primeiro) % 7; // semana começa no domingo
+    const celulas: (typeof x.dias[number] | null)[] = [...Array(vazios).fill(null), ...x.dias];
+    while (celulas.length % 7) celulas.push(null);
+    const legendas = CODIGOS_DIA.filter(([cod]) => x.cont.get(cod));
     return (
-      <div class="mes">
-        <h3>{MESES[m]}</h3>
-        <table>
-          <tr>{['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((d) => <th>{d}</th>)}</tr>
-          {semanas.map((s) => (
-            <tr>{[...s, ...Array(7 - s.length).fill(null)].map((d) => {
-              if (!d) return <td class="fora">·</td>;
-              const evs = porDia.get(d) ?? [];
-              const nao = evs.some((e) => TIPOS_NAO_LETIVOS.includes(e.tipo));
-              const extra = evs.some((e) => e.tipo === 'dia_letivo_extra');
-              const classe = [
-                d < atual.data_inicio || d > atual.data_fim ? 'fora-ano' : '',
-                nao ? 'nao' : extra ? 'extra' : diaDaSemana(d) >= 6 ? 'fds' : '',
-                evs.some((e) => e.tipo === 'evento') ? 'evento' : '',
-              ].filter(Boolean).join(' ');
-              return <td class={classe} title={evs.map((e) => `${ROTULO_EVENTO[e.tipo]}: ${e.descricao}`).join('\n') || undefined}>{Number(d.slice(8))}</td>;
-            })}</tr>
-          ))}
-        </table>
-      </div>
+      <section class={`mes-cal ${grande ? 'grande' : ''}`}>
+        <header>
+          <span class="pilula l" title="dias letivos">L: {x.letivos}</span>
+          <a href={`${base}&vista=mes&mes=${x.m + 1}`} title="Ver o mês">{MESES[x.m]}/{anoNum}</a>
+          <span class="pilula nl" title="dias não letivos">NL: {x.naoLetivos}</span>
+        </header>
+        <div class="semana">{['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((d, i) => <span class={i === 0 ? 'dom' : ''}>{d}</span>)}</div>
+        <div class="dias">
+          {celulas.map((x2) => !x2 ? <span class="dia vazio" />
+            : !x2.codigo ? <span class="dia fora" title="fora do ano letivo">{Number(x2.d.slice(8))}</span>
+            : (
+              <button type="button" class={`dia c-${x2.codigo}${x2.eventos.some((e) => e.tipo === 'evento') ? ' tem-evento' : ''}`} data-data={x2.d}
+                title={[`${dataBR(x2.d)} — ${nomeCodigo[x2.codigo]}`, ...x2.eventos.map((e) => `${ROTULO_EVENTO[e.tipo]}: ${e.descricao}`)].join('\n')}>
+                <b>{Number(x2.d.slice(8))}</b><small>{x2.codigo}</small>
+              </button>
+            ))}
+        </div>
+        <details class="legendas" open={grande}>
+          <summary><Icone nome="documento" />Ver legendas do mês <span class="muted">({legendas.length})</span></summary>
+          <ul>
+            {legendas.map(([cod, nome, letivo]) => (
+              <li><i class={`c-${cod}`} /><span class="qtd">{x.cont.get(cod)}</span><b>{cod}</b><span class="nome">{nome.toUpperCase()}</span>
+                <span class={`tipo ${letivo ? 'sim' : 'nao'}`}>{letivo ? 'LETIVO' : 'NÃO LETIVO'}</span></li>
+            ))}
+          </ul>
+          {x.evMes.length > 0 && (
+            <ul class="eventos-mes">
+              {x.evMes.map((e) => <li><b>{dataBR(e.data_inicio).slice(0, 5)}{e.data_fim !== e.data_inicio && <>–{dataBR(e.data_fim).slice(0, 5)}</>}</b> {e.descricao} <span class="muted">({ROTULO_EVENTO[e.tipo].toLowerCase()})</span></li>)}
+            </ul>
+          )}
+        </details>
+      </section>
     );
   };
 
   return c.html(
     <Pagina titulo={`Calendário ${anoNum}`} usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')} erro={c.req.query('erro')}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <h1>Calendário escolar {anoNum}</h1>
-      <div class="acoes" style="margin-top:0">
-        <form method="get" class="acoes" style="margin:0">
-          <select name="ano" onchange="this.form.submit()">{anos.map((a) => <option value={a.ano} selected={a.id === atual.id}>{a.ano}</option>)}</select>
+      <h1>Calendário escolar</h1>
+      <div class="cartao acoes-cal">
+        <form method="get" style="margin:0">
+          <label>Ano letivo<select name="ano" onchange="this.form.submit()">{anos.map((a) => <option value={a.ano} selected={a.id === atual.id}>{a.ano}</option>)}</select></label>
         </form>
-        <span class="muted">{dataBR(atual.data_inicio)} a {dataBR(atual.data_fim)} · <b>{diasLetivos}</b> dias letivos</span>
         <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/feriados`} style="margin:0"
           onsubmit="return confirm('Incluir os feriados nacionais (e Carnaval/Corpus Christi como ponto facultativo) deste ano? Datas já cadastradas não se repetem.')">
           <button class="sec"><Icone nome="incluir" />Incluir feriados nacionais</button>
         </form>
+        <a class="botao sec" href="#incluir"><Icone nome="incluir" />Incluir evento</a>
+        <div class="resumo-cal">
+          <span class="chip periodo"><Icone nome="valido" />Período: <b>{dataBR(atual.data_inicio)}</b> a <b>{dataBR(atual.data_fim)}</b> · <b>{totalDias}</b> dias</span>
+          <span class="chip letivos"><Icone nome="pedagogico" />Letivos: <b>{letivos}</b></span>
+          <span class="chip nao"><Icone nome="cancelar" />Não letivos: <b>{naoLetivos}</b></span>
+        </div>
       </div>
-      <div class="legenda">
-        <span><i style="background:var(--erro-bg);outline:1px solid var(--erro)" />Não letivo (feriado, recesso, ponto facultativo)</span>
-        <span><i style="background:var(--ok-bg);outline:1px solid var(--ok)" />Dia letivo extra</span>
-        <span><i style="outline:1px dashed var(--ciano)" />Evento</span>
-      </div>
-      <div class="meses">{MESES.map((_, m) => <Mes m={m} />)}</div>
 
-      <h2>Incluir no calendário</h2>
+      <div class="titulo-cal">
+        <h2>Calendário {anoNum}</h2>
+        <div class="vistas">
+          <a href={base} class={vista === 'ano' ? 'ativa' : ''}>Ano</a>
+          <a href={`${base}&vista=mes&mes=${mesSel.m + 1}`} class={vista === 'mes' ? 'ativa' : ''}>Mês</a>
+        </div>
+      </div>
+      {vista === 'ano'
+        ? <div class="grade-meses">{meses.map((x) => <CartaoMes x={x} />)}</div>
+        : (
+          <div class="vista-mes">
+            <div class="nav-mes">
+              {meses.find((x) => x.m === mesSel.m - 1) ? <a class="botao sec" href={`${base}&vista=mes&mes=${mesSel.m}`}>‹ {MESES[mesSel.m - 1]}</a> : <span />}
+              {meses.find((x) => x.m === mesSel.m + 1) ? <a class="botao sec" href={`${base}&vista=mes&mes=${mesSel.m + 2}`}>{MESES[mesSel.m + 1]} ›</a> : <span />}
+            </div>
+            <CartaoMes x={mesSel} grande />
+          </div>
+        )}
+      <p class="muted">Clique em um dia para preenchê-lo no formulário abaixo. Fora do período do ano letivo os dias ficam apagados.</p>
+
+      <h2 id="incluir">Incluir no calendário</h2>
       <div class="cartao">
-        <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/eventos`} class="grade">
+        <form method="post" action={`/admin/pedagogico/calendario/${atual.id}/eventos`} class="grade" id="form-evento">
           <Selecao nome="tipo" rotulo="Tipo" valor="feriado" opcoes={TIPOS_EVENTO.map(([t, r]) => [t, r] as [string, string])} obrigatorio />
           <Campo nome="data_inicio" rotulo="Data (ou início)" tipo="date" obrigatorio extra={{ min: atual.data_inicio.slice(0, 4) + '-01-01', max: atual.data_fim.slice(0, 4) + '-12-31' }} />
           <Campo nome="data_fim" rotulo="Término (para recesso/período)" tipo="date" dica="Deixe em branco para um dia só." />
@@ -237,6 +336,7 @@ rotasCalendario.get('/calendario', async (c) => {
         ))}
       </table>
       {!eventos.length && <p class="muted">Nenhum evento cadastrado. Use "Incluir feriados nacionais" e cadastre os feriados municipais/estaduais e recessos.</p>}
+      <script dangerouslySetInnerHTML={{ __html: JS }} />
     </Pagina>,
   );
 });

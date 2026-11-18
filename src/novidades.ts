@@ -62,6 +62,14 @@ export const VERSOES: Versao[] = [
         perm: 'resultados.corrigir',
       },
       {
+        titulo: 'Calendário Escolar no padrão do sysGEP',
+        texto: 'cada dia aparece como um bloco colorido com o código — L (letivo), D (domingo), S (sábado), SL (sábado letivo), F (feriado) e NL (não letivo). ' +
+          'Cada mês mostra os totais de letivos e não letivos e a legenda com as contagens e os eventos; no topo, o período e os totais do ano. ' +
+          'Visão por ano ou por mês; clicar num dia já preenche a data para incluir um evento.',
+        href: '/admin/pedagogico/calendario',
+        perm: 'pedagogico.gerenciar',
+      },
+      {
         titulo: 'Vale a última digitação',
         texto: 'se a Secretaria e o professor estiverem lançando ao mesmo tempo, cada um só grava o que mudou na própria tela e prevalece quem salvou por último — ninguém desfaz o que o outro digitou. ' +
           'Cada nota e falta guarda quem alterou, quando, de onde (Gestão Pedagógica, Secretaria, chamada ou planilha) e o histórico das alterações. Os documentos usam sempre o valor mais recente.',
