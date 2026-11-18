@@ -75,14 +75,32 @@ a{color:var(--link)}
 .menu a.ativo::after{content:"";position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--ciano),var(--verde-agua))}
 .menu .item-raiz.ativo{color:#5CC6F2}
 .menu .sep{height:1px;background:rgba(255,255,255,.12);margin:6px 16px 6px 30px}
-.usuario{margin:10px;padding:12px;border-radius:10px;background:rgba(255,255,255,.06);font-size:.85rem}
-.usuario b{color:#fff;display:block}
-.usuario .perfil{color:#8FB3D9;font-size:.78rem}
-.usuario .links{display:flex;gap:12px;margin-top:8px}
-.usuario .links a{color:#CFE0F5;text-decoration:none;display:flex;align-items:center;gap:5px;font-size:.82rem}
-.usuario .links a:hover{color:#fff} .usuario .links svg{width:15px;height:15px}
-.usuario a.versao{display:flex;align-items:center;gap:6px;margin-top:9px;color:#8FB3D9;text-decoration:none;font-size:.76rem}
-.usuario a.versao:hover{color:#fff}
+.topo{position:sticky;top:0;z-index:30;display:flex;justify-content:flex-end;align-items:center;gap:.6rem;padding:10px 28px;
+  background:color-mix(in srgb,var(--fundo) 88%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--borda)}
+.perfil-menu{position:relative}
+.perfil-menu>summary{display:flex;align-items:center;gap:.6rem;list-style:none;cursor:pointer;padding:.3rem .7rem .3rem .35rem;border:1px solid var(--borda);
+  border-radius:999px;background:var(--superficie);box-shadow:var(--sombra);user-select:none}
+.perfil-menu>summary::-webkit-details-marker{display:none}
+.perfil-menu>summary:hover,.perfil-menu[open]>summary{border-color:var(--ciano)}
+.perfil-menu .avatar{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--degrade);color:#fff;font-weight:700;font-size:.82rem;letter-spacing:.02em}
+.perfil-menu .quem{display:flex;flex-direction:column;line-height:1.15;text-align:left}
+.perfil-menu .quem b{color:var(--titulo);font-size:.86rem;font-weight:620}
+.perfil-menu .quem small{color:var(--texto-2);font-size:.74rem}
+.perfil-menu .seta{width:16px;height:16px;color:var(--texto-2);transform:rotate(90deg);transition:transform .15s ease}
+.perfil-menu[open] .seta{transform:rotate(-90deg)}
+.perfil-menu .painel{position:absolute;right:0;top:calc(100% + 8px);width:270px;background:linear-gradient(180deg,var(--marinho-escuro) 0%,#012C61 100%);
+  color:#CFE0F5;border-radius:12px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:.85rem}
+.perfil-menu .painel::before{content:"";position:absolute;left:0;right:0;top:0;height:4px;border-radius:12px 12px 0 0;background:var(--degrade)}
+.perfil-menu .painel b{color:#fff;display:block;margin-top:2px}
+.perfil-menu .painel .email{display:block;color:#8FB3D9;font-size:.76rem;word-break:break-all}
+.perfil-menu .painel .perfil{display:inline-block;margin-top:6px;color:#fff;background:rgba(255,255,255,.12);border-radius:999px;padding:1px 9px;font-size:.74rem}
+.perfil-menu .painel .links{display:flex;flex-direction:column;margin:10px -6px 0;border-top:1px solid rgba(255,255,255,.12);padding-top:6px}
+.perfil-menu .painel .links a{color:#CFE0F5;text-decoration:none;display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:7px}
+.perfil-menu .painel .links a:hover{color:#fff;background:rgba(255,255,255,.07)} .perfil-menu .painel .links svg{width:16px;height:16px}
+.perfil-menu .painel .rot{display:block;margin-top:10px;color:#8FB3D9;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase}
+.perfil-menu .painel .tema{margin-top:5px}
+.versao-lateral{display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 10px 12px;color:#8FB3D9;text-decoration:none;font-size:.76rem}
+.versao-lateral:hover{color:#fff}
 .selo-novo{background:var(--verde-agua);color:#fff;border-radius:999px;padding:0 .45rem;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .msg.novidade{display:flex;align-items:center;gap:.4rem .8rem;flex-wrap:wrap;background:var(--superficie);color:var(--texto);border-color:var(--ciano);border-left-width:4px}
 .msg.novidade b{color:var(--titulo)} .msg.novidade .acoes{margin:0 0 0 auto}
@@ -171,6 +189,8 @@ code{font-size:.92em}
   .marca .chip{padding:6px 10px} .marca .chip img{max-width:140px} .marca small{display:none}
   .menu details:not([open]) .sub{display:none}
   main{padding:18px 14px 40px}
+  .app{position:relative} .topo{position:absolute;top:14px;right:12px;padding:0;background:none;border:0;backdrop-filter:none}
+  .perfil-menu .quem{display:none} .perfil-menu .painel{width:min(270px,calc(100vw - 24px))}
   table{font-size:.85rem;display:block;overflow-x:auto;-webkit-overflow-scrolling:touch} th,td{padding:.35rem .4rem}
 }
 `;
@@ -227,19 +247,23 @@ interface SecaoMenu { id: string; rotulo: string; icone: string; itens: ItemMenu
 /** Menu lateral no estilo SysGEP: seções recolhíveis com subitens. */
 export const SECOES_MENU: SecaoMenu[] = [
   {
-    id: 'secretaria', rotulo: 'Secretaria', icone: 'secretaria',
+    id: 'sistema', rotulo: 'Sistema', icone: 'sistema',
     itens: [
-      { href: '/admin/alunos', rotulo: 'Alunos', perm: 'alunos.editar' },
-      { href: '/admin/turmas', rotulo: 'Turmas e resultados', perm: 'turmas.editar' },
-      { href: '/admin/notas', rotulo: 'Notas', perm: 'resultados.corrigir' },
-      { href: '/admin/faltas', rotulo: 'Faltas', perm: 'resultados.corrigir' },
-      { href: '/admin/importacao', rotulo: 'Importar Planilhas', perm: 'alunos.editar' },
+      { href: '/admin/usuarios', rotulo: 'Usuários e Perfis', perm: 'usuarios.gerenciar' },
+      { href: '/admin/auditoria', rotulo: 'Auditoria', perm: 'auditoria.ver' },
       { separador: true },
-      { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
-      { href: '/admin/certificados', rotulo: 'Certificados Emitidos', perm: 'relatorios.emitir' },
-      { href: '/admin/documentos', rotulo: 'Declarações e Históricos', perm: 'relatorios.emitir' },
-      { href: '/admin/relatorios', rotulo: 'Relatórios', perm: 'relatorios.emitir' },
-      { href: '/v', rotulo: 'Validação Pública', perm: 'relatorios.emitir', externo: true },
+      { href: '/admin/novidades', rotulo: 'Novidades do Sistema' },
+      { href: '/admin/conta/senha', rotulo: 'Alterar Minha Senha' },
+    ],
+  },
+  {
+    id: 'cadastros', rotulo: 'Cadastros', icone: 'cadastros',
+    itens: [
+      { href: '/admin/instituicao', rotulo: 'Instituição e Atos', perm: 'instituicao.editar' },
+      { href: '/admin/cursos', rotulo: 'Cursos e Matrizes', perm: 'cursos.editar' },
+      { separador: true },
+      { href: '/admin/modelo', rotulo: 'Modelo do Certificado', perm: 'instituicao.editar' },
+      { href: '/admin/signatarios', rotulo: 'Signatários', perm: 'signatarios.editar' },
     ],
   },
   {
@@ -256,23 +280,19 @@ export const SECOES_MENU: SecaoMenu[] = [
     ],
   },
   {
-    id: 'cadastros', rotulo: 'Cadastros', icone: 'cadastros',
+    id: 'secretaria', rotulo: 'Secretaria', icone: 'secretaria',
     itens: [
-      { href: '/admin/instituicao', rotulo: 'Instituição e Atos', perm: 'instituicao.editar' },
-      { href: '/admin/cursos', rotulo: 'Cursos e Matrizes', perm: 'cursos.editar' },
+      { href: '/admin/alunos', rotulo: 'Alunos', perm: 'alunos.editar' },
+      { href: '/admin/turmas', rotulo: 'Turmas e resultados', perm: 'turmas.editar' },
+      { href: '/admin/notas', rotulo: 'Notas', perm: 'resultados.corrigir' },
+      { href: '/admin/faltas', rotulo: 'Faltas', perm: 'resultados.corrigir' },
+      { href: '/admin/importacao', rotulo: 'Importar Planilhas', perm: 'alunos.editar' },
       { separador: true },
-      { href: '/admin/modelo', rotulo: 'Modelo do Certificado', perm: 'instituicao.editar' },
-      { href: '/admin/signatarios', rotulo: 'Signatários', perm: 'signatarios.editar' },
-    ],
-  },
-  {
-    id: 'sistema', rotulo: 'Sistema', icone: 'sistema',
-    itens: [
-      { href: '/admin/usuarios', rotulo: 'Usuários e Perfis', perm: 'usuarios.gerenciar' },
-      { href: '/admin/auditoria', rotulo: 'Auditoria', perm: 'auditoria.ver' },
-      { separador: true },
-      { href: '/admin/novidades', rotulo: 'Novidades do Sistema' },
-      { href: '/admin/conta/senha', rotulo: 'Alterar Minha Senha' },
+      { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
+      { href: '/admin/certificados', rotulo: 'Certificados Emitidos', perm: 'relatorios.emitir' },
+      { href: '/admin/documentos', rotulo: 'Declarações e Históricos', perm: 'relatorios.emitir' },
+      { href: '/admin/relatorios', rotulo: 'Relatórios', perm: 'relatorios.emitir' },
+      { href: '/v', rotulo: 'Validação Pública', perm: 'relatorios.emitir', externo: true },
     ],
   },
 ];
@@ -332,6 +352,12 @@ const Menu: FC<{ usuario: UsuarioSessao; caminho: string }> = ({ usuario, caminh
   );
 };
 
+/** Iniciais para o avatar do menu do perfil (primeiro e último nome). */
+export function iniciais(nome: string): string {
+  const l = nome.trim().split(/\s+/).filter((x) => x && !/^(d[aeo]s?|e)$/i.test(x));
+  return ((l[0]?.[0] ?? '') + (l.length > 1 ? l[l.length - 1][0] : '')).toUpperCase() || '?';
+}
+
 const ROTULO_TEMA: Record<Tema, string> = { claro: 'Claro', sistema: 'Auto', escuro: 'Escuro' };
 
 /** Troca o tema na hora (sem recarregar) e salva a preferência; sem JS, o formulário funciona sozinho. */
@@ -357,6 +383,12 @@ document.addEventListener('DOMContentLoaded',function(){
   if(visto!==v) document.querySelectorAll('[data-aviso-versao]').forEach(function(x){x.hidden=false});
   document.querySelectorAll('[data-dispensar-versao]').forEach(function(b){b.addEventListener('click',marcar)});
 });`;
+
+const JS_PERFIL = `
+document.addEventListener('click',function(e){
+  document.querySelectorAll('details.perfil-menu[open]').forEach(function(d){ if(!d.contains(e.target)) d.open=false; });
+});
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') document.querySelectorAll('details.perfil-menu[open]').forEach(function(d){d.open=false}); });`;
 
 const JS_TEMA = `
 document.addEventListener('submit',function(e){
@@ -386,7 +418,7 @@ const Head: FC<{ titulo: string }> = ({ titulo }) => (
     <meta name="color-scheme" content="light dark" />
     <title>{titulo} — Certificados IECT</title>
     <style dangerouslySetInnerHTML={{ __html: CSS }} />
-    <script dangerouslySetInnerHTML={{ __html: JS_TEMA + JS_MENU + JS_VERSAO }} />
+    <script dangerouslySetInnerHTML={{ __html: JS_TEMA + JS_MENU + JS_VERSAO + JS_PERFIL }} />
   </head>
 );
 
@@ -450,21 +482,33 @@ export const Pagina: FC<
               <small>Certificados técnicos</small>
             </div>
             <Menu usuario={usuario} caminho={caminho} />
-            <div class="usuario">
-              <b>{usuario.nome}</b>
-              <span class="perfil">{ROTULO_PERFIL[usuario.perfil]}</span>
-              <div class="links">
-                <a href="/admin/conta/senha"><Icone nome="senha" />Senha</a>
-                <a href="/admin/sair"><Icone nome="sair" />Sair</a>
-              </div>
-              <SeletorTema tema={t} acao="/admin/conta/tema" classe="tema" icones />
-              <a class="versao" href="/admin/novidades" title="Novidades do Sistema">
-                Versão {VERSAO_ATUAL.versao}
-                <span class="selo-novo" data-aviso-versao hidden>novo</span>
-              </a>
-            </div>
+            <a class="versao-lateral" href="/admin/novidades" title="Novidades do Sistema">
+              Versão {VERSAO_ATUAL.versao}
+              <span class="selo-novo" data-aviso-versao hidden>novo</span>
+            </a>
           </aside>
           <div class="principal">
+            <header class="topo">
+              <details class="perfil-menu">
+                <summary title="Minha conta">
+                  <span class="avatar" aria-hidden="true">{iniciais(usuario.nome)}</span>
+                  <span class="quem"><b>{usuario.nome}</b><small>{ROTULO_PERFIL[usuario.perfil]}</small></span>
+                  <span class="seta"><Icone nome="seta" /></span>
+                </summary>
+                <div class="painel">
+                  <b>{usuario.nome}</b>
+                  <span class="email">{usuario.email}</span>
+                  <span class="perfil">{ROTULO_PERFIL[usuario.perfil]}</span>
+                  <span class="rot">Aparência</span>
+                  <SeletorTema tema={t} acao="/admin/conta/tema" classe="tema" icones />
+                  <div class="links">
+                    <a href="/admin/conta/senha"><Icone nome="senha" />Alterar minha senha</a>
+                    <a href="/admin/novidades"><Icone nome="atalhos" />Novidades (versão {VERSAO_ATUAL.versao})</a>
+                    <a href="/admin/sair"><Icone nome="sair" />Sair</a>
+                  </div>
+                </div>
+              </details>
+            </header>
             <main>{conteudo}</main>
           </div>
         </div>

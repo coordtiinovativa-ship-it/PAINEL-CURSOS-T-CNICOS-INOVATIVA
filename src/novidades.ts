@@ -35,6 +35,17 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.15.0',
+    data: '2026-11-18',
+    melhorias: [
+      { titulo: 'Nova ordem do menu', texto: 'Sistema, Cadastros, Gestão Pedagógica e Secretaria, nessa sequência.' },
+      {
+        titulo: 'Menu do perfil no canto superior direito',
+        texto: 'clique no seu nome no alto da tela para trocar a aparência (claro, escuro ou automático), alterar a senha, ver as novidades ou sair.',
+      },
+    ],
+  },
+  {
     versao: '1.14.0',
     data: '2026-11-18',
     melhorias: [
