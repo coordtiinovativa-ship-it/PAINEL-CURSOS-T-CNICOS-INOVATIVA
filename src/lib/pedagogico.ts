@@ -345,3 +345,70 @@ export async function disciplinasComChamada(db: D1Database, turmaId: number): Pr
     .all<{ componente_id: number; n: number }>()).results;
   return new Map(r.map((x) => [x.componente_id, x.n]));
 }
+
+// ------------------------------------------------------------------ calendário × chamada já registrada
+export interface AulaRegistrada {
+  id: number; data: string; tempo: number; turma_id: number; turma: string; componente_id: number; componente: string;
+  modulo_id: number | null; faltas: number;
+}
+
+/** Aulas com chamada registrada nas datas (turmas do ano letivo). */
+export async function aulasRegistradasNasDatas(db: D1Database, ano: AnoLetivo, datas: string[]): Promise<AulaRegistrada[]> {
+  if (!datas.length) return [];
+  const ord = [...datas].sort();
+  const conj = new Set(datas);
+  const rs = (await db.prepare(
+    `SELECT au.id, au.data, au.tempo, au.turma_id, t.codigo AS turma, au.componente_id, cc.nome AS componente, cc.modulo_id,
+            (SELECT count(*) FROM faltas_aula f WHERE f.aula_id = au.id) AS faltas
+       FROM aulas au JOIN turmas t ON t.id = au.turma_id JOIN componentes_curriculares cc ON cc.id = au.componente_id
+      WHERE au.data BETWEEN ? AND ? AND t.ano_letivo = ? ORDER BY au.data, t.codigo, au.tempo`,
+  ).bind(ord[0], ord.at(-1), ano.ano).all<AulaRegistrada>()).results;
+  return rs.filter((a) => conj.has(a.data));
+}
+
+/** Agrupa as aulas afetadas por turma e disciplina (para o aviso e os links do relatório de faltas). */
+export function agruparAulasAfetadas(aulas: AulaRegistrada[]) {
+  const m = new Map<string, { turma_id: number; turma: string; componente_id: number; componente: string; modulo_id: number | null; datas: Set<string>; aulas: number; faltas: number }>();
+  for (const a of aulas) {
+    const k = `${a.turma_id}|${a.componente_id}`;
+    const g = m.get(k) ?? { turma_id: a.turma_id, turma: a.turma, componente_id: a.componente_id, componente: a.componente, modulo_id: a.modulo_id, datas: new Set(), aulas: 0, faltas: 0 };
+    g.datas.add(a.data); g.aulas++; g.faltas += a.faltas;
+    m.set(k, g);
+  }
+  return [...m.values()];
+}
+
+/**
+ * Apaga a chamada das aulas (o dia deixou de ser letivo) e recalcula faltas e frequência das disciplinas.
+ * Disciplina que fica sem nenhuma chamada volta a "sem lançamento" (faltas e frequência em branco) — precisa ser refeita.
+ */
+export async function removerAulasDaChamada(db: D1Database, aulas: AulaRegistrada[], usuario: string): Promise<void> {
+  if (!aulas.length) return;
+  const ids = aulas.map((a) => Number(a.id));
+  for (let i = 0; i < ids.length; i += 200) {
+    const parte = ids.slice(i, i + 200).join(',');
+    await db.batch([db.prepare(`DELETE FROM faltas_aula WHERE aula_id IN (${parte})`), db.prepare(`DELETE FROM aulas WHERE id IN (${parte})`)]);
+  }
+  for (const g of agruparAulasAfetadas(aulas)) {
+    const resta = await db.prepare('SELECT count(*) AS n FROM aulas WHERE turma_id = ? AND componente_id = ?').bind(g.turma_id, g.componente_id).first<{ n: number }>();
+    if (resta?.n) { await recalcularFrequenciaDaChamada(db, g.turma_id, g.componente_id, { usuario, origem: 'chamada' }); continue; }
+    const rs = (await db.prepare(
+      `SELECT r.matricula_id, r.faltas, r.frequencia FROM resultados r JOIN matriculas m ON m.id = r.matricula_id
+        WHERE m.turma_id = ? AND r.componente_id = ? AND (r.faltas IS NOT NULL OR r.frequencia IS NOT NULL)`,
+    ).bind(g.turma_id, g.componente_id).all<{ matricula_id: number; faltas: number | null; frequencia: number | null }>()).results;
+    const cmds: D1PreparedStatement[] = [];
+    for (const r of rs) {
+      cmds.push(db.prepare(
+        `UPDATE resultados SET faltas = NULL, frequencia = NULL, resultado = NULL, atualizado_por = ?, origem = 'chamada',
+           atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE matricula_id = ? AND componente_id = ?`,
+      ).bind(usuario, r.matricula_id, g.componente_id));
+      for (const [campo, antes] of [['faltas', r.faltas], ['frequencia', r.frequencia]] as const) {
+        if (antes == null) continue;
+        cmds.push(db.prepare(
+          'INSERT INTO resultados_historico (matricula_id, componente_id, campo, valor_anterior, valor_novo, origem, professor_id, usuario) VALUES (?, ?, ?, ?, NULL, ?, NULL, ?)',
+        ).bind(r.matricula_id, g.componente_id, campo, antes, 'chamada', usuario));
+      }
+    }
+    if (cmds.length) await db.batch(cmds);
+  }
+}

@@ -46,6 +46,20 @@ export const VERSOES: Versao[] = [
         perm: 'pedagogico.gerenciar',
       },
       {
+        titulo: 'Relatórios Controle de Notas e Controle de Faltas',
+        texto: 'no modelo do sysGEP, em PDF paisagem, por turma e disciplina (ou todas as do módulo): notas com média, exame, média final, ' +
+          'frequência e resultado; faltas dia a dia com o total. Matrículas não ativas aparecem destacadas (ex.: "TRANSF. 12/06/2026").',
+        href: '/admin/relatorios#controle',
+        perm: 'relatorios.emitir',
+      },
+      {
+        titulo: 'Alerta ao alterar o calendário com chamada já feita',
+        texto: 'se a alteração tirar um dia letivo que já tem chamada, o sistema avisa antes, lista as turmas e disciplinas e oferece o relatório de faltas. ' +
+          'Só depois de confirmar os lançamentos desses dias são apagados — e precisarão ser refeitos.',
+        href: '/admin/pedagogico/calendario',
+        perm: 'pedagogico.gerenciar',
+      },
+      {
         titulo: 'Editar o dia no calendário',
         texto: 'clique num dia para trocar o código (L, F, NL, SL...) com uma descrição, ou voltar ao automático. Dias ajustados à mão ficam marcados com ✎ e já valem para a chamada.',
         href: '/admin/pedagogico/calendario',

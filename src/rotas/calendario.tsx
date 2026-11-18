@@ -11,7 +11,8 @@ import { ErroValidacao, inteiro, lerCorpo, texto } from '../lib/form';
 import { dataBR } from '../lib/datas';
 import {
   classificarDia, CODIGOS_DIA, codigoParaExibir, codigosPermitidos, contarDiasLetivos, diaDaSemana, diasEntre, ehLetivo, eventosPorDia,
-  gerarCalendario, ROTULO_EVENTO, TIPOS_EVENTO, TIPOS_NAO_LETIVOS, type AnoLetivo, type CodigoDia,
+  agruparAulasAfetadas, aulasRegistradasNasDatas, feriadosNacionais, gerarCalendario, removerAulasDaChamada, ROTULO_EVENTO, TIPOS_EVENTO,
+  TIPOS_NAO_LETIVOS, type AnoLetivo, type CodigoDia, type EventoDia,
 } from '../lib/pedagogico';
 
 export const rotasCalendario = new Hono<Env>();
@@ -87,6 +88,8 @@ dialog#editar-dia form{padding:1rem;display:grid;gap:.8rem}
 .op-codigo input{margin:0}
 .op-codigo:has(input:checked){border-color:var(--texto)}
 .op-codigo[hidden]{display:none}
+.aviso-chamada{margin:0;padding:.6rem .75rem;border-radius:9px;background:var(--erro-bg);color:var(--erro);font-size:.84rem;border:1px solid currentColor}
+.aviso-chamada a{color:inherit;text-decoration:underline}
 .auto-info{font-size:.82rem;color:var(--texto-2);margin:0}
 dialog#editar-dia .acoes{display:flex;gap:.5rem;flex-wrap:wrap}
 .vista-mes{max-width:760px}
@@ -118,6 +121,8 @@ document.addEventListener('click',function(e){
     l.hidden=!v; i.disabled=!v; i.checked=v&&i.value===d.dataset.codigo;
   });
   f.descricao.value=d.dataset.desc||'';
+  var av=dlg.querySelector('.aviso-chamada'), n=+(d.dataset.chamada||0);
+  av.hidden=!n; dlg.querySelector('.qtd-chamada').textContent=n;
   f.querySelector('button[value=automatico]').hidden=d.dataset.manual!=='1';
   dlg.showModal();
 });`;
@@ -205,8 +210,9 @@ rotasCalendario.post('/anos/:id{[0-9]+}', async (c) => {
   const antes = await c.env.DB.prepare('SELECT * FROM anos_letivos WHERE id = ?').bind(id).first<AnoLetivo>();
   if (!antes) return c.notFound();
   let d;
+  const corpo = await lerCorpo(c);
   try {
-    d = lerAno(await lerCorpo(c));
+    d = lerAno(corpo);
     if (d.ano !== antes.ano && (await c.env.DB.prepare('SELECT 1 FROM turmas WHERE ano_letivo = ?').bind(antes.ano).first())) {
       throw new ErroValidacao(`Há turmas no ano letivo ${antes.ano}: o ano não pode ser trocado (ajuste só as datas).`);
     }
@@ -217,10 +223,16 @@ rotasCalendario.post('/anos/:id{[0-9]+}', async (c) => {
     if (e instanceof ErroValidacao) return c.redirect(`/admin/pedagogico/anos?editar=${id}&erro=` + encodeURIComponent(e.message));
     throw e;
   }
+  // dias que saem do período do ano letivo
+  const ini = d.data_inicio!, fim = d.data_fim!;
+  const saem = [...diasEntre(antes.data_inicio, antes.data_fim)].filter((x) => x < ini || x > fim);
+  const conf = await conferirLancamentos(c, antes, saem, corpo, `/admin/pedagogico/anos/${id}`,
+    `mudar o período do ano letivo para ${dataBR(ini)} a ${dataBR(fim)}`, `/admin/pedagogico/anos?editar=${id}`);
+  if (conf.resposta) return conf.resposta;
   await c.env.DB.prepare('UPDATE anos_letivos SET ano = ?, data_inicio = ?, data_fim = ?, situacao = ?, observacao = ? WHERE id = ?')
     .bind(d.ano, d.data_inicio, d.data_fim, d.situacao, d.observacao, id).run();
   await auditar(c, 'atualizar', 'ano_letivo', id, antes, d);
-  return c.redirect('/admin/pedagogico/anos?ok=' + encodeURIComponent(`Ano letivo ${d.ano} salvo.`));
+  return c.redirect('/admin/pedagogico/anos?ok=' + encodeURIComponent(`Ano letivo ${d.ano} salvo.${conf.msg}`));
 });
 
 // ------------------------------------------------------------------ calendário
@@ -245,6 +257,7 @@ rotasCalendario.get('/calendario', async (c) => {
   const eventos = (await db.prepare('SELECT * FROM calendario_eventos WHERE ano_letivo_id = ? ORDER BY data_inicio, id').bind(atual.id)
     .all<{ id: number; data_inicio: string; data_fim: string; tipo: string; descricao: string }>()).results;
   const porDia = await eventosPorDia(db, atual.id);
+  const chamadas = await chamadasPorDia(db, atual.ano);
   const anoNum = atual.ano;
 
   // janeiro a dezembro, sempre; fora do período do ano letivo o dia aparece esmaecido (férias)
@@ -302,10 +315,11 @@ rotasCalendario.get('/calendario', async (c) => {
               data-data={x2.d} data-codigo={x2.codigo} data-ok={codigosPermitidos(x2.d, atual).join(',')}
               data-rotulo={`${dataBR(x2.d)} (${DIAS_LONGOS[diaDaSemana(x2.d)]})`}
               data-auto={`Automático: ${x2.auto} — ${nomeCodigo[x2.auto]}${x2.noPeriodo ? '' : ' (fora do período do ano letivo: férias)'}`}
-              data-desc={x2.ajuste?.descricao ?? ''} data-manual={x2.ajuste ? '1' : '0'}
+              data-desc={x2.ajuste?.descricao ?? ''} data-manual={x2.ajuste ? '1' : '0'} data-chamada={chamadas.get(x2.d) ?? 0}
               title={[
                 `${dataBR(x2.d)} — ${nomeCodigo[x2.codigo]}${x2.noPeriodo ? '' : ' (fora do período do ano letivo)'}`,
                 ...x2.evs.map((e) => e.tipo === 'ajuste' ? `Ajustado à mão${e.descricao ? `: ${e.descricao}` : ''}` : `${ROTULO_EVENTO[e.tipo]}: ${e.descricao}`),
+                ...(chamadas.get(x2.d) ? [`Chamada registrada em ${chamadas.get(x2.d)} aula(s)`] : []),
                 'Clique para editar o dia',
               ].join('\n')}>
               <b>{Number(x2.d.slice(8))}</b><small>{x2.codigo}</small>
@@ -388,6 +402,11 @@ rotasCalendario.get('/calendario', async (c) => {
           <input type="hidden" name="data" />
           <input type="hidden" name="volta" value={volta} />
           <p class="auto-info" />
+          <p class="aviso-chamada" hidden>
+            <b>Atenção: este dia já tem chamada registrada em <span class="qtd-chamada" /> aula(s).</b> Se ele deixar de ser letivo, esses lançamentos
+            serão apagados e precisarão ser refeitos. Altere somente se tiver certeza e emita antes o relatório de faltas
+            (<a href="/admin/relatorios#controle" target="_blank">Relatórios → Controle de Faltas</a>). O sistema pedirá confirmação.
+          </p>
           <div class="codigos">
             {CODIGOS_DIA.map(([cod, nome, letivo]) => (
               <label class={`op-codigo c-${cod}`} title={letivo ? 'letivo' : 'não letivo'}><input type="radio" name="codigo" value={cod} required /><b>{cod}</b> {nome}</label>
@@ -434,8 +453,66 @@ rotasCalendario.get('/calendario', async (c) => {
   );
 });
 
-async function chamadasEmDatas(db: D1Database, inicio: string, fim: string): Promise<number> {
-  return (await db.prepare('SELECT count(*) AS n FROM aulas WHERE data BETWEEN ? AND ?').bind(inicio, fim).first<{ n: number }>())?.n ?? 0;
+/** Nº de aulas com chamada registrada por dia (turmas do ano letivo). */
+async function chamadasPorDia(db: D1Database, ano: number): Promise<Map<string, number>> {
+  const rs = (await db.prepare('SELECT au.data, count(*) AS n FROM aulas au JOIN turmas t ON t.id = au.turma_id WHERE t.ano_letivo = ? GROUP BY au.data')
+    .bind(ano).all<{ data: string; n: number }>()).results;
+  return new Map(rs.map((r) => [r.data, r.n]));
+}
+
+/**
+ * Alteração do calendário que tira dias letivos com chamada já registrada: primeiro mostra o aviso (com links para emitir o
+ * Controle de Faltas); confirmada, apaga esses lançamentos e recalcula faltas e frequência — precisarão ser refeitos.
+ */
+async function conferirLancamentos(
+  c: any, a: AnoLetivo, datas: string[], corpo: Record<string, any>, acao: string, oQue: string, volta: string,
+): Promise<{ resposta?: Response; msg: string }> {
+  const db = c.env.DB as D1Database;
+  const aulas = await aulasRegistradasNasDatas(db, a, datas);
+  if (!aulas.length) return { msg: '' };
+  if (texto(corpo, 'confirmar') === '1') {
+    await removerAulasDaChamada(db, aulas, c.get('usuario').email);
+    await auditar(c, 'apagar_chamada_calendario', 'ano_letivo', a.id, { alteracao: oQue, aulas }, null);
+    return { msg: ` ${aulas.length} aula(s) com chamada foram apagadas: refaça esses lançamentos.` };
+  }
+  const grupos = agruparAulasAfetadas(aulas);
+  const campos = Object.entries(corpo).filter(([k, v]) => k !== 'confirmar' && typeof v === 'string');
+  return {
+    msg: '',
+    resposta: c.html(
+      <Pagina titulo="Confirmar alteração do calendário" usuario={c.get('usuario')} caminho={c.req.path} voltar={volta}>
+        <h1>Confirmar alteração do calendário</h1>
+        <div class="cartao" style="border-left:4px solid var(--erro)">
+          <p style="margin-top:0"><b>Atenção: já há lançamentos nessas datas.</b> A alteração <b>{oQue}</b> tira do calendário letivo {datas.length > 1 ? 'dias' : 'um dia'} em
+            que já foi feita a chamada de <b>{aulas.length} aula(s)</b> ({aulas.reduce((s, x) => s + x.faltas, 0)} falta(s) lançada(s)).</p>
+          <p>Se continuar, <b>esses lançamentos serão apagados e precisarão ser refeitos</b>; as faltas e a frequência das disciplinas abaixo serão recalculadas.
+            Altere somente se tiver certeza e <b>emita antes o relatório de faltas</b> de cada disciplina.</p>
+        </div>
+        <table>
+          <tr><th>Turma</th><th>Disciplina</th><th>Datas afetadas</th><th class="n">Aulas com chamada</th><th class="n">Faltas lançadas</th><th>Antes de continuar</th></tr>
+          {grupos.map((g) => (
+            <tr>
+              <td>{g.turma}</td><td>{g.componente}</td>
+              <td>{[...g.datas].sort().map((d) => dataBR(d).slice(0, 5)).join(', ')}</td>
+              <td class="n">{g.aulas}</td><td class="n">{g.faltas}</td>
+              <td><a href={`/admin/relatorios/controle-faltas.pdf?turma=${g.turma_id}&disc=c:${g.componente_id}`} target="_blank"><Icone nome="certificados" />Emitir Controle de Faltas</a></td>
+            </tr>
+          ))}
+        </table>
+        <form method="post" action={acao} class="cartao" style="margin-top:1rem">
+          {campos.map(([k, v]) => <input type="hidden" name={k} value={v as string} />)}
+          <label style="flex-direction:row;align-items:flex-start;gap:.5rem;display:flex">
+            <input type="checkbox" name="confirmar" value="1" required style="margin-top:.2rem" />
+            <span>Tenho certeza: emiti o relatório de faltas e entendo que esses lançamentos serão apagados e precisarão ser refeitos.</span>
+          </label>
+          <div class="acoes" style="margin-top:.8rem">
+            <button style="background:var(--erro);border-color:var(--erro)">Continuar e apagar os lançamentos</button>
+            <a class="botao sec" href={volta}>Cancelar</a>
+          </div>
+        </form>
+      </Pagina>,
+    ),
+  };
 }
 
 rotasCalendario.post('/calendario/:ano{[0-9]+}/eventos', async (c) => {
@@ -457,6 +534,10 @@ rotasCalendario.post('/calendario/:ano{[0-9]+}/eventos', async (c) => {
     if (e instanceof ErroValidacao) return c.redirect(`${volta}&erro=` + encodeURIComponent(e.message));
     throw e;
   }
+  const saem = TIPOS_NAO_LETIVOS.includes(d.tipo) ? [...diasEntre(d.data_inicio, d.data_fim!)].filter((x) => classificarDia(x, a) !== null) : [];
+  const conf = await conferirLancamentos(c, a, saem, corpo, `/admin/pedagogico/calendario/${a.id}/eventos`,
+    `incluir "${d.descricao}" (${ROTULO_EVENTO[d.tipo].toLowerCase()}, ${dataBR(d.data_inicio)}${d.data_fim !== d.data_inicio ? ` a ${dataBR(d.data_fim!)}` : ''})`, volta);
+  if (conf.resposta) return conf.resposta;
   // vale a última alteração: o evento novo substitui os ajustes à mão feitos nesses dias (exceto evento informativo)
   const ajustes = d.tipo === 'evento' ? [] : (await db.prepare('SELECT * FROM calendario_dias WHERE ano_letivo_id = ? AND data BETWEEN ? AND ?')
     .bind(a.id, d.data_inicio, d.data_fim).all<Record<string, any>>()).results;
@@ -464,10 +545,8 @@ rotasCalendario.post('/calendario/:ano{[0-9]+}/eventos', async (c) => {
     .bind(a.id, d.data_inicio, d.data_fim, d.tipo, d.descricao).first<{ id: number }>())!.id;
   if (ajustes.length) await db.prepare('DELETE FROM calendario_dias WHERE ano_letivo_id = ? AND data BETWEEN ? AND ?').bind(a.id, d.data_inicio, d.data_fim).run();
   await auditar(c, 'criar', 'calendario_evento', id, ajustes.length ? { ajustes_substituidos: ajustes } : null, d);
-  const chamadas = TIPOS_NAO_LETIVOS.includes(d.tipo) ? await chamadasEmDatas(db, d.data_inicio, d.data_fim) : 0;
   const msg = 'Incluído no calendário.'
-    + (ajustes.length ? ` ${ajustes.length} ajuste(s) à mão nesses dias foram substituídos.` : '')
-    + (chamadas ? ` Atenção: já há ${chamadas} aula(s) com chamada registrada nessas datas — confira em Faltas do Aluno.` : '');
+    + (ajustes.length ? ` ${ajustes.length} ajuste(s) à mão nesses dias foram substituídos.` : '') + conf.msg;
   return c.redirect(`${volta}&ok=` + encodeURIComponent(msg));
 });
 
@@ -478,11 +557,26 @@ for (const caminho of ['/calendario/:ano{[0-9]+}/gerar', '/calendario/:ano{[0-9]
     const a = await db.prepare('SELECT * FROM anos_letivos WHERE id = ?').bind(Number(c.req.param('ano'))).first<AnoLetivo>();
     if (!a) return c.notFound();
     const corpo = await lerCorpo(c);
-    const g = await gerarCalendario(db, a, c.get('usuario').email, texto(corpo, 'descartar') === '1');
+    const descartar = texto(corpo, 'descartar') === '1';
+    // dias que deixam de ser letivos: feriados nacionais que entram e (descartando) ajustes à mão que saem
+    const porDia = await eventosPorDia(db, a.id);
+    const existentes = new Set((await db.prepare('SELECT data_inicio FROM calendario_eventos WHERE ano_letivo_id = ?').bind(a.id)
+      .all<{ data_inicio: string }>()).results.map((e) => e.data_inicio));
+    const novos = new Map(feriadosNacionais(a.ano).filter((f) => !existentes.has(f.data)).map((f) => [f.data, f]));
+    const candidatos = new Set([...novos.keys(), ...(descartar ? [...porDia].filter(([, evs]) => evs.some((x) => x.tipo === 'ajuste')).map(([d]) => d) : [])]);
+    const saem = [...candidatos].filter((d) => {
+      const evs = porDia.get(d) ?? [];
+      const depois: EventoDia[] = [...evs.filter((x) => !descartar || x.tipo !== 'ajuste'), ...(novos.has(d) ? [{ tipo: novos.get(d)!.tipo, descricao: novos.get(d)!.descricao }] : [])];
+      return ehLetivo(classificarDia(d, a, evs)) && !ehLetivo(classificarDia(d, a, depois));
+    });
+    const conf = await conferirLancamentos(c, a, saem, corpo, `/admin/pedagogico/calendario/${a.id}/gerar`,
+      descartar ? 'gerar o calendário novamente descartando os ajustes à mão' : 'gerar o calendário novamente', `/admin/pedagogico/calendario?ano=${a.ano}`);
+    if (conf.resposta) return conf.resposta;
+    const g = await gerarCalendario(db, a, c.get('usuario').email, descartar);
     await auditar(c, 'gerar_calendario', 'ano_letivo', a.id, null, { feriados_incluidos: g.feriados, ajustes_descartados: g.ajustesDescartados });
     const msg = `Calendário de ${a.ano} gerado: ${g.feriados.length} feriado(s) nacional(is) incluído(s)`
       + (g.ajustesDescartados ? `, ${g.ajustesDescartados} ajuste(s) à mão descartado(s)` : '')
-      + '. Inclua os feriados municipais/estaduais e recessos e clique num dia para ajustá-lo.';
+      + '. Inclua os feriados municipais/estaduais e recessos e clique num dia para ajustá-lo.' + conf.msg;
     return c.redirect(`/admin/pedagogico/calendario?ano=${a.ano}&ok=` + encodeURIComponent(msg));
   });
 }
@@ -503,12 +597,16 @@ rotasCalendario.post('/calendario/:ano{[0-9]+}/dia', async (c) => {
     const nome = Object.fromEntries(CODIGOS_DIA.map(([cod, n]) => [cod, n])) as Record<CodigoDia, string>;
     const apagar = db.prepare('DELETE FROM calendario_dias WHERE ano_letivo_id = ? AND data = ?').bind(a.id, data);
 
+    const noPeriodo = classificarDia(data, a) !== null;
     if (texto(corpo, 'acao') === 'automatico') {
+      const conf = await conferirLancamentos(c, a, antes && noPeriodo && !ehLetivo(auto) ? [data] : [], corpo,
+        `/admin/pedagogico/calendario/${a.id}/dia`, `voltar ${dataBR(data)} ao automático (${auto} — ${nome[auto]})`, volta);
+      if (conf.resposta) return conf.resposta;
       if (antes) {
         await apagar.run();
         await auditar(c, 'ajustar_dia', 'calendario_dia', a.id, antes, { data, automatico: auto });
       }
-      return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)} voltou ao automático (${auto} — ${nome[auto]}).`));
+      return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)} voltou ao automático (${auto} — ${nome[auto]}).${conf.msg}`));
     }
 
     const codigo = (texto(corpo, 'codigo') ?? '') as CodigoDia;
@@ -519,13 +617,16 @@ rotasCalendario.post('/calendario/:ano{[0-9]+}/dia', async (c) => {
         : `Escolha um código válido para ${dataBR(data)}: ${permitidos.join(', ')}.`);
     }
     const descricao = texto(corpo, 'descricao');
+    if (!descricao && codigo !== auto && !['L', 'S', 'D'].includes(codigo)) throw new ErroValidacao(`Informe a descrição de ${dataBR(data)} (ex.: Aniversário de Campo Grande, Reunião pedagógica).`);
+    const conf = await conferirLancamentos(c, a, noPeriodo && !ehLetivo(codigo) ? [data] : [], corpo,
+      `/admin/pedagogico/calendario/${a.id}/dia`, `${dataBR(data)} → ${codigo} — ${nome[codigo]}`, volta);
+    if (conf.resposta) return conf.resposta;
     if (codigo === auto && !descricao) {
       // igual ao automático: não precisa de ajuste
       if (antes) await apagar.run();
       if (antes) await auditar(c, 'ajustar_dia', 'calendario_dia', a.id, antes, { data, automatico: auto });
-      return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)}: ${codigo} — ${nome[codigo]} (automático).`));
+      return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)}: ${codigo} — ${nome[codigo]} (automático).${conf.msg}`));
     }
-    if (!descricao && !['L', 'S', 'D'].includes(codigo)) throw new ErroValidacao(`Informe a descrição de ${dataBR(data)} (ex.: Aniversário de Campo Grande, Reunião pedagógica).`);
     const usuario = c.get('usuario').email;
     await db.prepare(
       `INSERT INTO calendario_dias (ano_letivo_id, data, codigo, descricao, atualizado_por, atualizado_em) VALUES (?, ?, ?, ?, ?, datetime('now'))
@@ -533,9 +634,7 @@ rotasCalendario.post('/calendario/:ano{[0-9]+}/dia', async (c) => {
          atualizado_por = excluded.atualizado_por, atualizado_em = excluded.atualizado_em`,
     ).bind(a.id, data, codigo, descricao, usuario).run();
     await auditar(c, 'ajustar_dia', 'calendario_dia', a.id, antes, { data, codigo, descricao, automatico: auto });
-    const chamadas = !ehLetivo(codigo) && classificarDia(data, a) !== null ? await chamadasEmDatas(db, data, data) : 0;
-    return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)} agora é ${codigo} — ${nome[codigo]}.`
-      + (chamadas ? ` Atenção: já há ${chamadas} aula(s) com chamada registrada nesse dia — confira em Faltas do Aluno.` : '')));
+    return c.redirect(`${volta}&ok=` + encodeURIComponent(`${dataBR(data)} agora é ${codigo} — ${nome[codigo]}.${conf.msg}`));
   } catch (e) {
     if (e instanceof ErroValidacao) return c.redirect(`${volta}&erro=` + encodeURIComponent(e.message));
     throw e;
@@ -546,7 +645,17 @@ rotasCalendario.post('/calendario/eventos/:id{[0-9]+}/excluir', async (c) => {
   const e = await c.env.DB.prepare('SELECT e.*, a.ano FROM calendario_eventos e JOIN anos_letivos a ON a.id = e.ano_letivo_id WHERE e.id = ?')
     .bind(Number(c.req.param('id'))).first<Record<string, any>>();
   if (!e) return c.notFound();
+  const a = (await c.env.DB.prepare('SELECT * FROM anos_letivos WHERE id = ?').bind(e.ano_letivo_id).first<AnoLetivo>())!;
+  // dias que deixam de ser letivos sem este evento (ex.: excluir um "dia letivo extra" de sábado)
+  const porDia = await eventosPorDia(c.env.DB, a.id);
+  const saem = [...diasEntre(e.data_inicio, e.data_fim)].filter((d) => {
+    const evs = porDia.get(d) ?? [];
+    return ehLetivo(classificarDia(d, a, evs)) && !ehLetivo(classificarDia(d, a, evs.filter((x) => x.id !== e.id || x.tipo === 'ajuste')));
+  });
+  const volta = `/admin/pedagogico/calendario?ano=${e.ano}`;
+  const conf = await conferirLancamentos(c, a, saem, await lerCorpo(c), `/admin/pedagogico/calendario/eventos/${e.id}/excluir`, `excluir "${e.descricao}"`, volta);
+  if (conf.resposta) return conf.resposta;
   await c.env.DB.prepare('DELETE FROM calendario_eventos WHERE id = ?').bind(e.id).run();
   await auditar(c, 'excluir', 'calendario_evento', e.id, e, null);
-  return c.redirect(`/admin/pedagogico/calendario?ano=${e.ano}&ok=` + encodeURIComponent('Evento excluído.'));
+  return c.redirect(`${volta}&ok=` + encodeURIComponent('Evento excluído.' + conf.msg));
 });

@@ -388,6 +388,14 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   novo já nasce gerado. **Ajuste dia a dia** (clique no dia) em `calendario_dias` (migração 0017) — vale sobre o cálculo
   (`classificarDia`, tipo 'ajuste' em `eventosPorDia`); descrição obrigatória exceto L/S/D; fora do período só códigos não letivos.
   Incluir evento/período depois substitui os ajustes desses dias (vale a última alteração); "Gerar novamente" pode descartá-los.
+  **Alerta de lançamentos** (`conferirLancamentos` em `calendario.tsx`): toda alteração que tira dia letivo com chamada registrada
+  (editar dia, incluir/excluir evento, gerar novamente, encurtar o ano letivo) mostra antes a tela de confirmação com turmas/disciplinas
+  afetadas e links do Controle de Faltas; confirmada, `removerAulasDaChamada` apaga a chamada desses dias e recalcula (disciplina sem
+  nenhuma chamada fica com faltas/frequência em branco — refazer).
+- **Relatórios Controle de Notas / Controle de Faltas** (padrão sysGEP, 18/11/2026): Secretaria → Relatórios, por turma + disciplina
+  (`disc=c:<id>`) ou módulo (`disc=m:<id>`). Dados em `src/relatorios/controle.ts`, PDF A4 paisagem em `src/relatorios/controlePdf.ts`.
+  N.C. = ordem de matrícula na turma; ID = RA; matrícula não ativa em cinza com "TRANSF. dd/mm/aaaa" (data do histórico de status).
+  Faltas: colunas = dias com chamada ∪ aulas previstas até hoje; muitas datas → "Parte x de y".
 - **Chamada** (Faltas do Aluno, dia completo do professor): datas = grade × período da lotação × período do módulo
   (em andamento/concluído) × ano letivo × dias letivos, até hoje. Dia letivo = mesma regra do calendário
   (`classificarDia`/`ehLetivo`: L, SL, DL) — aula de sábado na grade só entra em sábado marcado como dia letivo extra

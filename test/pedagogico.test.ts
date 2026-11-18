@@ -306,6 +306,53 @@ describe('lotação → horário → chamada → notas e faltas', () => {
     const daAna = (await aulasPrevistasDoProfessor(env.DB, ana, ano, '2026-09-30')).filter((a) => a.componente_id === 7).map((a) => a.data);
     expect(daAna).toEqual(['2026-09-14', '2026-09-21', '2026-09-28']);
     expect(await (await c.req(`/admin/pedagogico/lotacao${QS}`)).text()).toContain('Troca: licença');
+
+    // relatórios Controle de Notas / Controle de Faltas (padrão sysGEP)
+    const { dadosControle } = await import('../src/relatorios/controle');
+    const { PDFDocument } = await import('pdf-lib');
+    sqlite.exec(`INSERT INTO matricula_status_historico (matricula_id, status_anterior, status_novo, data, usuario) VALUES (3, 'ativa', 'transferido', '2026-09-01', 'sec@iect.test')`);
+    const dc = await dadosControle(env.DB, { turmaId: 1, moduloId: null, componenteId: 7, ordem: 'chamada', somenteComFaltas: false }, '2026-09-30');
+    const dt = dc.disciplinas[0];
+    expect(dt).toMatchObject({ nome: 'Design Thinking', ch: 80, professor: 'Ana Fictícia Prado', comChamada: true });
+    expect(dt.datas.slice(0, 2)).toEqual(['2026-08-03', '2026-08-10']); // chamada registrada + aulas previstas
+    expect(dt.alunos[0]).toMatchObject({ nc: 1, nota: 8, faltas: 1, frequencia: 99.06, faltasPorDia: { '2026-08-03': 1 } });
+    expect(dt.alunos[2]).toMatchObject({ status: 'transferido', sufixo: 'TRANSF. 01/09/2026' });
+    const soComFalta = await dadosControle(env.DB, { turmaId: 1, moduloId: null, componenteId: 7, ordem: 'alfabetica', somenteComFaltas: true }, '2026-09-30');
+    expect(soComFalta.disciplinas[0].alunos.map((a) => a.matriculaId).sort()).toEqual([1, 3]);
+    const modulo = await dadosControle(env.DB, { turmaId: 1, moduloId: 2, componenteId: null, ordem: 'alfabetica', somenteComFaltas: false }, '2026-09-30');
+    expect(modulo.disciplinas).toHaveLength(6); // todas as disciplinas do 2º módulo
+    for (const [rel, disc] of [['controle-notas', 'c:7'], ['controle-faltas', 'c:7'], ['controle-notas', 'm:2'], ['controle-faltas', 'm:2']]) {
+      const rp = await c.req(`/admin/relatorios/${rel}.pdf?turma=1&disc=${disc}&com_faltas=1`);
+      expect(rp.status, `${rel} ${disc}`).toBe(200);
+      expect(rp.headers.get('Content-Type')).toBe('application/pdf');
+      const pdf = await PDFDocument.load(new Uint8Array(await rp.arrayBuffer()));
+      expect(pdf.getPage(0).getWidth()).toBeGreaterThan(pdf.getPage(0).getHeight()); // paisagem
+      if (disc === 'm:2') expect(pdf.getPageCount()).toBeGreaterThanOrEqual(6); // uma página (ou mais) por disciplina
+    }
+    expect(msg(await c.req('/admin/relatorios/controle-notas.pdf?turma=1'))).toContain('Escolha a turma e a disciplina');
+    expect(await (await c.req('/admin/relatorios?turma=1')).text()).toContain('Todas as disciplinas do 2º módulo');
+
+    // calendário: mudar um dia com chamada registrada pede confirmação; confirmado, apaga a chamada e zera o lançamento
+    const telaCal = await (await c.req('/admin/pedagogico/calendario?ano=2026')).text();
+    expect(telaCal).toMatch(/data-data="2026-08-03"[^>]*data-chamada="1"/);
+    const DIA = `/admin/pedagogico/calendario/${ano.id}/dia`;
+    let rc = await c.post(DIA, { data: '2026-08-03', codigo: 'NL', descricao: 'Reunião pedagógica' });
+    expect(rc.status).toBe(200);
+    const aviso = await rc.text();
+    expect(aviso).toContain('já há lançamentos nessas datas');
+    expect(aviso).toContain('precisarão ser refeitos');
+    expect(aviso).toContain('/admin/relatorios/controle-faltas.pdf?turma=1&amp;disc=c:7');
+    expect(sqlite.prepare(`SELECT count(*) AS n FROM aulas WHERE data = '2026-08-03'`).get()).toEqual({ n: 1 }); // nada mudou ainda
+    expect(sqlite.prepare(`SELECT count(*) AS n FROM calendario_dias`).get()).toEqual({ n: 0 });
+    rc = await c.post(DIA, { data: '2026-08-03', codigo: 'NL', descricao: 'Reunião pedagógica', confirmar: '1' });
+    expect(msg(rc)).toContain('1 aula(s) com chamada foram apagadas');
+    expect(sqlite.prepare(`SELECT count(*) AS n FROM aulas WHERE data = '2026-08-03'`).get()).toEqual({ n: 0 });
+    expect(res(1)).toEqual({ faltas: null, frequencia: null }); // sem chamada: precisa ser refeito
+    expect(sqlite.prepare(`SELECT valor_anterior FROM resultados_historico WHERE matricula_id = 1 AND campo = 'faltas' ORDER BY id DESC LIMIT 1`).get())
+      .toEqual({ valor_anterior: 1 });
+    // dia sem chamada: altera direto
+    rc = await c.post(DIA, { data: '2026-08-10', codigo: 'NL', descricao: 'Reunião' });
+    expect(msg(rc)).toContain('10/08/2026 agora é NL');
   });
 
   it('menu Gestão Pedagógica aparece para os perfis e as telas abrem', async () => {
