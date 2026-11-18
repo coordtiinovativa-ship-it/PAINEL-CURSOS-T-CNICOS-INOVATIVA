@@ -3,7 +3,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, UsuarioSessao } from '../tipos';
 import { ipDaRequisicao } from '../lib/auditoria';
-import { pode, type Permissao } from './permissoes';
+import { pode, permissoesEfetivas, type AjustePermissao, type Permissao } from './permissoes';
 
 export const DURACAO_SESSAO_H = 8;
 export const MAX_TENTATIVAS = 5;
@@ -66,6 +66,9 @@ export const exigirLogin: MiddlewareHandler<Env> = async (c, next) => {
     const destino = encodeURIComponent(c.req.path + (c.req.url.includes('?') ? '?' + c.req.url.split('?')[1] : ''));
     return c.redirect(`/login?voltar=${destino}`);
   }
+  const ajustes = await c.env.DB.prepare('SELECT permissao, concedida FROM usuario_permissoes WHERE usuario_id = ?')
+    .bind(usuario.id).all<AjustePermissao>();
+  usuario.permissoes = permissoesEfetivas(usuario.perfil, ajustes.results);
   c.set('usuario', usuario);
   // Senha temporária: só pode acessar a troca de senha e sair
   if (usuario.trocar_senha && !['/admin/conta/senha', '/admin/sair'].includes(c.req.path)) {
@@ -78,8 +81,8 @@ export const exigirLogin: MiddlewareHandler<Env> = async (c, next) => {
 export const exigir =
   (permissao: Permissao): MiddlewareHandler<Env> =>
   async (c, next) => {
-    if (!pode(c.get('usuario').perfil, permissao)) {
-      throw new HTTPException(403, { message: 'Seu perfil não tem permissão para esta ação.' });
+    if (!pode(c.get('usuario'), permissao)) {
+      throw new HTTPException(403, { message: 'Você não tem permissão para esta ação.' });
     }
     await next();
   };

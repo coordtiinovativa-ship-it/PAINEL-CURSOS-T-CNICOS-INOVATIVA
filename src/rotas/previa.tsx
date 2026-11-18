@@ -75,7 +75,7 @@ rotasPrevia.get('/:mat{[0-9]+}/:mod{[0-9]+}', async (c) => {
   await auditar(c, 'visualizar_previa', 'matricula', mat, null, { modulo_id: mod, aluno: d.nomeExibido, apto: d.faltantes.length === 0 });
   const embutida = c.req.query('embutida') === '1'; // dentro da tela de emissão: sem a barra
   return c.html('<!doctype html>' + (<DocumentoPrevia d={d} tema={c.get('usuario').tema} img={imagensPadrao(d, urlArquivo)} qr={<QrExemplo url={c.env.URL_PUBLICA} />}
-    barra={embutida ? undefined : <Barra d={d} outros={outros} podeEmitir={pode(c.get('usuario').perfil, 'certificados.emitir')} />} />));
+    barra={embutida ? undefined : <Barra d={d} outros={outros} podeEmitir={pode(c.get('usuario'), 'certificados.emitir')} />} />));
 });
 
 /** Prévia com os dados do formulário de aluno ainda não salvos (edição ao vivo). */

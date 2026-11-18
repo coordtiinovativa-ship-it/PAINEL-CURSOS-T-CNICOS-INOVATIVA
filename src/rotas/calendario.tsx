@@ -152,7 +152,7 @@ rotasCalendario.get('/anos', async (c) => {
   ).all<AnoLetivo & { turmas: number; eventos: number }>()).results;
   const dias = await Promise.all(anos.map((a) => contarDiasLetivos(db, a)));
   const editar = anos.find((a) => a.id === Number(c.req.query('editar')));
-  const podeExcluir = pode(c.get('usuario').perfil, 'calendario.excluir');
+  const podeExcluir = pode(c.get('usuario'), 'calendario.excluir');
   return c.html(
     <Pagina titulo="Ano letivo" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')} erro={c.req.query('erro')}>
       <h1>Ano letivo</h1>
@@ -466,7 +466,7 @@ rotasCalendario.get('/calendario', async (c) => {
         ))}
       </table>
       {!eventos.length && <p class="muted">Nenhum evento cadastrado. Use "Gerar calendário automaticamente" e cadastre os feriados municipais/estaduais e recessos.</p>}
-      {pode(c.get('usuario').perfil, 'calendario.excluir') && (
+      {pode(c.get('usuario'), 'calendario.excluir') && (
         <details class="cartao" style="margin-top:1.5rem;border-left:4px solid var(--erro)">
           <summary style="cursor:pointer;font-weight:650;color:var(--erro)"><Icone nome="excluir" />Excluir o calendário de {anoNum}</summary>
           <p>Apaga <b>todos</b> os feriados, recessos, eventos e dias ajustados à mão de {anoNum} ({eventos.length} evento(s), {totalAjustes} ajuste(s)).

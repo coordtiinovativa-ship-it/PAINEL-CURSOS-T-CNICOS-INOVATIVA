@@ -224,11 +224,11 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
   ).results;
   const modulos = await modulosDaTurma(db, t.id);
   const u = c.get('usuario');
-  const editar = pode(u.perfil, 'turmas.editar');
+  const editar = pode(u, 'turmas.editar');
   const atual = modulos.find((m) => m.situacao === 'em_andamento');
   const concluidos = modulos.filter((m) => m.situacao === 'concluido').length;
   const ativos = matriculas.filter((m) => m.status === 'ativa').length;
-  const podeStatus = pode(u.perfil, 'matriculas.status');
+  const podeStatus = pode(u, 'matriculas.status');
   const turnos: Record<string, string> = Object.fromEntries(TURNOS);
   const { emitidos, qtdResultados } = await contarVinculos(db, t.id);
 
@@ -248,9 +248,9 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
           </div>
         </div>
         <div class="atalhos-turma">
-          {pode(u.perfil, 'resultados.lancar') && <a class="botao sec" href="/admin/importacao"><Icone nome="baixar" />Importar planilha</a>}
-          {pode(u.perfil, 'certificados.emitir') && <a class="botao sec" href={`/admin/certificados/pendentes?turma=${t.id}`}><Icone nome="certificados" />Emissão de certificados</a>}
-          {pode(u.perfil, 'relatorios.emitir') && <a class="botao sec" href={`/admin/relatorios?turma=${t.id}`}><Icone nome="documento" />Relatórios</a>}
+          {pode(u, 'resultados.lancar') && <a class="botao sec" href="/admin/importacao"><Icone nome="baixar" />Importar planilha</a>}
+          {pode(u, 'certificados.emitir') && <a class="botao sec" href={`/admin/certificados/pendentes?turma=${t.id}`}><Icone nome="certificados" />Emissão de certificados</a>}
+          {pode(u, 'relatorios.emitir') && <a class="botao sec" href={`/admin/relatorios?turma=${t.id}`}><Icone nome="documento" />Relatórios</a>}
         </div>
       </div>
 
@@ -363,7 +363,7 @@ rotasTurmas.get('/:id{[0-9]+}', async (c) => {
         <div class="cartao">{await FormTurma({ c, t })}</div>
       </details>
 
-      {pode(u.perfil, 'turmas.excluir') && (
+      {pode(u, 'turmas.excluir') && (
         <details class="excluir-turma">
           <summary><Icone nome="excluir" />Excluir turma (cadastrada por engano)</summary>
           {emitidos
@@ -575,8 +575,8 @@ rotasTurmas.get('/:id{[0-9]+}/modulos/:mod{[0-9]+}', async (c) => {
   if (!ctx) return c.notFound();
   const { t, modulo, mt, componentes, matriculas, porChave, chave, criterios } = ctx;
   const u = c.get('usuario');
-  const podePrevia = pode(u.perfil, 'relatorios.emitir');
-  const podeEmitir = pode(u.perfil, 'certificados.emitir');
+  const podePrevia = pode(u, 'relatorios.emitir');
+  const podeEmitir = pode(u, 'certificados.emitir');
   const emitidos = new Map(
     (await (c.env.DB as D1Database).prepare(
       `SELECT ce.matricula_id, ce.id, ce.codigo_validacao FROM certificados ce JOIN matriculas m ON m.id = ce.matricula_id
@@ -661,7 +661,7 @@ table.resultados-modulo .docs{display:flex;flex-direction:column;gap:.15rem;font
 
 /** Lançamento antigo por disciplina: agora em Secretaria → Notas (ou Gestão Pedagógica → Lançamento de Notas). */
 function telaDeNotas(c: any, turmaId: number, moduloId: number, compId: number) {
-  const base = pode(c.get('usuario').perfil, 'resultados.corrigir') ? '/admin/notas' : '/admin/pedagogico/notas';
+  const base = pode(c.get('usuario'), 'resultados.corrigir') ? '/admin/notas' : '/admin/pedagogico/notas';
   return `${base}?turma=${turmaId}&modulo=${moduloId}&disciplina=${compId}`;
 }
 

@@ -252,6 +252,11 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   - **Coordenador** e **Secretaria**: cadastram alunos e turmas, lançam resultados, emitem relatórios/prévias
     e **emitem certificados** (decisão de 13/11/2026). Revogação/2ª via continua só com o admin master.
   - A matriz de permissões fica em `src/auth/permissoes.ts` (fonte única, exibida na tela de usuários).
+  - **Permissões por usuário** (18/11/2026, migração 0018 `usuario_permissoes`): padrão do perfil + ajustes do usuário (liberar/bloquear),
+    calculados a cada requisição em `exigirLogin` (`usuario.permissoes`); `pode(usuario, perm)` usa o efetivo (`pode(perfil, perm)` = padrão).
+    Tela `/admin/usuarios/:id/permissoes` (permissão `usuarios.permissoes`: admin master e administrador). Regras em `podeAjustarUsuario` /
+    `podeAjustarPermissao`: ninguém ajusta a si nem a admin master (sempre pode tudo); administrador só ajusta coordenador/secretaria e só
+    libera o que tem; `usuarios.*` só o master ajusta. Criar/editar usuário e redefinir senha continuam `usuarios.gerenciar`.
 - Senhas: PBKDF2-SHA256; senha temporária com troca obrigatória no 1º acesso; bloqueio de 15 min após 5 erros.
 - O primeiro admin master é criado por `node scripts/criar-usuario.mjs` (não há cadastro aberto).
 

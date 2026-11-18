@@ -197,7 +197,7 @@ rotasCertificados.get('/:id{[0-9]+}', async (c) => {
         <tr><th>Hash SHA-256 dos dados</th><td><code style="word-break:break-all">{ce.hash_sha256}</code></td></tr>
       </table>
       {ce.status === 'revogado' && <div class="msg erro">Revogado: {ce.motivo_revogacao}</div>}
-      {pode(u.perfil, 'certificados.revogar') && ce.status === 'válido' && (
+      {pode(u, 'certificados.revogar') && ce.status === 'válido' && (
         <p class="muted">Revogação e 2ª via: previstas para depois de 05/12.</p>
       )}
     </Pagina>,

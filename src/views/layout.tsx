@@ -249,7 +249,7 @@ export const SECOES_MENU: SecaoMenu[] = [
   {
     id: 'sistema', rotulo: 'Sistema', icone: 'sistema',
     itens: [
-      { href: '/admin/usuarios', rotulo: 'Usuários e Perfis', perm: 'usuarios.gerenciar' },
+      { href: '/admin/usuarios', rotulo: 'Usuários e Permissões', perm: 'usuarios.permissoes' },
       { href: '/admin/auditoria', rotulo: 'Auditoria', perm: 'auditoria.ver' },
       { separador: true },
       { href: '/admin/novidades', rotulo: 'Novidades do Sistema' },
@@ -310,7 +310,7 @@ function hrefAtivo(caminho: string): string | null {
 
 /** Remove itens sem permissão e separadores sobrando (início, fim ou repetidos). */
 function itensVisiveis(sec: SecaoMenu, u: UsuarioSessao): ItemMenu[] {
-  const lista = sec.itens.filter((it) => 'separador' in it || !it.perm || pode(u.perfil, it.perm));
+  const lista = sec.itens.filter((it) => 'separador' in it || !it.perm || pode(u, it.perm));
   return lista.filter((it, i) => {
     if (!('separador' in it)) return true;
     const antes = lista.slice(0, i).some((x) => !('separador' in x));

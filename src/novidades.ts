@@ -35,6 +35,24 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.16.0',
+    data: '2026-11-18',
+    novidades: [
+      {
+        titulo: 'Permissões por usuário',
+        texto: 'em Sistema → Usuários e Permissões → "permissões": cada usuário segue o padrão do perfil, e você pode LIBERAR ou BLOQUEAR ' +
+          'funções só para aquela pessoa (por exemplo, deixar uma secretária ver a auditoria ou tirar de alguém a emissão de certificados). ' +
+          'Vale na hora, o menu se ajusta sozinho e tudo fica na auditoria. O admin master ajusta qualquer usuário (menos outro admin master); ' +
+          'o administrador ajusta coordenadores e secretaria e só libera funções que ele mesmo tem. O admin master sempre pode tudo.',
+        href: '/admin/usuarios',
+        perm: 'usuarios.permissoes',
+      },
+    ],
+    melhorias: [
+      { titulo: 'O administrador agora vê a lista de usuários', texto: 'para ajustar permissões; criar, editar e redefinir senha continuam com o admin master.', href: '/admin/usuarios', perm: 'usuarios.permissoes' },
+    ],
+  },
+  {
     versao: '1.15.0',
     data: '2026-11-18',
     melhorias: [

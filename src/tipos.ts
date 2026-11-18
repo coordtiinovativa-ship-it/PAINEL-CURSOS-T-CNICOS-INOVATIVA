@@ -7,6 +7,8 @@ export interface UsuarioSessao {
   perfil: Perfil;
   trocar_senha: number;
   tema: 'sistema' | 'claro' | 'escuro';
+  /** Permissões efetivas (perfil + ajustes do usuário), calculadas a cada requisição. */
+  permissoes?: string[];
 }
 
 export type Env = {

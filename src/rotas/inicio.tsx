@@ -33,7 +33,7 @@ rotasInicio.get('/', async (c) => {
   ]);
 
   const alertas: { tipo: 'erro' | 'aviso'; texto: string; link?: string }[] = [];
-  const podeSig = pode(u.perfil, 'signatarios.editar');
+  const podeSig = pode(u, 'signatarios.editar');
   if (signatarios.results.length < 2) alertas.push({ tipo: 'erro', texto: 'Faltam signatários ativos (Diretora Pedagógica e Secretário(a)).', link: podeSig ? '/admin/signatarios' : undefined });
   for (const s of signatarios.results) {
     if (s.nome.includes('A DEFINIR')) alertas.push({ tipo: 'erro', texto: `Signatário "${s.cargo}" sem nome cadastrado.`, link: podeSig ? '/admin/signatarios' : undefined });
@@ -52,8 +52,12 @@ rotasInicio.get('/', async (c) => {
       <div class="inicio">
       <h1>Olá, {u.nome.split(' ')[0]}</h1>
       <div class="kpis">
-        <a class="cartao" href="/admin/alunos" style="text-decoration:none"><b>{contagens?.alunos ?? 0}</b>alunos</a>
-        <a class="cartao" href="/admin/turmas" style="text-decoration:none"><b>{contagens?.turmas ?? 0}</b>turmas</a>
+        {pode(u, 'alunos.editar')
+          ? <a class="cartao" href="/admin/alunos" style="text-decoration:none"><b>{contagens?.alunos ?? 0}</b>alunos</a>
+          : <div class="cartao"><b>{contagens?.alunos ?? 0}</b>alunos</div>}
+        {pode(u, 'turmas.editar')
+          ? <a class="cartao" href="/admin/turmas" style="text-decoration:none"><b>{contagens?.turmas ?? 0}</b>turmas</a>
+          : <div class="cartao"><b>{contagens?.turmas ?? 0}</b>turmas</div>}
         <div class="cartao"><b>{contagens?.cursando ?? 0}</b>matrículas em curso</div>
         <div class="cartao"><b>{contagens?.certificados ?? 0}</b>certificados válidos</div>
       </div>

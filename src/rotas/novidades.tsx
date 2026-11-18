@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded',function(){
 });`;
 
 const Item: FC<{ item: ItemNovidade; usuario: UsuarioSessao }> = ({ item, usuario }) => {
-  const comLink = item.href && (!item.perm || pode(usuario.perfil, item.perm));
+  const comLink = item.href && (!item.perm || pode(usuario, item.perm));
   const titulo = item.texto ? `${item.titulo}:` : item.titulo;
   return (
     <li data-busca={normalizar(`${item.titulo} ${item.texto ?? ''}`)}>

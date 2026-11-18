@@ -198,7 +198,7 @@ const Moldura: FC<{
 }> = ({ c, titulo, aba, modo, aluno, erro, ok, children }) => {
   const u = c.get('usuario');
   const id = aluno?.id;
-  const podeExcluir = !!id && pode(u.perfil, 'alunos.excluir');
+  const podeExcluir = !!id && pode(u, 'alunos.excluir');
   const lista = modo === 'lista';
   return (
     <Pagina titulo={titulo} usuario={u} caminho="/admin/alunos" erro={erro} ok={ok} voltar={lista ? '/admin' : '/admin/alunos'}>
@@ -378,7 +378,7 @@ async function telaAluno(c: any, id: number, opcoes: { erro?: string; rascunho?:
   const a = { ...d.aluno, ...(opcoes.rascunho ?? {}) };
   const modo = opcoes.erro ? 'editar' : 'ver';
   const falt = faltantesAluno(a);
-  const podePrevia = pode(c.get('usuario').perfil, 'relatorios.emitir');
+  const podePrevia = pode(c.get('usuario'), 'relatorios.emitir');
   return (
     <Moldura c={c} titulo={`Aluno: ${nomeDoAluno(a)}`} aba="cadastro" modo={modo} aluno={a} erro={opcoes.erro} ok={c.req.query('ok')}>
       <section class="painel ativo" id="aba-cadastro">

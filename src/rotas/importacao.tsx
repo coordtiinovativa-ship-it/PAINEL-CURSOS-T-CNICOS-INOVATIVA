@@ -46,7 +46,7 @@ rotasImportacao.get('/', async (c) => {
     alvos(db),
     db.prepare(`SELECT i.*, t.codigo AS turma FROM importacoes i LEFT JOIN turmas t ON t.id = i.turma_id ORDER BY i.id DESC LIMIT 30`).all<Importacao & { turma: string | null }>(),
   ]);
-  const podeNotas = pode(u.perfil, 'resultados.lancar');
+  const podeNotas = pode(u, 'resultados.lancar');
   return c.html(
     <Pagina titulo="Importar planilhas" usuario={u} caminho={c.req.path} ok={c.req.query('ok')} erro={c.req.query('erro')}>
       <h1>Importar planilhas</h1>
@@ -267,7 +267,7 @@ rotasImportacao.get('/:id{[0-9]+}', async (c) => {
   const imp = await carregar(c);
   if (!imp) return c.notFound();
   const u = c.get('usuario');
-  if (imp.tipo === 'notas' && !pode(u.perfil, 'resultados.lancar')) return c.text('Sem permissão', 403);
+  if (imp.tipo === 'notas' && !pode(u, 'resultados.lancar')) return c.text('Sem permissão', 403);
   const alvo = imp.turma_id
     ? await c.env.DB.prepare(`SELECT t.codigo, mt.nome AS modulo, mt.ordem FROM turmas t LEFT JOIN modulos_tematicos mt ON mt.id = ? WHERE t.id = ?`)
       .bind(imp.modulo_id, imp.turma_id).first<{ codigo: string; modulo: string | null; ordem: number | null }>()
@@ -325,7 +325,7 @@ rotasImportacao.get('/:id{[0-9]+}/relatorio.csv', async (c) => {
 rotasImportacao.post('/:id{[0-9]+}/aplicar', async (c) => {
   const imp = await carregar(c);
   if (!imp) return c.notFound();
-  if (imp.tipo === 'notas' && !pode(c.get('usuario').perfil, 'resultados.lancar')) return c.text('Sem permissão', 403);
+  if (imp.tipo === 'notas' && !pode(c.get('usuario'), 'resultados.lancar')) return c.text('Sem permissão', 403);
   if (imp.status !== 'conferencia') return c.redirect(`/admin/importacao/${imp.id}`);
   const db = c.env.DB;
   let resumo: Record<string, number>;

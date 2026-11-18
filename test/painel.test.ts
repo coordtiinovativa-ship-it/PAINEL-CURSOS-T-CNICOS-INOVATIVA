@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { criarAmbiente } from './ambiente';
 import { gerarHashSenha, problemaSenha, verificarSenha } from '../src/auth/senha';
-import { pode, PERMISSOES } from '../src/auth/permissoes';
+import { GRUPOS_PERMISSAO, pode, PERMISSOES, permissoesEfetivas } from '../src/auth/permissoes';
 
 describe('senha', () => {
   it('hash PBKDF2 confere e rejeita senha errada', async () => {
@@ -117,13 +117,14 @@ describe('permissões nas rotas', () => {
       expect((await c.req(p)).status, p).toBe(403);
   });
 
-  it('administrador vê auditoria mas não gerencia usuários', async () => {
+  it('administrador vê auditoria e a lista de usuários, mas não cria nem edita usuários', async () => {
     const amb = await criarAmbiente();
     await amb.criarUsuario('adm@iect.test', 'administrador');
     const c = amb.cliente();
     await c.entrar('adm@iect.test');
     expect((await c.req('/admin/auditoria')).status).toBe(200);
-    expect((await c.req('/admin/usuarios')).status).toBe(403);
+    expect((await c.req('/admin/usuarios')).status).toBe(200);
+    expect((await c.req('/admin/usuarios/novo')).status).toBe(403);
   });
 
   it('master cria usuário com senha temporária e não pode remover o último master', async () => {
@@ -270,5 +271,73 @@ describe('prévia do certificado', () => {
     expect(html).toContain('filho(a) de Mãe, o presente'); // sem nome do pai
     const aluno = amb.sqlite.prepare('SELECT nome_civil FROM alunos WHERE id = 1').get() as any;
     expect(aluno.nome_civil).toBe('Ana Beatriz Fictícia Souza'); // nada foi salvo
+  });
+});
+
+describe('permissões por usuário', () => {
+  it('todas as permissões aparecem uma vez nos grupos da tela; ajustes somam e tiram do perfil', () => {
+    const nosGrupos = GRUPOS_PERMISSAO.flatMap((g) => g.permissoes);
+    expect([...nosGrupos].sort()).toEqual(Object.keys(PERMISSOES).sort());
+    const ef = permissoesEfetivas('secretaria', [{ permissao: 'auditoria.ver', concedida: 1 }, { permissao: 'alunos.editar', concedida: 0 }]);
+    expect(pode({ perfil: 'secretaria', permissoes: ef }, 'auditoria.ver')).toBe(true);
+    expect(pode({ perfil: 'secretaria', permissoes: ef }, 'alunos.editar')).toBe(false);
+    expect(pode({ perfil: 'secretaria', permissoes: ef }, 'turmas.editar')).toBe(true);
+    expect(pode({ perfil: 'admin_master', permissoes: [] }, 'usuarios.gerenciar')).toBe(true);
+  });
+
+  it('administrador libera e bloqueia funções da secretaria; vale na hora; não mexe em master nem em si', async () => {
+    const amb = await criarAmbiente();
+    await amb.criarUsuario('adm@iect.test', 'administrador');
+    await amb.criarUsuario('sec@iect.test', 'secretaria');
+    await amb.criarUsuario('m@iect.test', 'admin_master');
+    const id = (e: string) => (amb.sqlite.prepare('SELECT id FROM usuarios WHERE email = ?').get(e) as any).id;
+    const adm = amb.cliente(); await adm.entrar('adm@iect.test');
+    const sec = amb.cliente(); await sec.entrar('sec@iect.test');
+    expect((await sec.req('/admin/auditoria')).status).toBe(403);
+    expect((await sec.req('/admin/alunos')).status).toBe(200);
+
+    const tela = await (await adm.req(`/admin/usuarios/${id('sec@iect.test')}/permissoes`)).text();
+    expect(tela).toMatch(/Permissões: sec/);
+    expect(tela).toMatch(/só o admin master altera/); // usuarios.gerenciar
+    // libera auditoria, bloqueia alunos; tenta liberar gerência de usuários e revogação (ignoradas: o administrador não tem)
+    const r = await adm.post(`/admin/usuarios/${id('sec@iect.test')}/permissoes`, {
+      'p_auditoria.ver': 'liberar', 'p_alunos.editar': 'bloquear', 'p_usuarios.gerenciar': 'liberar', 'p_certificados.revogar': 'liberar',
+      'p_turmas.editar': 'liberar', // igual ao padrão: não grava
+    });
+    expect(r.status).toBe(302);
+    const linhas = amb.sqlite.prepare('SELECT permissao, concedida FROM usuario_permissoes ORDER BY permissao').all();
+    expect(linhas).toEqual([{ permissao: 'alunos.editar', concedida: 0 }, { permissao: 'auditoria.ver', concedida: 1 }]);
+    expect(amb.auditoria().at(-1)).toMatchObject({ acao: 'permissoes', entidade: 'usuario' });
+    // vale na próxima requisição, sem novo login
+    expect((await sec.req('/admin/auditoria')).status).toBe(200);
+    expect((await sec.req('/admin/alunos')).status).toBe(403);
+    expect(await (await sec.req('/admin')).text()).not.toMatch(/href="\/admin\/alunos"/);
+    expect((await adm.req('/admin/usuarios')).status).toBe(200);
+    expect(await (await adm.req('/admin/usuarios')).text()).toMatch(/personalizado/);
+
+    // não ajusta admin master nem a si mesmo
+    expect((await adm.req(`/admin/usuarios/${id('m@iect.test')}/permissoes`)).status).toBe(302);
+    expect((await adm.post(`/admin/usuarios/${id('m@iect.test')}/permissoes`, { 'p_auditoria.ver': 'bloquear' })).status).toBe(403);
+    expect((await adm.post(`/admin/usuarios/${id('adm@iect.test')}/permissoes`, { 'p_alunos.editar': 'bloquear' })).status).toBe(403);
+    // secretaria não acessa a tela
+    expect((await sec.req(`/admin/usuarios/${id('sec@iect.test')}/permissoes`)).status).toBe(403);
+
+    // voltar tudo ao padrão
+    await adm.post(`/admin/usuarios/${id('sec@iect.test')}/permissoes`, { acao: 'padrao' });
+    expect(amb.sqlite.prepare('SELECT count(*) AS n FROM usuario_permissoes').get()).toEqual({ n: 0 });
+    expect((await sec.req('/admin/alunos')).status).toBe(200);
+  });
+
+  it('admin master libera gerência de usuários a um administrador e pode tirar dele a tela de permissões', async () => {
+    const amb = await criarAmbiente();
+    await amb.criarUsuario('m@iect.test', 'admin_master');
+    await amb.criarUsuario('adm@iect.test', 'administrador');
+    const idAdm = (amb.sqlite.prepare(`SELECT id FROM usuarios WHERE email = 'adm@iect.test'`).get() as any).id;
+    const m = amb.cliente(); await m.entrar('m@iect.test');
+    const adm = amb.cliente(); await adm.entrar('adm@iect.test');
+    await m.post(`/admin/usuarios/${idAdm}/permissoes`, { 'p_usuarios.gerenciar': 'liberar' });
+    expect((await adm.req('/admin/usuarios/novo')).status).toBe(200);
+    await m.post(`/admin/usuarios/${idAdm}/permissoes`, { 'p_usuarios.permissoes': 'bloquear' });
+    expect((await adm.req('/admin/usuarios')).status).toBe(403);
   });
 });
