@@ -353,7 +353,7 @@ describe('lotação → horário → chamada → notas e faltas', () => {
     // dia sem chamada: altera direto
     rc = await c.post(DIA, { data: '2026-08-10', codigo: 'NL', descricao: 'Reunião' });
     expect(msg(rc)).toContain('10/08/2026 agora é NL');
-  });
+  }, 30_000); // fluxo longo: gera 4 PDFs
 
   it('menu Gestão Pedagógica aparece para os perfis e as telas abrem', async () => {
     const { c } = await pronto();
