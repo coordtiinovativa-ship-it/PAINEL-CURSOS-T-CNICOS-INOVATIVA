@@ -478,3 +478,32 @@ Teste obrigatório: a soma de cada módulo deve dar 400 h e o curso 1300 h.
   e botão "Ver em tela"; declaração e histórico idem (prévia embutida + "Ver em tela" + PDF de prévia).
 - Todas as prévias (tela e PDF) trazem um **QR code de exemplo** no mesmo lugar e tamanho do definitivo (`src/lib/qr.ts`), apontando
   para a página pública de consulta (`/v`), com o texto "INV-AAAA-NNNNN (exemplo)". Código INV e QR definitivo só na emissão.
+
+### Documentos da Secretaria (19/11/2026 — modelos da pasta `MODELOS DOCUMENTOS/`)
+- **Secretaria → Emissão de Documentos** (`/admin/secretaria/documentos`, `src/rotas/emitir-documentos.tsx`, permissão `relatorios.emitir`):
+  central + uma tela por documento (turma/aluno, campos das lacunas do modelo, pendências, prévia em iframe, PDF ou emitir).
+  No menu, o item é um **subgrupo recolhível dentro do próprio menu** (`painel` em `SECOES_MENU` → `SubMenu`, `src/views/layout.tsx`),
+  com "Ver todos" + documentos por grupo. Decisão de 19/11/2026: o painel flutuante ao lado (estilo sysGEP) foi descartado porque
+  cobria a página. "Relatórios" também é subgrupo. "Declarações e Históricos" virou
+  **Documentos Emitidos** (`/admin/documentos`, lista todos os registrados).
+- **Catálogo** (fonte única): `src/documentos/catalogo.ts` — grupo, contexto (aluno | matrícula | matrícula+módulo), registrado ou formulário.
+  Montagem: `src/documentos/secretaria.ts`; peças comuns (identificação, curso por extenso, assinaturas, registro de aproveitamento):
+  `src/documentos/comum.ts`.
+- **Formulários** (requerimentos 01, 02 e 06): preenchidos com o cadastro; lacuna sem dado sai em branco para preencher à mão; sem código
+  de validação (são pedidos do estudante, não atos da instituição); geração vai para a auditoria (`gerar_formulario`). Assinatura da
+  direção em branco (o deferimento é à mão).
+- **Registrados** (código INV + QR + snapshot + hash, validados em `/v`): portarias 03/04/05, guia de transferência (07), histórico do curso
+  técnico (08), além da declaração e do histórico por módulo. `registrarDocumento` em `src/documentos/emissao.ts` é o caminho único.
+- **Migração 0019**: `documentos` recriada — `aluno_id` obrigatório, `matricula_id` opcional (portaria pode ser antes da matrícula),
+  `curso_id`, `numero` (nº da portaria, **único**, formato 001/2026, sugerido o próximo do ano e editável). Documentos antigos copiados sem alteração.
+- **Portarias**: Art. 1º/2º conforme o modelo; módulos/disciplinas aproveitados escolhidos da matriz do curso; o resumo guarda `registro`,
+  citado em "Registro de Aproveitamento de Estudos" dos históricos (qualificação e curso). Ainda NÃO lançam aproveitamento nos resultados
+  (pendente: rematrícula com aproveitamento).
+- **Guia de transferência**: exige matrícula com status Transferido (data e motivo do histórico de status); módulo em curso = em andamento
+  (ou escolhido); verso com faltas (nº de aulas) e notas parciais.
+- **Histórico do curso técnico**: exige todos os módulos aprovados, **TCC com resultado lançado** (ainda não há tela para lançar nota do TCC —
+  pendente antes da 1ª conclusão de curso), ensino médio e perfil profissional do curso.
+- **Histórico da qualificação (modelos 09–11)** substituiu o layout anterior do `historico_escolar` (já emitidos não mudam — snapshot).
+- Motor: título longo quebra linha; `lista.numerada`; `tabela.compacta` e `campos.compacta` ("RÓTULO: valor" na mesma linha) para caber o
+  histórico do curso e a guia em anverso + verso; célula `null` na tabela = mesclada com a da esquerda; espaço não separável (U+00A0)
+  não quebra (caixas "(    )" dos formulários).

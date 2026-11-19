@@ -531,8 +531,8 @@ rotasAlunos.post('/:id{[0-9]+}/excluir', exigir('alunos.excluir'), async (c) => 
   const id = Number(c.req.param('id'));
   const a = await c.env.DB.prepare('SELECT * FROM alunos WHERE id = ?').bind(id).first<Aluno>();
   if (!a) return c.notFound();
-  const tem = await c.env.DB.prepare('SELECT 1 FROM matriculas WHERE aluno_id = ?1 UNION ALL SELECT 1 FROM aluno_documentos WHERE aluno_id = ?1 LIMIT 1').bind(id).first();
-  if (tem) return c.redirect(`/admin/alunos/${id}?ok=` + encodeURIComponent('Não excluído: o aluno possui matrícula ou documentos anexados.'));
+  const tem = await c.env.DB.prepare('SELECT 1 FROM matriculas WHERE aluno_id = ?1 UNION ALL SELECT 1 FROM aluno_documentos WHERE aluno_id = ?1 UNION ALL SELECT 1 FROM documentos WHERE aluno_id = ?1 LIMIT 1').bind(id).first();
+  if (tem) return c.redirect(`/admin/alunos/${id}?ok=` + encodeURIComponent('Não excluído: o aluno possui matrícula, documentos anexados ou documentos emitidos.'));
   await c.env.DB.prepare('DELETE FROM alunos WHERE id = ?').bind(id).run();
   await auditar(c, 'excluir', 'aluno', id, a, null);
   return c.redirect('/admin/alunos?ok=' + encodeURIComponent('Aluno excluído.'));

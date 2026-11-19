@@ -110,14 +110,19 @@ describe('histórico escolar', () => {
   it('com perfil/competências: anverso com notas e frequência, verso com competências; 2 páginas', async () => {
     const { c, sqlite, env } = await pronto('coordenador', PERFIL);
     const previa = await (await c.req(`${HIST}/1/1/previa`)).text();
-    expect(previa).toContain('HISTÓRICO ESCOLAR');
+    // modelo aprovado (MODELOS DOCUMENTOS/09): título da qualificação, identificação, tabela Módulo|Componente|CH|F|M
+    expect(previa).toContain('HISTÓRICO ESCOLAR DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA EM INSPETOR DE QUALIDADE');
+    expect(previa).toContain('VERSO DO HISTÓRICO ESCOLAR DA QUALIFICAÇÃO PROFISSIONAL TÉCNICA EM INSPETOR DE QUALIDADE');
     expect(previa).toContain('Atendimento a Clientes e Fornecedores');
     expect(previa).toContain('8,5'); // média da 1ª disciplina
-    expect(previa).toContain('Carga horária total do módulo');
+    expect(previa).toContain('TOTAL DA CARGA HORÁRIA');
     expect(previa).toContain('400');
-    expect(previa).toContain('APROVADO(A)');
+    expect(previa).toContain('RESULTADO FINAL');
+    expect(previa).toContain('concluiu em 26/06/2026 a Qualificação Profissional Técnica em Inspetor de Qualidade');
+    expect(previa).toContain('Registro de Aproveitamento de Estudos: não houve.');
+    expect(previa).toContain('Perfil Profissional: Atua na inspeção');
     expect(previa).toContain('Aplicar ferramentas da qualidade');
-    expect(previa).toContain('Escola Estadual Exemplo');
+    expect(previa).toContain('Carlos Fictício Souza'); // filiação (pai)
     expect((await c.post(`${HIST}/1/1`, { data_emissao: '2026-12-05' })).status).toBe(302);
     const [d] = docs(sqlite);
     const pdf = await PDFDocument.load(new Uint8Array(await (await env.ARQUIVOS.get(d.pdf_r2_key))!.arrayBuffer()));
@@ -127,7 +132,7 @@ describe('histórico escolar', () => {
   it('histórico de aluno reprovado pode ser emitido e mostra RP', async () => {
     const { c } = await pronto('secretaria', PERFIL);
     const previa = await (await c.req(`${HIST}/3/1/previa`)).text();
-    expect(previa).toContain('REPROVADO(A)');
+    expect(previa).toContain('não obtendo aprovação (RP)');
     expect((await c.post(`${HIST}/3/1`, { data_emissao: '2026-12-05' })).status).toBe(302);
   }, 30_000);
 
@@ -149,7 +154,7 @@ describe('validação pública de documentos', () => {
     await c.post(`${DECL}/1/1`, { data_emissao: '2026-12-05' });
     const d = docs(sqlite)[0];
     const html = await (await c.req(`/v/${d.codigo_validacao}`)).text();
-    expect(html).toContain('Declaração de conclusão de módulo válida');
+    expect(html).toContain('Declaração de Conclusão de Módulo válida');
     expect(html).toContain('***.222.333-**');
     expect(html).not.toContain('1234567');
     expect(html).not.toContain('/pdf?t=');
@@ -197,7 +202,7 @@ describe('prévia a partir da tela Declarações e históricos', () => {
     expect(comTurma).toContain('action="/admin/documentos/abrir"');
     expect(comTurma).toContain('Ana Beatriz Fictícia Souza');
     expect(comTurma).toMatch(/Módulo 1: Qualidade — concluído/);
-    expect(comTurma).toContain('Histórico escolar');
+    expect(comTurma).toContain('Histórico Escolar da Qualificação');
 
     const ir = async (ver: string) => (await c.req(`/admin/documentos/abrir?mat=1&mod=1&tipo=declaracao_conclusao_modulo&ver=${ver}`)).headers.get('Location');
     expect(await ir('tela')).toBe(`${DECL}/1/1/previa`);

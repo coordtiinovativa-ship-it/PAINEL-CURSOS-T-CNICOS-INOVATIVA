@@ -8,7 +8,7 @@ import { asset, r2 } from '../certificado/recursos';
 import { jsonCanonico } from '../certificado/snapshot';
 import { gerarToken, reservarProximoCodigo } from '../lib/codigo';
 import { gerarPdfDocumento, type RecursosDocumento } from './pdf';
-import { prepararDocumento, type ResumoDocumento, type TipoDocumento } from './montar';
+import { prepararDocumento, type ResumoDocumento, type TipoDocumento, type TipoDocumentoModulo } from './montar';
 import type { DocumentoLayout } from './tipos';
 
 type Bindings = Env['Bindings'];
@@ -46,22 +46,44 @@ export async function recursosDocumento(env: Bindings, layout: DocumentoLayout):
   return { fonteRegular, fonteNegrito, logo: logoR2 ?? (await asset(env, '/modelo/logo.png')), assinaturas };
 }
 
-export async function emitirDocumento(
+/** Referências gravadas junto do documento (aluno sempre; matrícula, curso, módulo e nº da portaria quando houver). */
+export interface RefsDocumento {
+  tipo: TipoDocumento;
+  alunoId: number;
+  matriculaId: number | null;
+  cursoId: number | null;
+  moduloId: number | null;
+  /** nº da portaria (único) */
+  numero?: string | null;
+}
+
+/** Monta o documento com o código e a URL definitivos (ou nulos, na conferência antes de reservar o código). */
+export type PrepararDocumento = (emissao: { dataEmissao: string; codigo: string | null; url: string | null }) =>
+  Promise<{ layout: DocumentoLayout; resumo: ResumoDocumento; faltantes: string[] }>;
+
+/**
+ * Registra um documento: confere as pendências, reserva o código INV (mesma sequência dos certificados), gera o PDF a partir
+ * do snapshot, guarda no R2 e insere em `documentos`. O código só é reservado quando não há pendências.
+ */
+export async function registrarDocumento(
   env: Bindings,
   usuarioEmail: string,
-  tipo: TipoDocumento,
-  matriculaId: number,
-  moduloId: number,
+  refs: RefsDocumento,
   dataEmissao: string,
+  preparar: PrepararDocumento,
 ): Promise<{ id: number; codigo: string; snapshot: SnapshotDocumento }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dataEmissao)) throw new ErroDocumento(['Data de emissão inválida.']);
-  const verificacao = await prepararDocumento(env.DB, tipo, matriculaId, moduloId, { dataEmissao, codigo: null, url: null });
+  const verificacao = await preparar({ dataEmissao, codigo: null, url: null });
   if (verificacao.faltantes.length) throw new ErroDocumento(verificacao.faltantes);
+  if (refs.numero) {
+    const repetido = await env.DB.prepare('SELECT codigo_validacao FROM documentos WHERE numero = ?').bind(refs.numero).first<{ codigo_validacao: string }>();
+    if (repetido) throw new ErroDocumento([`O nº ${refs.numero} já foi usado na portaria ${repetido.codigo_validacao}. Informe outro número.`]);
+  }
 
   const codigo = await reservarProximoCodigo(env.DB, Number(dataEmissao.slice(0, 4)));
   const token = gerarToken();
   const url = `${env.URL_PUBLICA.replace(/\/$/, '')}/v/${codigo}?t=${token}`;
-  const p = await prepararDocumento(env.DB, tipo, matriculaId, moduloId, { dataEmissao, codigo, url });
+  const p = await preparar({ dataEmissao, codigo, url });
   const snapshot: SnapshotDocumento = { versao: 1, resumo: p.resumo, layout: p.layout };
   const json = jsonCanonico(snapshot);
   const hash = await hashTexto(json);
@@ -72,9 +94,29 @@ export async function emitirDocumento(
     customMetadata: { sha256_dados: hash },
   });
   const r = await env.DB.prepare(
-    `INSERT INTO documentos (tipo, codigo_validacao, token, matricula_id, modulo_id, data_emissao, hash_sha256, pdf_r2_key, snapshot_json, emitido_por)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
-  ).bind(tipo, codigo, token, matriculaId, moduloId, dataEmissao, hash, chave, json, usuarioEmail).first<{ id: number }>();
+    `INSERT INTO documentos (tipo, codigo_validacao, token, aluno_id, matricula_id, curso_id, modulo_id, numero, data_emissao,
+                             hash_sha256, pdf_r2_key, snapshot_json, emitido_por)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+  ).bind(refs.tipo, codigo, token, refs.alunoId, refs.matriculaId, refs.cursoId, refs.moduloId, refs.numero ?? null, dataEmissao,
+    hash, chave, json, usuarioEmail).first<{ id: number }>();
   if (!r) throw new Error('Falha ao registrar o documento');
   return { id: r.id, codigo, snapshot };
+}
+
+/** Declaração de conclusão e histórico por módulo. */
+export async function emitirDocumento(
+  env: Bindings,
+  usuarioEmail: string,
+  tipo: TipoDocumentoModulo,
+  matriculaId: number,
+  moduloId: number,
+  dataEmissao: string,
+): Promise<{ id: number; codigo: string; snapshot: SnapshotDocumento }> {
+  const base = await prepararDocumento(env.DB, tipo, matriculaId, moduloId, { dataEmissao: /^\d{4}-\d{2}-\d{2}$/.test(dataEmissao) ? dataEmissao : undefined, codigo: null, url: null });
+  return registrarDocumento(
+    env, usuarioEmail,
+    { tipo, alunoId: base.dados.aluno.id, matriculaId, cursoId: base.dados.curso.id, moduloId },
+    dataEmissao,
+    (e) => prepararDocumento(env.DB, tipo, matriculaId, moduloId, e),
+  );
 }

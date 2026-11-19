@@ -35,6 +35,61 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.18.0',
+    data: '2026-11-19',
+    resumo: 'Emissão de Documentos da Secretaria a partir dos modelos aprovados: requerimentos, portarias, guia de transferência e históricos.',
+    novidades: [
+      {
+        titulo: 'Emissão de Documentos',
+        texto: 'Secretaria → Emissão de Documentos: clique para abrir, no próprio menu, a lista de documentos agrupada. Escolha o documento, ' +
+          'a turma e o aluno, preencha o que o modelo pede, confira a prévia e gere o PDF ou emita.',
+        href: '/admin/secretaria/documentos',
+        perm: 'relatorios.emitir',
+      },
+      {
+        titulo: 'Requerimentos para assinatura',
+        texto: 'Requerimento de Matrícula, de Aproveitamento de Estudos e de Aproveitamento de Conhecimentos e Experiências saem preenchidos com o ' +
+          'cadastro do aluno; o que não estiver informado sai em branco para preencher à mão.',
+        href: '/admin/secretaria/documentos/requerimento_matricula',
+        perm: 'relatorios.emitir',
+      },
+      {
+        titulo: 'Portarias de aproveitamento',
+        texto: 'de estudos (módulos ou disciplinas) e de conhecimentos e experiências, com número sugerido (não se repete), código de validação e QR code. ' +
+          'Os históricos citam as portarias em "Registro de Aproveitamento de Estudos".',
+        href: '/admin/secretaria/documentos/portaria_aproveitamento_modulos',
+        perm: 'relatorios.emitir',
+      },
+      {
+        titulo: 'Guia de Transferência',
+        texto: 'resultados dos módulos concluídos e, no verso, faltas e notas do módulo em curso. Exige a matrícula com status Transferido.',
+        href: '/admin/secretaria/documentos/guia_transferencia',
+        perm: 'relatorios.emitir',
+      },
+      {
+        titulo: 'Histórico Escolar do Curso Técnico',
+        texto: 'todos os módulos e o TCC com resultado final, certificando a conclusão do curso (liberado quando o aluno conclui tudo).',
+        href: '/admin/secretaria/documentos/historico_curso_tecnico',
+        perm: 'relatorios.emitir',
+      },
+    ],
+    melhorias: [
+      {
+        titulo: 'Histórico Escolar da Qualificação no modelo aprovado',
+        texto: 'título da qualificação, identificação do estudante, tabela Módulo / Componente / CH / F / M, resultado final e, no verso, ' +
+          'perfil profissional e competências numeradas. Os históricos já emitidos não mudam.',
+        href: '/admin/secretaria/documentos/historico_escolar',
+        perm: 'relatorios.emitir',
+      },
+      {
+        titulo: 'Relatórios com painel lateral e "Documentos Emitidos"',
+        texto: 'o menu Relatórios também abre a lista no próprio menu; "Declarações e Históricos" passou a se chamar Documentos Emitidos e mostra todos os documentos registrados.',
+        href: '/admin/documentos',
+        perm: 'relatorios.emitir',
+      },
+    ],
+  },
+  {
     versao: '1.17.2',
     data: '2026-11-19',
     melhorias: [

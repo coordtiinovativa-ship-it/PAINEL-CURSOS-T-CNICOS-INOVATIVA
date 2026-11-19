@@ -54,7 +54,7 @@ rotasRelatorios.get('/', async (c) => {
       <h1>Relatórios</h1>
       <p class="muted" style="margin-top:-.6rem">Escolha os filtros e emita. Todo relatório registra quem emitiu, com data e hora, e fica na auditoria.</p>
       <div class="relatorios">
-        <section class="relatorio">
+        <section class="relatorio" id="alunos-situacao">
           <div class="cab">
             <span class="ic"><Icone nome="alunos" /></span>
             <div><h2>Alunos por situação de matrícula</h2><p>Cursando, concluído, reprovado ou desistente — por curso e turma.</p></div>

@@ -23,6 +23,7 @@ import { rotasPublico } from './rotas/publico';
 import { limitarPorIP } from './lib/limite';
 import { faixaAmbienteTeste } from './lib/ambiente';
 import { rotasDocumentos } from './rotas/documentos';
+import { rotasEmitirDocumentos } from './rotas/emitir-documentos';
 import { rotasImportacao } from './rotas/importacao';
 import { rotasRelatorios } from './rotas/relatorios';
 import { rotasFaltasTotal, rotasNotasProfessor, rotasNotasSecretaria } from './rotas/lancamentos';
@@ -82,6 +83,7 @@ app.route('/admin/certificados/pendentes', rotasPendentes);
 app.route('/admin/certificados', rotasCertificados);
 app.route('/admin/modelo', rotasModelo);
 app.route('/admin/documentos', rotasDocumentos);
+app.route('/admin/secretaria/documentos', rotasEmitirDocumentos);
 app.route('/admin/importacao', rotasImportacao);
 app.route('/admin/relatorios', rotasRelatorios);
 // Secretaria → Notas / Faltas (a antiga "Notas e Faltas" foi desmembrada em 18/11/2026)

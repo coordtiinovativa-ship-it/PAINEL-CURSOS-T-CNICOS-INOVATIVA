@@ -18,9 +18,11 @@ export type Bloco =
   | { tipo: 'titulo'; texto: string; subtitulo?: string }
   | { tipo: 'secao'; texto: string }
   | { tipo: 'paragrafo'; texto: string; alinhar?: Alinhamento; recuo?: boolean; negrito?: boolean; tamanho?: number; entrelinha?: number }
-  | { tipo: 'campos'; itens: { rotulo: string; valor: string | null; span?: 1 | 2 | 3 | 4 }[] }
-  | { tipo: 'tabela'; colunas: ColunaTabela[]; linhas: string[][]; total?: string[] }
-  | { tipo: 'lista'; itens: string[] }
+  | { tipo: 'campos'; itens: { rotulo: string; valor: string | null; span?: 1 | 2 | 3 | 4 }[]; compacta?: boolean }
+  /** compacta: letra e linhas menores (tabelas longas, como o histórico do curso inteiro, cabem em uma página) */
+  /** célula `null` = mesclada com a da esquerda (ex.: "CARGA HORÁRIA DA QUALIFICAÇÃO ..." ocupando módulo + componente) */
+  | { tipo: 'tabela'; colunas: ColunaTabela[]; linhas: (string | null)[][]; total?: (string | null)[]; compacta?: boolean }
+  | { tipo: 'lista'; itens: string[]; numerada?: boolean }
   | { tipo: 'nota'; texto: string }
   | { tipo: 'assinaturas'; itens: { legenda: string; nome?: string | null; assinatura_r2_key?: string | null; detalhe?: string | null }[] }
   | { tipo: 'espaco'; altura: number };

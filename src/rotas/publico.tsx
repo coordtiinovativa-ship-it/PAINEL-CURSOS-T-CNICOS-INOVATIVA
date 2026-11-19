@@ -15,6 +15,7 @@ import { dataBR, dataExtenso } from '../lib/datas';
 import type { SnapshotCertificado } from '../certificado/snapshot';
 import { temaDoCookie } from './auth';
 import { ROTULO_DOCUMENTO, type TipoDocumento } from '../documentos/montar';
+import { ITEM_CATALOGO } from '../documentos/catalogo';
 import type { SnapshotDocumento } from '../documentos/emissao';
 
 interface DocumentoRow {
@@ -208,13 +209,14 @@ async function paginaDocumento(c: any, doc: DocumentoRow, tema: ReturnType<typeo
   const comChave = mesmoToken(c.req.query('t'), doc.token);
   await auditar(c, 'consulta_publica', 'documento', doc.id, null, { codigo: doc.codigo_validacao, via_qrcode: comChave }, PUBLICO);
   const rotulo = ROTULO_DOCUMENTO[doc.tipo];
-  const periodo = r.periodo.inicio && r.periodo.fim ? `${dataBR(r.periodo.inicio)} a ${dataBR(r.periodo.fim)}` : '—';
+  const periodo = r.periodo?.inicio && r.periodo.fim ? `${dataBR(r.periodo.inicio)} a ${dataBR(r.periodo.fim)}` : '—';
+  const feminino = ITEM_CATALOGO[doc.tipo]?.feminino ?? false;
   return c.html(
     <PaginaPublica titulo={`${rotulo} ${doc.codigo_validacao}`} tema={tema} rodape={<Rodape />}>
       {doc.status === 'válido' ? (
         <div class="selo ok">
           <Icone nome="valido" />
-          <div><b>{rotulo} {doc.tipo === 'historico_escolar' ? 'válido' : 'válida'}</b>Documento emitido e registrado pelo Instituto Inovativa.</div>
+          <div><b>{rotulo} {feminino ? 'válida' : 'válido'}</b>Documento emitido e registrado pelo Instituto Inovativa.</div>
         </div>
       ) : (
         <div class="selo erro">
@@ -233,9 +235,10 @@ async function paginaDocumento(c: any, doc: DocumentoRow, tema: ReturnType<typeo
         <dt>CPF</dt><dd>{mascararCPF(r.cpf)}</dd>
         <dt>Curso</dt><dd>{r.curso}</dd>
         <dt>Eixo tecnológico</dt><dd>{r.eixo}</dd>
-        <dt>Módulo temático</dt><dd>Módulo {r.modulo.ordem}: {r.modulo.nome} · {r.modulo.cargaHoraria} horas</dd>
+        {r.modulo && <><dt>Módulo temático</dt><dd>Módulo {r.modulo.ordem}: {r.modulo.nome} · {r.modulo.cargaHoraria} horas</dd>
         <dt>Qualificação</dt><dd>{r.rotuloQualificacao ?? 'Qualificação Profissional Técnica'} — {r.modulo.qualificacao}</dd>
-        <dt>Período</dt><dd>{periodo}</dd>
+        <dt>Período</dt><dd>{periodo}</dd></>}
+        {(r.itens ?? []).map(([k, v]) => <><dt>{k}</dt><dd>{v}</dd></>)}
         <dt>Data de emissão</dt><dd>{dataExtenso(r.dataEmissao)}</dd>
       </dl>
       <div class="acoes" style="margin-top:1rem">

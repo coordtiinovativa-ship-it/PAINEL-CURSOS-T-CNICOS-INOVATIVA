@@ -3,6 +3,7 @@ import { raw } from 'hono/html';
 import { pode, ROTULO_PERFIL, type Permissao } from '../auth/permissoes';
 import type { UsuarioSessao } from '../tipos';
 import { VERSAO_ATUAL } from '../novidades';
+import { CATALOGO, GRUPOS_DOCUMENTO, HREF_CENTRAL_DOCUMENTOS, hrefEmissao } from '../documentos/catalogo';
 
 export type Tema = 'sistema' | 'claro' | 'escuro';
 export const TEMAS: Tema[] = ['claro', 'sistema', 'escuro'];
@@ -75,6 +76,19 @@ a{color:var(--link)}
 .menu a.ativo::after{content:"";position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(180deg,var(--ciano),var(--verde-agua))}
 .menu .item-raiz.ativo{color:#5CC6F2}
 .menu .sep{height:1px;background:rgba(255,255,255,.12);margin:6px 16px 6px 30px}
+/* painel lateral (Emissão de Documentos, Relatórios) — abre ao lado do menu ao passar o mouse; no celular o item abre a tela */
+/* subgrupo recolhível dentro da seção (Emissão de Documentos, Relatórios): abre no próprio menu, sem cobrir a página */
+.menu details.voo{border-top:0;background:none}
+.menu details.voo>summary{padding:7px 16px 7px 30px;font-size:.9rem;color:#C9D9EC;gap:10px}
+.menu details.voo>summary::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.7;flex:none}
+.menu details.voo>summary .seta{width:14px;height:14px}
+.menu details.voo[open]>summary{color:#fff;font-weight:600}
+.menu details.voo>summary.ativo{color:#5CC6F2;font-weight:650;background:rgba(37,160,220,.10)}
+.menu .sub2{margin:2px 0 6px 34px;padding:2px 0 4px;border-left:1px solid rgba(255,255,255,.14)}
+.menu .sub2 .grupo-voo{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5CC6F2;padding:8px 12px 2px}
+.menu .sub2 a{padding:5px 12px 5px 14px;font-size:.84rem;line-height:1.3}
+.menu .sub2 a::before{width:4px;height:4px}
+.menu .sub2 a.ativo::after{left:-1px}
 .topo{position:sticky;top:0;z-index:30;display:flex;justify-content:flex-end;align-items:center;gap:.6rem;padding:10px 28px;
   background:color-mix(in srgb,var(--fundo) 88%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--borda)}
 .perfil-menu{position:relative}
@@ -242,7 +256,26 @@ export const Icone: FC<{ nome: string }> = ({ nome }) =>
       '</svg>',
   );
 
-type ItemMenu = { href: string; rotulo: string; perm?: Permissao; externo?: boolean } | { separador: true };
+/** Subgrupo de um item ("voo"): abre recolhível dentro do próprio menu, com a lista agrupada (ex.: documentos). */
+interface PainelMenu { grupos: { titulo?: string; itens: { href: string; rotulo: string; perm?: Permissao }[] }[] }
+type ItemMenu = { href: string; rotulo: string; perm?: Permissao; externo?: boolean; painel?: PainelMenu } | { separador: true };
+
+/** Documentos do catálogo, agrupados, para o painel "Emissão de Documentos". */
+const PAINEL_DOCUMENTOS: PainelMenu = {
+  grupos: GRUPOS_DOCUMENTO.map((g) => ({
+    titulo: g,
+    itens: CATALOGO.filter((i) => i.grupo === g).map((i) => ({ href: hrefEmissao(i.tipo), rotulo: i.rotulo, perm: 'relatorios.emitir' as Permissao })),
+  })),
+};
+const PAINEL_RELATORIOS: PainelMenu = {
+  grupos: [{
+    itens: [
+      { href: '/admin/relatorios#alunos-situacao', rotulo: 'Alunos por Situação de Matrícula' },
+      { href: '/admin/relatorios#controle', rotulo: 'Controle de Notas' },
+      { href: '/admin/relatorios#controle', rotulo: 'Controle de Faltas' },
+    ],
+  }],
+};
 interface SecaoMenu { id: string; rotulo: string; icone: string; itens: ItemMenu[] }
 
 /** Menu lateral no estilo SysGEP: seções recolhíveis com subitens. */
@@ -290,9 +323,11 @@ export const SECOES_MENU: SecaoMenu[] = [
       { href: '/admin/importacao', rotulo: 'Importar Planilhas', perm: 'alunos.editar' },
       { separador: true },
       { href: '/admin/certificados/pendentes', rotulo: 'Emissão de Certificados', perm: 'certificados.emitir' },
+      { href: HREF_CENTRAL_DOCUMENTOS, rotulo: 'Emissão de Documentos', perm: 'relatorios.emitir', painel: PAINEL_DOCUMENTOS },
       { href: '/admin/certificados', rotulo: 'Certificados Emitidos', perm: 'relatorios.emitir' },
-      { href: '/admin/documentos', rotulo: 'Declarações e Históricos', perm: 'relatorios.emitir' },
-      { href: '/admin/relatorios', rotulo: 'Relatórios', perm: 'relatorios.emitir' },
+      { href: '/admin/documentos', rotulo: 'Documentos Emitidos', perm: 'relatorios.emitir' },
+      { separador: true },
+      { href: '/admin/relatorios', rotulo: 'Relatórios', perm: 'relatorios.emitir', painel: PAINEL_RELATORIOS },
       { href: '/v', rotulo: 'Validação Pública', perm: 'relatorios.emitir', externo: true },
     ],
   },
@@ -320,6 +355,32 @@ function itensVisiveis(sec: SecaoMenu, u: UsuarioSessao): ItemMenu[] {
   });
 }
 
+/** Subgrupo recolhível (ex.: Emissão de Documentos): aberto quando a tela atual é dele; clique alterna e o estado é lembrado. */
+const SubMenu: FC<{ item: { href: string; rotulo: string }; painel: PainelMenu; usuario: UsuarioSessao; caminho: string; ativo: string | null }> = ({
+  item, painel, usuario, caminho, ativo,
+}) => {
+  const grupos = painel.grupos
+    .map((g) => ({ ...g, itens: g.itens.filter((x) => !x.perm || pode(usuario, x.perm)) }))
+    .filter((g) => g.itens.length);
+  const naTela = (href: string) => { const h = href.split('#')[0]; return caminho === h || caminho.startsWith(h + '/'); };
+  const atual = grupos.flatMap((g) => g.itens).find((x) => caminho === x.href.split('#')[0])?.href;
+  const aberto = item.href === ativo || grupos.some((g) => g.itens.some((x) => naTela(x.href)));
+  return (
+    <details class="voo" open={aberto} data-secao={`sub:${item.href}`}>
+      <summary class={item.href === ativo ? 'ativo' : ''}>{item.rotulo}<span class="seta"><Icone nome="seta" /></span></summary>
+      <div class="sub2">
+        <a href={item.href} class={caminho === item.href ? 'ativo' : ''}>Ver todos</a>
+        {grupos.map((g) => (
+          <>
+            {g.titulo && <div class="grupo-voo">{g.titulo}</div>}
+            {g.itens.map((x) => <a href={x.href} class={x.href === atual ? 'ativo' : ''}>{x.rotulo}</a>)}
+          </>
+        ))}
+      </div>
+    </details>
+  );
+};
+
 const Menu: FC<{ usuario: UsuarioSessao; caminho: string }> = ({ usuario, caminho }) => {
   const ativo = hrefAtivo(caminho);
   return (
@@ -338,6 +399,8 @@ const Menu: FC<{ usuario: UsuarioSessao; caminho: string }> = ({ usuario, caminh
               {itens.map((it) =>
                 'separador' in it ? (
                   <div class="sep" />
+                ) : it.painel ? (
+                  <SubMenu item={it} painel={it.painel} usuario={usuario} caminho={caminho} ativo={ativo} />
                 ) : (
                   <a href={it.href} class={it.href === ativo ? 'ativo' : ''} {...(it.externo ? { target: '_blank', rel: 'noopener' } : {})}>
                     {it.rotulo}

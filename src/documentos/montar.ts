@@ -7,15 +7,17 @@ import { formatarCPF } from '../lib/cpf';
 import { dataBR, dataExtenso } from '../lib/datas';
 import { numBR } from '../lib/form';
 import { preencherModelo } from '../lib/modelo';
-import { ROTULO_METODO } from '../lib/aprovacao';
+import type { TipoDocumento } from './catalogo';
+import {
+  assinaturasOficiais, camposCurso, camposIdentificacao, descricaoCurso, paragrafoAproveitamento, registrosAproveitamento,
+} from './comum';
 import type { Bloco, DocumentoLayout } from './tipos';
 
-export type TipoDocumento = 'declaracao_conclusao_modulo' | 'historico_escolar';
-export const TIPOS_DOCUMENTO: TipoDocumento[] = ['declaracao_conclusao_modulo', 'historico_escolar'];
-export const ROTULO_DOCUMENTO: Record<TipoDocumento, string> = {
-  declaracao_conclusao_modulo: 'Declaração de conclusão de módulo',
-  historico_escolar: 'Histórico escolar',
-};
+export type { TipoDocumento } from './catalogo';
+export { ROTULO_DOCUMENTO } from './catalogo';
+/** Documentos por módulo (matrícula + módulo), emitidos pelas rotas /admin/documentos/:tipo/:mat/:mod. */
+export type TipoDocumentoModulo = 'declaracao_conclusao_modulo' | 'historico_escolar';
+export const TIPOS_DOCUMENTO: TipoDocumentoModulo[] = ['declaracao_conclusao_modulo', 'historico_escolar'];
 
 export const TEXTO_DECLARACAO_PADRAO =
   'Declaramos, para os devidos fins, que {nome}, inscrito(a) no CPF sob o nº {cpf}, portador(a) do RG nº {rg} {rg_orgao}-{rg_uf}, nascido(a) em {data_nascimento_extenso}, concluiu com aprovação o MÓDULO TEMÁTICO {modulo}, com carga horária de {carga_horaria} horas, que confere a {tipo_qualificacao} de {qualificacao}, integrante do {curso} - Eixo Tecnológico: {eixo}, autorizado pela {ato_ppc_completo}, tendo cursado o módulo na turma {turma}, no período de {periodo}, com frequência de {frequencia}%. {situacao_certificado}';
@@ -35,16 +37,22 @@ export interface ResumoDocumento {
   cpf: string;
   curso: string;
   eixo: string;
-  modulo: { ordem: number; nome: string; qualificacao: string; cargaHoraria: number };
+  /** declaração e histórico por módulo */
+  modulo?: { ordem: number; nome: string; qualificacao: string; cargaHoraria: number };
   /** ausente em documentos emitidos antes de 16/11/2026 */
   rotuloQualificacao?: string;
-  periodo: { inicio: string | null; fim: string | null };
+  periodo?: { inicio: string | null; fim: string | null };
   dataEmissao: string;
-  situacaoModulo: 'aprovado' | 'reprovado' | 'em andamento';
+  situacaoModulo?: 'aprovado' | 'reprovado' | 'em andamento';
+  /** documentos da Secretaria: linhas mostradas na validação pública (sem dados pessoais além do permitido) */
+  itens?: [string, string][];
+  /** portarias: nº e texto citado em "Registro de Aproveitamento de Estudos" dos históricos */
+  numero?: string;
+  registro?: string;
 }
 
 export interface DocumentoPreparado {
-  tipo: TipoDocumento;
+  tipo: TipoDocumentoModulo;
   dados: DadosCertificado;
   layout: DocumentoLayout;
   resumo: ResumoDocumento;
@@ -66,7 +74,7 @@ function frequenciaModulo(d: DadosCertificado): number | null {
 
 export async function prepararDocumento(
   db: D1Database,
-  tipo: TipoDocumento,
+  tipo: TipoDocumentoModulo,
   matriculaId: number,
   moduloId: number,
   emissao: { dataEmissao?: string; codigo: string | null; url: string | null },
@@ -157,102 +165,76 @@ export async function prepararDocumento(
       ],
     }];
   } else {
+    // Modelo aprovado (MODELOS DOCUMENTOS/09 a 11): "Histórico Escolar da Qualificação Profissional Técnica em ..."
     titulo = `Histórico escolar — ${d.nomeExibido} — ${mod.nome}`;
     if (d.avaliacao.pendente) faltantes.push('Resultados do módulo incompletos (lance todas as notas e frequências)');
     for (const [k, r] of [
       ['nome_civil', 'Nome civil'], ['cpf', 'CPF'], ['rg', 'RG'], ['rg_orgao_expedidor', 'Órgão expedidor do RG'], ['rg_uf', 'UF do RG'],
       ['data_nascimento', 'Data de nascimento'], ['naturalidade_municipio', 'Naturalidade'], ['naturalidade_uf', 'UF de naturalidade'],
-      ['nome_mae', 'Nome da mãe'], ['ensino_medio_instituicao', 'Ensino médio: instituição'], ['ensino_medio_ano_conclusao', 'Ensino médio: ano de conclusão'],
+      ['nome_mae', 'Nome da mãe'],
     ] as const) if (vazio(a[k])) faltantes.push(`Aluno: ${r}`);
     const perfil = mod.perfil_profissional?.trim() || d.curso.perfil_profissional_conclusao?.trim() || null;
-    const competencias = (mod.competencias ?? '').split('\n').map((s) => s.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean);
+    const competencias = (mod.competencias ?? '').split('\n').map((s) => s.replace(/^\s*(?:[-•*]|\d+[.)])\s*/, '').trim()).filter(Boolean);
     if (!perfil) faltantes.push('Módulo: perfil profissional de conclusão não cadastrado (Cadastros → Cursos)');
     if (!competencias.length) faltantes.push('Módulo: competências não cadastradas (Cadastros → Cursos)');
 
-    const c = d.criterios;
-    const criterio = `AP = Aprovado · RP = Reprovado. Critérios de aprovação (PPC, seção 11.1.1): frequência mínima de ${numBR(c.frequenciaMinima)}% em cada componente e média igual ou superior a ${numBR(c.notaMinima, 1)}; ou, após exame final, média final igual ou superior a ${numBR(c.notaMinimaExame, 1)} (${ROTULO_METODO[c.metodoExame].toLowerCase()}). O módulo é concluído com aprovação em todos os componentes.`;
     const fmtNota = (n: number | null) => (n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 }));
-    const filiacao = [a.nome_pai, a.nome_mae].filter((x) => !vazio(x)).join(' e ') || null;
     const chTotal = d.disciplinas.reduce((s, x) => s + x.ch, 0);
+    const tituloQualif = `${rotulo} em ${qualif}`.toUpperCase();
+    const registros = await registrosAproveitamento(db, a.id, d.curso.id);
+    const cpf = a.cpf ? formatarCPF(a.cpf) : '—';
+    const certifica = situacao === 'aprovado'
+      ? `concluiu em ${pFim ? dataBR(pFim) : '____/____/______'} a ${rotulo} em ${qualif} do ${descricaoCurso(d.curso)}.`
+      : situacao === 'reprovado'
+        ? `cursou${periodo ? `, no período de ${periodo},` : ''} o Módulo Temático ${mod.nome} da ${rotulo} em ${qualif} do ${descricaoCurso(d.curso)}, não obtendo aprovação (RP).`
+        : `está cursando o Módulo Temático ${mod.nome} da ${rotulo} em ${qualif} do ${descricaoCurso(d.curso)}.`;
+    const assinaturasHist = assinaturasOficiais(d.diretor, d.secretario);
+    const cargoDiretor = d.diretor?.cargo ?? 'Diretora Pedagógica';
 
     paginas = [
       {
         blocos: [
-          { tipo: 'titulo', texto: 'HISTÓRICO ESCOLAR', subtitulo: `${rotuloNivel} — ${qualif} (Módulo ${mod.ordem}: ${mod.nome})` },
-          { tipo: 'secao', texto: 'Identificação do curso' },
-          {
-            tipo: 'campos', itens: [
-              { rotulo: 'Curso', valor: d.curso.nome, span: 4 },
-              { rotulo: 'Eixo tecnológico', valor: d.curso.eixo, span: 2 },
-              { rotulo: 'Área tecnológica', valor: d.curso.area_tecnologica ?? null },
-              { rotulo: 'Forma de oferta', valor: d.curso.forma_oferta ?? null },
-              { rotulo: 'Nível', valor: d.curso.nivel ?? null, span: 2 },
-              { rotulo: 'Ato de autorização', valor: atoTexto, span: 2 },
-              { rotulo: 'Turma', valor: d.turma.turma_codigo },
-              { rotulo: 'Período do módulo', valor: periodo, span: 2 },
-              { rotulo: 'Carga horária do módulo', valor: `${mod.carga_horaria} horas` },
-            ],
-          },
-          { tipo: 'secao', texto: 'Identificação do estudante' },
-          {
-            tipo: 'campos', itens: [
-              { rotulo: 'Nome', valor: d.nomeExibido, span: 3 },
-              { rotulo: 'RA', valor: a.ra },
-              { rotulo: 'CPF', valor: a.cpf ? formatarCPF(a.cpf) : null },
-              { rotulo: 'RG / órgão expedidor', valor: a.rg ? `${a.rg} ${a.rg_orgao_expedidor ?? ''}${a.rg_uf ? `-${a.rg_uf}` : ''}`.trim() : null },
-              { rotulo: 'Data de nascimento', valor: a.data_nascimento ? dataBR(a.data_nascimento) : null },
-              { rotulo: 'Nacionalidade', valor: a.nacionalidade },
-              { rotulo: 'Naturalidade', valor: a.naturalidade_municipio ? `${a.naturalidade_municipio}${a.naturalidade_uf ? `/${a.naturalidade_uf}` : ''}` : null, span: 2 },
-              { rotulo: 'Filiação', valor: filiacao, span: 2 },
-              { rotulo: 'Ensino médio — instituição', valor: a.ensino_medio_instituicao, span: 2 },
-              { rotulo: 'Município/UF', valor: a.ensino_medio_municipio ? `${a.ensino_medio_municipio}${a.ensino_medio_uf ? `/${a.ensino_medio_uf}` : ''}` : null },
-              { rotulo: 'Ano de conclusão', valor: a.ensino_medio_ano_conclusao == null ? null : String(a.ensino_medio_ano_conclusao) },
-            ],
-          },
-          { tipo: 'secao', texto: 'Componentes curriculares do módulo' },
+          { tipo: 'titulo', texto: `HISTÓRICO ESCOLAR DA ${tituloQualif}` },
+          camposIdentificacao({ ...a }, d.nomeExibido),
+          { tipo: 'secao', texto: 'Resultado dos estudos realizados' },
+          camposCurso(d.curso),
           {
             tipo: 'tabela',
             colunas: [
+              { titulo: 'Módulo temático', largura: 1.7 },
               { titulo: 'Componente curricular', largura: 5 },
-              { titulo: 'CH', largura: 0.9, alinhar: 'centro' },
-              { titulo: 'Média final', largura: 1.3, alinhar: 'centro' },
-              { titulo: 'Frequência (%)', largura: 1.5, alinhar: 'centro' },
-              { titulo: 'Resultado', largura: 1.3, alinhar: 'centro' },
+              { titulo: 'CH', largura: 0.8, alinhar: 'centro' },
+              { titulo: 'F', largura: 0.9, alinhar: 'centro' },
+              { titulo: 'M', largura: 0.9, alinhar: 'centro' },
             ],
-            linhas: d.disciplinas.map((x) => [
-              x.nome, String(x.ch), fmtNota(x.mediaFinal), x.frequencia == null ? '—' : numBR(x.frequencia, 1), x.resultado === 'PENDENTE' ? '—' : x.resultado,
-            ]),
-            total: ['Carga horária total do módulo', String(chTotal), '', freq == null ? '—' : numBR(freq, 1), situacao === 'aprovado' ? 'AP' : situacao === 'reprovado' ? 'RP' : '—'],
+            linhas: [
+              ...d.disciplinas.map((x, i) => [
+                i === 0 ? mod.nome : '', x.nome, String(x.ch), x.frequencia == null ? '—' : numBR(x.frequencia, 1), fmtNota(x.mediaFinal),
+              ]),
+              ['', 'TOTAL DA CARGA HORÁRIA', String(chTotal), '', ''],
+            ],
+            total: ['', 'RESULTADO FINAL', '', freq == null ? '—' : numBR(freq, 1), situacao === 'aprovado' ? 'AP' : situacao === 'reprovado' ? 'RP' : '—'],
           },
-          { tipo: 'nota', texto: criterio },
+          { tipo: 'paragrafo', texto: tituloQualif, negrito: true, alinhar: 'centro', tamanho: 10 },
+          { tipo: 'nota', texto: 'Legenda: F = Frequência (%)   CH = Carga Horária   M = Média   AP = Aprovado   RP = Reprovado' },
+          paragrafoAproveitamento(registros),
           {
-            tipo: 'paragrafo', negrito: true, alinhar: 'esquerda', tamanho: 10.5,
-            texto: `Situação no módulo: ${situacao === 'aprovado' ? 'APROVADO(A)' : situacao === 'reprovado' ? 'REPROVADO(A)' : 'EM ANDAMENTO'}`,
+            tipo: 'paragrafo', tamanho: 10.5, entrelinha: 1.5,
+            texto: `A ${cargoDiretor} do ${d.instituicao.razao_social}, no uso de suas atribuições legais, de acordo com o inciso VII do Artigo 24 da Lei nº 9.394/96, certifica que ${d.nomeExibido.toUpperCase()}, CPF: ${cpf}, ${certifica}`,
           },
           localData,
-          assinaturas,
+          assinaturasHist,
         ],
       },
       {
         blocos: [
-          { tipo: 'titulo', texto: 'HISTÓRICO ESCOLAR — VERSO', subtitulo: `${d.nomeExibido} · Módulo ${mod.ordem}: ${mod.nome}` },
-          { tipo: 'secao', texto: 'Perfil profissional de conclusão' },
-          { tipo: 'paragrafo', texto: perfil ?? '[perfil profissional de conclusão não cadastrado]', tamanho: 10, entrelinha: 1.45 },
-          { tipo: 'secao', texto: `Competências do módulo — ${qualif}` },
-          competencias.length ? { tipo: 'lista', itens: competencias } : { tipo: 'paragrafo', texto: '[competências não cadastradas]', tamanho: 10 },
-          { tipo: 'secao', texto: 'Registro do certificado' },
-          {
-            tipo: 'campos', itens: cert
-              ? [
-                { rotulo: 'Certificado', valor: `${rotulo} de ${qualif}`, span: 4 },
-                { rotulo: 'Registro nº', valor: cert.registro_numero },
-                { rotulo: 'Folha', valor: cert.folha },
-                { rotulo: 'Livro', valor: cert.livro },
-                { rotulo: 'Código SISTEC', valor: cert.codigo_autenticacao_sistec },
-              ]
-              : [{ rotulo: 'Certificado', valor: 'Certificado de qualificação ainda não expedido para este módulo.', span: 4 }],
-          },
-          { tipo: 'nota', texto: 'Documento expedido em conformidade com a Lei nº 9.394/1996, a Resolução CNE/CP nº 1/2021 e a Deliberação CEE/MS nº 10.603/2014.' },
+          { tipo: 'titulo', texto: `VERSO DO HISTÓRICO ESCOLAR DA ${tituloQualif}`, subtitulo: `${d.nomeExibido} · Módulo ${mod.ordem}: ${mod.nome}` },
+          { tipo: 'secao', texto: `Perfil e competências profissionais do ${qualif}` },
+          { tipo: 'paragrafo', texto: `Perfil Profissional: ${perfil ?? '[perfil profissional de conclusão não cadastrado]'}`, tamanho: 10, entrelinha: 1.45 },
+          { tipo: 'paragrafo', texto: 'Competências:', negrito: true, alinhar: 'esquerda', tamanho: 10 },
+          competencias.length ? { tipo: 'lista', itens: competencias, numerada: true } : { tipo: 'paragrafo', texto: '[competências não cadastradas]', tamanho: 10 },
+          { tipo: 'espaco', altura: 14 },
+          assinaturasHist,
         ],
       },
     ];

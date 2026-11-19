@@ -109,7 +109,7 @@ describe('ficha do aluno (estilo SysGEP)', () => {
     expect((await c.req('/admin/alunos/50/documentos', { method: 'POST', body: ruim })).status).toBe(400);
     // aluno com documento não pode ser excluído
     const ex = await c.post('/admin/alunos/50/excluir', {});
-    expect(decodeURIComponent(ex.headers.get('Location')!)).toContain('possui matrícula ou documentos');
+    expect(decodeURIComponent(ex.headers.get('Location')!)).toContain('possui matrícula, documentos anexados');
     // excluir documento: some da lista, registro continua
     await c.post(`/admin/alunos/50/documentos/${doc.id}/excluir`, {});
     expect(await (await c.req('/admin/alunos/50')).text()).not.toContain('rg.pdf');

@@ -23,6 +23,7 @@ body { font-family: Arial, Arimo, "Liberation Sans", Helvetica, sans-serif; colo
 .se { background: ${rgb(CORES.marinho)}; color: #fff; font-weight: 700; font-size: 8.5pt; text-transform: uppercase; padding: 1.5pt 6pt; height: 14pt; margin-bottom: 4pt }
 .pa { margin: 0 0 6pt } .pa.just { text-align: justify } .pa.centro { text-align: center } .pa.direita { text-align: right }
 .no { font-size: 8pt; color: ${rgb(CORES.cinza)}; line-height: 1.35; margin: 0 0 6pt }
+ol.li { padding-left: 14pt } ol.li li::marker { font-weight: 700 }
 .li { margin: 0 0 5pt; padding: 0 0 0 12pt; font-size: 9.5pt; line-height: 1.4 } .li li { margin-bottom: 3pt } .li li::marker { color: ${rgb(CORES.marinho)} }
 .ca { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 6pt; border-left: 0.5pt solid ${rgb(CORES.borda)}; border-top: 0.5pt solid ${rgb(CORES.borda)} }
 .ca div { border-right: 0.5pt solid ${rgb(CORES.borda)}; border-bottom: 0.5pt solid ${rgb(CORES.borda)}; padding: 2pt 4pt 2.5pt }
@@ -31,6 +32,8 @@ body { font-family: Arial, Arimo, "Liberation Sans", Helvetica, sans-serif; colo
 table.tb { width: 100%; border-collapse: collapse; margin-bottom: 8pt; font-size: 9pt }
 .tb th, .tb td { border: 0.5pt solid ${rgb(CORES.borda)}; padding: 2.5pt 4pt; line-height: 1.25; vertical-align: top }
 .tb th { background: ${rgb(CORES.cabecalhoTabela)}; font-size: 8.2pt } .tb tr:nth-child(odd) td { background: ${rgb(CORES.zebra)} }
+.tb.cp { font-size: 7.6pt } .tb.cp th { font-size: 7.2pt } .tb.cp th, .tb.cp td { padding: .8pt 4pt; line-height: 1.08 }
+.ca.cp small { display: inline; font-size: 6.3pt; margin-right: 3pt } .ca.cp small::after { content: ':' } .ca.cp span { font-size: 8.5pt; line-height: 1.15 } .ca.cp div { padding: 1.8pt 4pt 1.7pt }
 .tb tr.total td { background: ${rgb(CORES.cabecalhoTabela)}; font-weight: 700 }
 .as { display: flex; margin-top: 6pt; text-align: center } .as > div { flex: 1; padding: 0 10pt }
 .as .im { height: 12mm; display: flex; align-items: center; justify-content: center } .as .im img { max-height: 12mm; max-width: 100% }
@@ -43,6 +46,18 @@ table.tb { width: 100%; border-collapse: collapse; margin-bottom: 8pt; font-size
 .marca { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-40deg); font-size: 54pt; font-weight: 700; color: rgba(217,51,51,.16); white-space: nowrap; pointer-events: none }
 @media print { html, body { background: #fff } .pg { margin: 0; box-shadow: none } .nao-imprimir { display: none !important } .ph { visibility: hidden } }
 `;
+
+/** Células de uma linha; `null` mescla com a célula da esquerda (colspan). */
+const Celulas: FC<{ l: (string | null)[]; al: (i: number) => string }> = ({ l, al }) => (
+  <>
+    {l.map((t, i) => {
+      if (t === null && i > 0) return null;
+      let n = 1;
+      while (l[i + n] === null) n++;
+      return <td style={al(i)} colspan={n > 1 ? n : undefined}>{t ?? ''}</td>;
+    })}
+  </>
+);
 
 const Bl: FC<{ b: Bloco; url: (k: string | null | undefined) => string | null }> = ({ b, url }) => {
   switch (b.tipo) {
@@ -65,10 +80,10 @@ const Bl: FC<{ b: Bloco; url: (k: string | null | undefined) => string | null }>
     case 'nota':
       return <p class="no">{b.texto}</p>;
     case 'lista':
-      return <ul class="li">{b.itens.map((i) => <li>{i}</li>)}</ul>;
+      return b.numerada ? <ol class="li">{b.itens.map((i) => <li>{i}</li>)}</ol> : <ul class="li">{b.itens.map((i) => <li>{i}</li>)}</ul>;
     case 'campos':
       return (
-        <div class="ca">
+        <div class={`ca${b.compacta ? ' cp' : ''}`}>
           {b.itens.map((i) => (
             <div style={`grid-column:span ${i.span ?? 1}`}><small>{i.rotulo}</small><span class={i.valor ? '' : 'vz'}>{i.valor ?? '—'}</span></div>
           ))}
@@ -78,11 +93,11 @@ const Bl: FC<{ b: Bloco; url: (k: string | null | undefined) => string | null }>
       const soma = b.colunas.reduce((a, c) => a + c.largura, 0);
       const al = (i: number) => `text-align:${b.colunas[i].alinhar === 'centro' ? 'center' : b.colunas[i].alinhar === 'direita' ? 'right' : 'left'}`;
       return (
-        <table class="tb">
+        <table class={`tb${b.compacta ? ' cp' : ''}`}>
           <colgroup>{b.colunas.map((c) => <col style={`width:${(c.largura / soma) * 100}%`} />)}</colgroup>
           <tr>{b.colunas.map((c, i) => <th style={al(i)}>{c.titulo}</th>)}</tr>
-          {b.linhas.map((l) => <tr>{l.map((t, i) => <td style={al(i)}>{t}</td>)}</tr>)}
-          {b.total && <tr class="total">{b.total.map((t, i) => <td style={al(i)}>{t}</td>)}</tr>}
+          {b.linhas.map((l) => <tr><Celulas l={l} al={al} /></tr>)}
+          {b.total && <tr class="total"><Celulas l={b.total} al={al} /></tr>}
         </table>
       );
     }

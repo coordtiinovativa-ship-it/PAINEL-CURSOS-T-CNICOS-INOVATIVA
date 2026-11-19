@@ -10,7 +10,8 @@ import { dataBR } from '../lib/datas';
 import { mascararCPF } from '../lib/cpf';
 import { ROTULO_SITUACAO, type SituacaoModulo } from '../lib/turmaModulos';
 import { hojeMS, NaoEncontrado } from '../certificado/dados';
-import { prepararDocumento, ROTULO_DOCUMENTO, TIPOS_DOCUMENTO, type TipoDocumento } from '../documentos/montar';
+import { prepararDocumento, ROTULO_DOCUMENTO, TIPOS_DOCUMENTO, type TipoDocumento, type TipoDocumentoModulo } from '../documentos/montar';
+import { HREF_CENTRAL_DOCUMENTOS, ITEM_CATALOGO } from '../documentos/catalogo';
 import { DocumentoHtml } from '../documentos/html';
 import { gerarPdfDocumento } from '../documentos/pdf';
 import { emitirDocumento, ErroDocumento, recursosDocumento, type SnapshotDocumento } from '../documentos/emissao';
@@ -18,7 +19,7 @@ import { emitirDocumento, ErroDocumento, recursosDocumento, type SnapshotDocumen
 export const rotasDocumentos = new Hono<Env>();
 rotasDocumentos.use('*', exigir('relatorios.emitir'));
 
-const tipoValido = (t: string): t is TipoDocumento => (TIPOS_DOCUMENTO as string[]).includes(t);
+const tipoValido = (t: string): t is TipoDocumentoModulo => (TIPOS_DOCUMENTO as string[]).includes(t);
 const pdfResposta = (pdf: Uint8Array, nome: string, disp = 'inline') =>
   new Response(pdf, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `${disp}; filename="${nome}.pdf"`, 'Cache-Control': 'private, no-store' } });
 
@@ -101,28 +102,30 @@ rotasDocumentos.get('/', async (c) => {
   const turmaId = Number(c.req.query('turma')) || null;
   const lista = (
     await c.env.DB.prepare(
-      `SELECT d.id, d.tipo, d.codigo_validacao, d.data_emissao, d.status, d.emitido_por, t.codigo AS turma, mt.nome AS modulo,
+      `SELECT d.id, d.tipo, d.codigo_validacao, d.data_emissao, d.status, d.emitido_por, d.numero, t.codigo AS turma, mt.nome AS modulo,
               CASE WHEN a.usar_nome_social = 1 AND trim(coalesce(a.nome_social, '')) <> '' THEN a.nome_social ELSE a.nome_civil END AS aluno
-         FROM documentos d JOIN matriculas m ON m.id = d.matricula_id JOIN alunos a ON a.id = m.aluno_id
-         JOIN turmas t ON t.id = m.turma_id LEFT JOIN modulos_tematicos mt ON mt.id = d.modulo_id
-        WHERE ? = '' OR d.codigo_validacao LIKE ? OR a.nome_civil LIKE ? OR a.nome_social LIKE ? OR t.codigo LIKE ?
+         FROM documentos d JOIN alunos a ON a.id = d.aluno_id LEFT JOIN matriculas m ON m.id = d.matricula_id
+         LEFT JOIN turmas t ON t.id = m.turma_id LEFT JOIN modulos_tematicos mt ON mt.id = d.modulo_id
+        WHERE ? = '' OR d.codigo_validacao LIKE ? OR a.nome_civil LIKE ? OR a.nome_social LIKE ? OR t.codigo LIKE ? OR d.numero LIKE ?
         ORDER BY d.id DESC LIMIT 300`,
-    ).bind(q, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`).all<Record<string, any>>()
+    ).bind(q, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`).all<Record<string, any>>()
   ).results;
   return c.html(
-    <Pagina titulo="Declarações e históricos" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
-      <h1>Declarações e históricos</h1>
+    <Pagina titulo="Documentos Emitidos" usuario={c.get('usuario')} caminho={c.req.path} ok={c.req.query('ok')}>
+      <h1>Documentos Emitidos</h1>
+      <p class="muted" style="margin-top:-.6rem">Declarações, históricos, guias de transferência e portarias registrados. Para emitir outros documentos, use
+        {' '}<a href={HREF_CENTRAL_DOCUMENTOS}>Secretaria → Emissão de Documentos</a>.</p>
       <QuadroPrevia db={c.env.DB} turmaId={turmaId} />
       <h2>Emitidos</h2>
-      <form method="get" class="acoes"><input name="q" value={q} placeholder="Código, aluno ou turma" /><button class="sec">Buscar</button></form>
+      <form method="get" class="acoes"><input name="q" value={q} placeholder="Código, aluno, turma ou nº da portaria" /><button class="sec">Buscar</button></form>
       <table>
         <tr><th>Código</th><th>Documento</th><th>Aluno</th><th>Turma / módulo</th><th>Emissão</th><th>Situação</th><th></th></tr>
         {lista.map((d) => (
           <tr>
             <td><a href={`/admin/documentos/${d.id}`}><code>{d.codigo_validacao}</code></a></td>
-            <td>{ROTULO_DOCUMENTO[d.tipo as TipoDocumento]}</td>
+            <td>{ROTULO_DOCUMENTO[d.tipo as TipoDocumento]}{d.numero && <div class="muted">nº {d.numero}</div>}</td>
             <td>{d.aluno}</td>
-            <td>{d.turma}<div class="muted">{d.modulo}</div></td>
+            <td>{d.turma ?? '—'}<div class="muted">{d.modulo}</div></td>
             <td>{dataBR(d.data_emissao)}<div class="muted">{d.emitido_por}</div></td>
             <td><span class={`tag ${d.status === 'válido' ? 'ok' : 'erro'}`}>{d.status}</span></td>
             <td><a href={`/admin/documentos/${d.id}/pdf`} target="_blank">PDF</a></td>
@@ -140,7 +143,7 @@ function parametros(c: any) {
   return { tipo, mat: Number(c.req.param('mat')), mod: Number(c.req.param('mod')) };
 }
 
-async function tela(c: any, tipo: TipoDocumento, mat: number, mod: number, erros?: string[], dataEmissao = hojeMS()) {
+async function tela(c: any, tipo: TipoDocumentoModulo, mat: number, mod: number, erros?: string[], dataEmissao = hojeMS()) {
   const p = await prepararDocumento(c.env.DB, tipo, mat, mod, { dataEmissao, codigo: null, url: null });
   const bloqueios = erros ?? p.faltantes;
   const anteriores = (
@@ -149,7 +152,7 @@ async function tela(c: any, tipo: TipoDocumento, mat: number, mod: number, erros
     ).bind(tipo, mat, mod).all<{ id: number; codigo_validacao: string; data_emissao: string; status: string }>()
   ).results;
   const base = `/admin/documentos/${tipo}/${mat}/${mod}`;
-  const outro: TipoDocumento = tipo === 'historico_escolar' ? 'declaracao_conclusao_modulo' : 'historico_escolar';
+  const outro: TipoDocumentoModulo = tipo === 'historico_escolar' ? 'declaracao_conclusao_modulo' : 'historico_escolar';
   return (
     <Pagina voltar={`/admin/turmas/${p.dados.turma.turma_id}/modulos/${mod}`} titulo={ROTULO_DOCUMENTO[tipo]} usuario={c.get('usuario')} caminho="/admin/documentos">
       <h1>{ROTULO_DOCUMENTO[tipo]}</h1>
@@ -223,8 +226,8 @@ rotasDocumentos.post('/:tipo/:mat{[0-9]+}/:mod{[0-9]+}', async (c) => {
   const dataEmissao = texto(await lerCorpo(c), 'data_emissao') ?? '';
   try {
     const r = await emitirDocumento(c.env, c.get('usuario').email, tipo, mat, mod, dataEmissao);
-    await auditar(c, 'emitir', 'documento', r.id, null, { tipo, codigo: r.codigo, aluno: r.snapshot.resumo.aluno, modulo: r.snapshot.resumo.modulo.nome });
-    const msg = `${ROTULO_DOCUMENTO[tipo]} ${r.codigo} ${tipo === 'historico_escolar' ? 'emitido' : 'emitida'}.`;
+    await auditar(c, 'emitir', 'documento', r.id, null, { tipo, codigo: r.codigo, aluno: r.snapshot.resumo.aluno, modulo: r.snapshot.resumo.modulo?.nome });
+    const msg = `${ROTULO_DOCUMENTO[tipo]} ${r.codigo} ${ITEM_CATALOGO[tipo].feminino ? 'emitida' : 'emitido'}.`;
     return c.redirect(`/admin/documentos/${r.id}?ok=` + encodeURIComponent(msg));
   } catch (e) {
     if (e instanceof ErroDocumento) {
@@ -255,8 +258,9 @@ rotasDocumentos.get('/:id{[0-9]+}', async (c) => {
       <table style="max-width:900px">
         <tr><th>Estudante</th><td>{s.resumo.aluno} · CPF {mascararCPF(s.resumo.cpf)}</td></tr>
         <tr><th>Curso</th><td>{s.resumo.curso}</td></tr>
-        <tr><th>Módulo</th><td>Módulo {s.resumo.modulo.ordem}: {s.resumo.modulo.nome} — {s.resumo.modulo.qualificacao} ({s.resumo.modulo.cargaHoraria} h)</td></tr>
-        <tr><th>Situação no módulo</th><td>{s.resumo.situacaoModulo}</td></tr>
+        {s.resumo.modulo && <tr><th>Módulo</th><td>Módulo {s.resumo.modulo.ordem}: {s.resumo.modulo.nome} — {s.resumo.modulo.qualificacao} ({s.resumo.modulo.cargaHoraria} h)</td></tr>}
+        {s.resumo.situacaoModulo && <tr><th>Situação no módulo</th><td>{s.resumo.situacaoModulo}</td></tr>}
+        {(s.resumo.itens ?? []).map(([k, v]) => <tr><th>{k}</th><td>{v}</td></tr>)}
         <tr><th>Emissão</th><td>{dataBR(d.data_emissao)} · por {d.emitido_por}</td></tr>
         <tr><th>Validação</th><td><code>{s.layout.validacao.url}</code></td></tr>
         <tr><th>Hash SHA-256 dos dados</th><td><code style="word-break:break-all">{d.hash_sha256}</code></td></tr>

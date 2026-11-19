@@ -47,7 +47,8 @@ interface Ctx {
 export function quebrarTexto(t: string, font: PDFFont, size: number, largura: number, recuo = 0): string[] {
   const linhas: string[] = [];
   for (const paragrafo of t.split('\n')) {
-    const palavras = paragrafo.split(/\s+/).filter(Boolean);
+    // espaço não separável (U+00A0) fica dentro da palavra: caixas "(    )" e lacunas saem como no modelo
+    const palavras = paragrafo.split(/[^\S\u00A0]+/).filter(Boolean);
     let atual = '';
     for (const p of palavras) {
       const tentativa = atual ? `${atual} ${p}` : p;
@@ -194,8 +195,10 @@ function bloco(ctx: Ctx, bl: Exclude<Bloco, { tipo: 'tabela' }>, desenhar: boole
     case 'espaco':
       return bl.altura;
     case 'titulo': {
-      if (desenhar) centro(ctx, bl.texto, y, 15, ctx.b, MARINHO);
-      let h = 15 * LH + 2;
+      // títulos longos (ex.: "HISTÓRICO ESCOLAR DA QUALIFICAÇÃO ... EM TRABALHADOR EM AMBIENTE ORGANIZACIONAL") quebram em linhas
+      const lt = quebrarTexto(bl.texto, ctx.b, 15, LARG);
+      if (desenhar) lt.forEach((l, i) => centro(ctx, l, y + i * 15 * LH, 15, ctx.b, MARINHO));
+      let h = lt.length * 15 * LH + 2;
       if (bl.subtitulo) {
         const ls = quebrarTexto(bl.subtitulo, ctx.r, 10, LARG);
         if (desenhar) ls.forEach((l, i) => centro(ctx, l, y + h + i * 10 * LH, 10, ctx.r, CINZA));
@@ -237,10 +240,11 @@ function bloco(ctx: Ctx, bl: Exclude<Bloco, { tipo: 'tabela' }>, desenhar: boole
     }
     case 'lista': {
       let h = 0;
-      for (const it of bl.itens) {
+      for (const [n, it] of bl.itens.entries()) {
         const ls = quebrarTexto(it, ctx.r, 9.5, LARG - 12);
         if (desenhar) {
-          ctx.pagina.drawCircle({ x: X0 + 4, y: H - (y + h + 9.5 * 0.72), size: 1.4, color: MARINHO });
+          if (bl.numerada) texto(ctx, `${n + 1}.`, X0, y + h, 9.5, ctx.b, MARINHO, 9.5 * 1.4);
+          else ctx.pagina.drawCircle({ x: X0 + 4, y: H - (y + h + 9.5 * 0.72), size: 1.4, color: MARINHO });
           ls.forEach((l, i) => texto(ctx, l, X0 + 12, y + h + i * 9.5 * 1.4, 9.5, ctx.r, PRETO, 9.5 * 1.4));
         }
         h += ls.length * 9.5 * 1.4 + 3;
@@ -260,6 +264,33 @@ function bloco(ctx: Ctx, bl: Exclude<Bloco, { tipo: 'tabela' }>, desenhar: boole
         ocupadas += span;
       }
       if (linhaAtual.length) linhas.push(linhaAtual);
+      // compacta: "RÓTULO: valor" na mesma linha, como nos modelos (documentos longos, ex.: histórico do curso inteiro)
+      if (bl.compacta) {
+        const rot = 6.3, val = 8.5, lh = val * 1.15;
+        for (const ln of linhas) {
+          let x = X0;
+          const partes = ln.map((it) => {
+            const w = (it.span ?? 1) * colW;
+            const r = `${it.rotulo.toUpperCase()}:`;
+            const lw = ctx.b.widthOfTextAtSize(r, rot) + 3;
+            let ls = quebrarTexto(it.valor ?? '—', ctx.r, val, w - 8, lw);
+            // 1ª palavra não cabe depois do rótulo: o valor começa na linha de baixo (nunca invade a célula vizinha)
+            if (ctx.r.widthOfTextAtSize(ls[0], val) > w - 8 - lw) ls = ['', ...quebrarTexto(it.valor ?? '—', ctx.r, val, w - 8)];
+            return { it, w, r, lw, ls };
+          });
+          const hLinha = Math.max(...partes.map((p) => p.ls.length)) * lh + 3.5;
+          if (desenhar) {
+            for (const p of partes) {
+              retangulo(ctx, x, y + h, p.w, hLinha, { borda: BORDA });
+              texto(ctx, p.r, x + 4, y + h + 1.8 + (val - rot) * 0.75, rot, ctx.b, CINZA, lh);
+              p.ls.forEach((l, k) => texto(ctx, l, x + 4 + (k === 0 ? p.lw : 0), y + h + 1.8 + k * lh, val, ctx.r, p.it.valor ? PRETO : CINZA, lh));
+              x += p.w;
+            }
+          }
+          h += hLinha;
+        }
+        return h + 5;
+      }
       for (const ln of linhas) {
         let x = X0;
         const alturas = ln.map((it) => quebrarTexto(it.valor ?? '—', ctx.r, 9.5, (it.span ?? 1) * colW - 8).length);
@@ -307,36 +338,46 @@ function tabela(ctx: Ctx, bl: Extract<Bloco, { tipo: 'tabela' }>) {
   const soma = bl.colunas.reduce((a, c) => a + c.largura, 0);
   const larguras = bl.colunas.map((c) => (c.largura / soma) * LARG);
   const pad = 4;
-  const alturaLinha = (cels: string[], font: PDFFont, size: number) =>
-    Math.max(...cels.map((t, i) => quebrarTexto(t, font, size, larguras[i] - 2 * pad).length)) * size * 1.25 + 5;
+  const k = bl.compacta ? { lh: 1.08, extra: 1.6, topo: 0.8, corpo: 7.6, cab: 7.2 } : { lh: 1.25, extra: 5, topo: 2.5, corpo: 9, cab: 8.2 };
+  /** Células da linha com a largura de cada uma: `null` junta a coluna à célula da esquerda (célula mesclada). */
+  const segmentos = (cels: (string | null)[]) => {
+    const segs: { t: string; w: number; col: number }[] = [];
+    cels.forEach((t, i) => {
+      if (t === null && segs.length) segs[segs.length - 1].w += larguras[i];
+      else segs.push({ t: t ?? '', w: larguras[i], col: i });
+    });
+    return segs;
+  };
+  const alturaLinha = (cels: (string | null)[], font: PDFFont, size: number) =>
+    Math.max(...segmentos(cels).map((sg) => quebrarTexto(sg.t, font, size, sg.w - 2 * pad).length)) * size * k.lh + k.extra;
 
-  const desenharLinha = (cels: string[], font: PDFFont, size: number, fundo?: RGB) => {
+  const desenharLinha = (cels: (string | null)[], font: PDFFont, size: number, fundo?: RGB) => {
     const h = alturaLinha(cels, font, size);
     let x = X0;
-    cels.forEach((t, i) => {
-      retangulo(ctx, x, ctx.y, larguras[i], h, { fundo, borda: BORDA });
-      const al = bl.colunas[i].alinhar ?? 'esquerda';
-      quebrarTexto(t, font, size, larguras[i] - 2 * pad).forEach((l, k) => {
+    for (const sg of segmentos(cels)) {
+      retangulo(ctx, x, ctx.y, sg.w, h, { fundo, borda: BORDA });
+      const al = bl.colunas[sg.col].alinhar ?? 'esquerda';
+      quebrarTexto(sg.t, font, size, sg.w - 2 * pad).forEach((l, n) => {
         const w = font.widthOfTextAtSize(l, size);
-        const tx = al === 'centro' ? x + (larguras[i] - w) / 2 : al === 'direita' ? x + larguras[i] - pad - w : x + pad;
-        texto(ctx, l, tx, ctx.y + 2.5 + k * size * 1.25, size, font, PRETO, size * 1.25);
+        const tx = al === 'centro' ? x + (sg.w - w) / 2 : al === 'direita' ? x + sg.w - pad - w : x + pad;
+        texto(ctx, l, tx, ctx.y + k.topo + n * size * k.lh, size, font, PRETO, size * k.lh);
       });
-      x += larguras[i];
-    });
+      x += sg.w;
+    }
     ctx.y += h;
   };
   const titulos = bl.colunas.map((c) => c.titulo);
-  const cabecalho = () => desenharLinha(titulos, ctx.b, 8.2, cor(CORES.cabecalhoTabela));
+  const cabecalho = () => desenharLinha(titulos, ctx.b, k.cab, cor(CORES.cabecalhoTabela));
 
-  if (ctx.y + alturaLinha(titulos, ctx.b, 8.2) + alturaLinha(bl.linhas[0] ?? titulos, ctx.r, 9) > LIMITE) novaPagina(ctx);
+  if (ctx.y + alturaLinha(titulos, ctx.b, k.cab) + alturaLinha(bl.linhas[0] ?? titulos, ctx.r, k.corpo) > LIMITE) novaPagina(ctx);
   cabecalho();
   bl.linhas.forEach((ln, i) => {
-    if (ctx.y + alturaLinha(ln, ctx.r, 9) > LIMITE) { novaPagina(ctx); cabecalho(); }
-    desenharLinha(ln, ctx.r, 9, i % 2 ? cor(CORES.zebra) : undefined);
+    if (ctx.y + alturaLinha(ln, ctx.r, k.corpo) > LIMITE) { novaPagina(ctx); cabecalho(); }
+    desenharLinha(ln, ctx.r, k.corpo, i % 2 ? cor(CORES.zebra) : undefined);
   });
   if (bl.total) {
-    if (ctx.y + alturaLinha(bl.total, ctx.b, 9) > LIMITE) { novaPagina(ctx); cabecalho(); }
-    desenharLinha(bl.total, ctx.b, 9, cor(CORES.cabecalhoTabela));
+    if (ctx.y + alturaLinha(bl.total, ctx.b, k.corpo) > LIMITE) { novaPagina(ctx); cabecalho(); }
+    desenharLinha(bl.total, ctx.b, k.corpo, cor(CORES.cabecalhoTabela));
   }
   ctx.y += 8;
 }
