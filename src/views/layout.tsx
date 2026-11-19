@@ -172,9 +172,9 @@ code{font-size:.92em}
 .tela-login{min-height:100vh;display:grid;place-items:center;padding:24px;
   background:radial-gradient(1200px 600px at -10% -20%,rgba(37,160,220,.22),transparent 60%),radial-gradient(900px 500px at 110% 120%,rgba(0,168,144,.22),transparent 60%),var(--fundo)}
 .login{width:100%;max-width:400px;padding:0;overflow:hidden}
-.login .topo{background:#fff;padding:26px 28px 18px;text-align:center;border-bottom:1px solid var(--borda)}
-.login .topo img{max-width:230px;width:100%}
-.login .topo::after{content:"";display:block;height:4px;margin:18px -28px -18px;background:var(--degrade)}
+.login .login-logo{display:block;background:#fff;padding:26px 28px 18px;text-align:center;border-bottom:1px solid var(--borda)}
+.login .login-logo img{display:block;margin:0 auto;max-width:230px;width:100%;height:auto}
+.login .login-logo::after{content:"";display:block;height:4px;margin:18px -28px -18px;background:var(--degrade)}
 .login .corpo{padding:22px 28px 26px}
 .login h1{font-size:1.2rem;margin:0 0 .2rem}
 .login form{display:flex;flex-direction:column;gap:.85rem;margin-top:1rem}
@@ -583,7 +583,7 @@ export const PaginaLogin: FC<PropsWithChildren<{ titulo: string; tema: Tema; err
       <div class="tela-login">
         <div>
           <div class="cartao login">
-            <div class="topo"><img src="/modelo/logo.png" alt="Instituto Inovativa" /></div>
+            <div class="login-logo"><img src="/modelo/logo.png" alt="Instituto Inovativa" /></div>
             <div class="corpo">
               {erro && <div class="msg erro">{erro}</div>}
               {children}

@@ -35,6 +35,16 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.17.1',
+    data: '2026-11-19',
+    correcoes: [
+      {
+        titulo: 'Logo da tela de entrada centralizado',
+        texto: 'o logo do Instituto aparecia deslocado para a direita e cortado na tela de login; agora aparece inteiro e no centro.',
+      },
+    ],
+  },
+  {
     versao: '1.17.0',
     data: '2026-11-18',
     melhorias: [
