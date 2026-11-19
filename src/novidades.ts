@@ -35,6 +35,17 @@ export interface Versao {
 
 export const VERSOES: Versao[] = [
   {
+    versao: '1.17.2',
+    data: '2026-11-19',
+    melhorias: [
+      {
+        titulo: 'Logo do Início no tema escuro',
+        texto: 'no tema escuro, o logo da tela de Início aparece com as letras em branco, sem a caixa branca em volta.',
+        href: '/admin',
+      },
+    ],
+  },
+  {
     versao: '1.17.1',
     data: '2026-11-19',
     correcoes: [
